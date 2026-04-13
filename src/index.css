@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+:root {
+  --ablebiz-primary: #0f4d0f;
+  --ablebiz-cta: #5ce65c;
+  --ablebiz-bg: #ccffcc;
+  --ablebiz-accent: #005434;
+  --ablebiz-secondary: #008000;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-[var(--ablebiz-bg)] text-slate-900 antialiased;
+  }
+
+  a {
+    @apply underline-offset-4;
+  }
+
+  ::selection {
+    background: rgba(92, 230, 92, 0.35);
+  }
+}
+
+@layer components {
+  .prose {
+    @apply text-slate-800;
+  }
+  .prose h2 {
+    @apply mt-8 text-xl font-extrabold text-[color:var(--ablebiz-primary)] sm:text-2xl;
+  }
+  .prose h3 {
+    @apply mt-6 text-lg font-extrabold text-[color:var(--ablebiz-primary)];
+  }
+  .prose p {
+    @apply mt-4 leading-relaxed text-slate-700;
+  }
+  .prose ul {
+    @apply mt-4 list-disc space-y-2 pl-6 text-slate-700;
+  }
+  .prose ol {
+    @apply mt-4 list-decimal space-y-2 pl-6 text-slate-700;
+  }
+  .prose blockquote {
+    @apply mt-4 rounded-2xl border border-emerald-100 bg-white/70 p-4 text-slate-700 shadow-sm;
+  }
+  .prose a {
+    @apply font-semibold text-[color:var(--ablebiz-accent)] underline;
+  }
+  .prose hr {
+    @apply my-8 border-emerald-100;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
