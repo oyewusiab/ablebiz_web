@@ -44,16 +44,19 @@ export default function App() {
             <Route path="*" element={<NotFoundPage />} />
           </Route>
 
-          {/* Admin Porter Routes */}
-          <Route path="/admin-porter/login" element={<AdminLoginPage />} />
-          <Route path="/admin-porter" element={<ProtectedRoute><AdminPortalLayout /></ProtectedRoute>}>
-            <Route index element={<Navigate to="/admin-porter/dashboard" replace />} />
+          {/* Admin Portal Routes */}
+          <Route path="/admin/login" element={<AdminLoginPage />} />
+          <Route path="/admin" element={<ProtectedRoute><AdminPortalLayout /></ProtectedRoute>}>
+            <Route index element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="dashboard" element={<AdminDashboard />} />
             <Route path="referrals" element={<AdminReferrals />} />
             <Route path="clients" element={<AdminClients />} />
             <Route path="reports" element={<AdminReports />} />
             <Route path="settings" element={<AdminSettings />} />
           </Route>
+
+          {/* Legacy Redirects */}
+          <Route path="/admin-porter/*" element={<Navigate to="/admin" replace />} />
         </Routes>
       </GamificationProvider>
     </AuthProvider>

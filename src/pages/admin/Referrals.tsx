@@ -331,12 +331,127 @@ export function AdminReferrals() {
         </div>
       )}
 
-      {(activeTab === "conversions" || activeTab === "redemptions") && (
-        <div className="animate-in fade-in duration-500 py-20 text-center space-y-4">
-            <div className="mx-auto h-20 w-20 flex items-center justify-center rounded-3xl bg-slate-50 text-slate-300">
-               <Activity className="h-10 w-10 animate-pulse" />
-            </div>
-            <div className="text-sm font-bold text-slate-500 italic">Advanced logs are syncing with the unified Clients database.</div>
+      {activeTab === "conversions" && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+           <div className="flex items-center justify-between px-2">
+              <h3 className="text-xl font-bold italic tracking-tight">Referral History</h3>
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Showing last {getEnrichedConversions().length} successful links</div>
+           </div>
+
+           <Card className="overflow-hidden border-none shadow-xl ring-1 ring-slate-100">
+            <CardBody className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm whitespace-nowrap italic">
+                  <thead className="bg-slate-50 border-b border-slate-100">
+                    <tr>
+                      <th className="px-6 py-4 font-bold text-slate-500 text-[10px] uppercase">Referrer</th>
+                      <th className="px-6 py-4 font-bold text-slate-500 text-[10px] uppercase">Converted Client</th>
+                      <th className="px-6 py-4 font-bold text-slate-500 text-[10px] uppercase">Points</th>
+                      <th className="px-6 py-4 font-bold text-slate-500 text-[10px] uppercase text-right">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50 italic font-medium">
+                    {getEnrichedConversions().map((conv) => (
+                      <tr key={conv.id} className="hover:bg-slate-50/50 transition-all">
+                        <td className="px-6 py-4">
+                          <div className="font-bold text-slate-900">{conv.referrer?.name || conv.referrerCode}</div>
+                          <div className="text-[10px] text-slate-400 font-bold uppercase">{conv.referrerCode}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="font-bold text-slate-900">{conv.converted?.name || "System Record"}</div>
+                          <div className="text-[10px] text-slate-400 font-bold uppercase">{conv.converted?.email}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                           <span className="text-blue-600 font-black">+{conv.points}</span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <span className="text-[10px] font-black text-slate-400 uppercase">{new Date(conv.createdAt).toLocaleDateString()}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardBody>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === "redemptions" && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+           <div className="flex items-center justify-between px-2">
+              <h3 className="text-xl font-bold italic tracking-tight">Reward Requests</h3>
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{enrichedRedemptions.filter(r => r.status === "pending").length} Pending fulfillment</div>
+           </div>
+
+           <Card className="overflow-hidden border-none shadow-xl ring-1 ring-slate-100">
+            <CardBody className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm whitespace-nowrap italic">
+                  <thead className="bg-slate-50 border-b border-slate-100">
+                    <tr>
+                      <th className="px-6 py-4 font-bold text-slate-500 text-[10px] uppercase">Beneficiary</th>
+                      <th className="px-6 py-4 font-bold text-slate-500 text-[10px] uppercase">Reward Item</th>
+                      <th className="px-6 py-4 font-bold text-slate-500 text-[10px] uppercase">Status</th>
+                      <th className="px-6 py-4 font-bold text-slate-500 text-[10px] uppercase text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50 italic font-medium">
+                    {enrichedRedemptions.map((red) => (
+                      <tr key={red.id} className={`hover:bg-slate-50/50 transition-all ${red.status === 'fulfilled' ? 'opacity-60' : ''}`}>
+                        <td className="px-6 py-4">
+                          <div className="font-bold text-slate-900">{red.client?.name || "Unknown"}</div>
+                          <div className="text-[10px] text-slate-400 font-bold uppercase">{red.clientCode}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-black ring-1 ring-amber-100">
+                             <Gift className="h-3 w-3" /> {red.rewardTitle}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                           <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${
+                             red.status === 'fulfilled' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'
+                           }`}>
+                             {red.status}
+                           </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          {red.status === "pending" && (
+                            authUser?.role === "superadmin" ? (
+                              <button 
+                                onClick={() => {
+                                  updateRedemptionStatus(red.id, "fulfilled");
+                                  refreshData();
+                                }}
+                                className="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all"
+                              >
+                                <CheckCircle2 className="h-3 w-3" /> Mark Fulfilled
+                              </button>
+                            ) : (
+                              <div className="text-[10px] font-black text-slate-400 italic">Superadmin Only</div>
+                            )
+                          )}
+                          {red.status === "fulfilled" && (
+                            <span className="text-emerald-500 inline-flex items-center gap-1 text-[10px] font-black uppercase">
+                               <CheckCircle2 className="h-3 w-3" /> Handed Over
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {enrichedRedemptions.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-6 py-20 text-center">
+                           <Gift className="h-10 w-10 text-slate-100 mx-auto mb-4" />
+                           <div className="text-sm font-bold text-slate-300">No reward redemptions yet.</div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardBody>
+          </Card>
         </div>
       )}
     </div>

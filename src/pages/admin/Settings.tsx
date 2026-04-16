@@ -29,10 +29,12 @@ export function AdminSettings() {
     site, updateSite, 
     services, updateServices, 
     pricing, updatePricing,
+    referralTiers, updateReferralTiers,
+    spinRewards, updateSpinRewards,
     resetAll 
   } = useSiteConfig();
 
-  const [activeTab, setActiveTab] = useState<"general" | "services" | "pricing" | "referral">("general");
+  const [activeTab, setActiveTab] = useState<"general" | "services" | "pricing" | "referral" | "gamification">("general");
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
 
   const isSuper = user?.role === "superadmin";
@@ -66,12 +68,13 @@ export function AdminSettings() {
           <p className="mt-1 text-sm font-medium text-slate-500 italic">Global command for every word, price, and service on Ablebiz.</p>
         </div>
         
-        <div className="flex bg-slate-200/50 p-1.5 rounded-2xl ring-1 ring-slate-200">
+        <div className="flex flex-wrap bg-slate-200/50 p-1.5 rounded-2xl ring-1 ring-slate-200">
           {[
             { id: "general", label: "General", icon: Globe },
             { id: "services", label: "Services", icon: Briefcase },
             { id: "pricing", label: "Pricing", icon: Tag },
-            { id: "referral", label: "Referral Engine", icon: Zap },
+            { id: "referral", label: "Referrals", icon: Zap },
+            { id: "gamification", label: "Spin Wheel", icon: RefreshCcw },
           ].map((t) => (
             <button
               key={t.id}
@@ -98,12 +101,34 @@ export function AdminSettings() {
 
       {activeTab === "general" && (
         <div className="grid gap-8 animate-in fade-in duration-500">
+          <Card className="border-none shadow-xl shadow-slate-200/50 ring-1 ring-slate-200/50 bg-emerald-600 text-white overflow-hidden relative">
+             <div className="absolute top-0 right-0 p-8 opacity-10">
+                <ShieldCheck className="h-32 w-32" />
+             </div>
+             <CardBody className="p-10 relative">
+                <div className="flex items-center gap-4">
+                   <div className="h-16 w-16 rounded-full bg-white/20 flex items-center justify-center text-2xl font-black">
+                      {user?.name?.[0] || "A"}
+                   </div>
+                   <div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60">Session Authenticated</div>
+                      <h3 className="text-2xl font-black">{user?.name}</h3>
+                      <div className="flex items-center gap-2 mt-1">
+                         <span className="text-xs font-bold px-2 py-0.5 bg-white/10 rounded-lg">{user?.role}</span>
+                         <span className="h-1 w-1 rounded-full bg-white/30" />
+                         <span className="text-xs font-medium opacity-70">{user?.email}</span>
+                      </div>
+                   </div>
+                </div>
+             </CardBody>
+          </Card>
+
           <Card className="border-none shadow-xl shadow-slate-200/50 ring-1 ring-slate-200/50">
             <CardBody className="p-10 space-y-8">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <h3 className="text-xl font-bold italic tracking-tight">Core Branding</h3>
-                  <p className="text-xs font-medium text-slate-400">Basic site identity and contact info.</p>
+                   <h3 className="text-xl font-bold italic tracking-tight">Core Branding</h3>
+                   <p className="text-xs font-medium text-slate-400">Basic site identity and contact info.</p>
                 </div>
                 <Button onClick={() => triggerSave()} className="h-10 px-6 gap-2">
                    <Save className="h-4 w-4" /> Save General
@@ -412,16 +437,177 @@ export function AdminSettings() {
       )}
 
       {activeTab === "referral" && (
-         <div className="animate-in fade-in py-20 text-center space-y-6">
-            <div className="h-24 w-24 bg-amber-50 rounded-[40px] flex items-center justify-center mx-auto text-amber-500 shadow-inner">
-               <Zap className="h-10 w-10 animate-bounce" />
-            </div>
-            <div>
-               <h3 className="text-2xl font-black tracking-tight italic">Referral Tier Management</h3>
-               <p className="mt-2 text-slate-500 font-medium italic">Adjust point requirements and reward titles for the viral program.</p>
-            </div>
-            <div className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] animate-pulse">Configuration Module Loading...</div>
-         </div>
+        <div className="space-y-8 animate-in fade-in duration-500">
+           <div className="flex items-center justify-between px-2">
+              <h3 className="text-xl font-bold italic tracking-tight">Referral Rewards Engine</h3>
+              <Button onClick={() => triggerSave()} className="h-10 px-6 gap-2">
+                 <Save className="h-4 w-4" /> Save Rewards
+              </Button>
+           </div>
+           
+           <div className="grid gap-8">
+              {referralTiers.map((t, idx) => (
+                <Card key={idx} className="border-none shadow-xl shadow-slate-200/50 ring-1 ring-slate-200/50">
+                  <CardBody className="p-8 space-y-6">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                       <div className="flex items-center gap-4">
+                          <span className="h-8 w-8 rounded-lg bg-amber-500 text-white flex items-center justify-center font-black text-xs">{idx + 1}</span>
+                          <input 
+                            value={t.title}
+                            onChange={(e) => {
+                              const newT = [...referralTiers];
+                              newT[idx].title = e.target.value;
+                              updateReferralTiers(newT);
+                            }}
+                            className="text-lg font-black text-slate-900 border-none outline-none focus:text-amber-600 bg-transparent transition-colors"
+                          />
+                       </div>
+                       <button 
+                        onClick={() => {
+                          const newT = referralTiers.filter((_, i) => i !== idx);
+                          updateReferralTiers(newT);
+                        }}
+                        className="text-red-400 hover:text-red-500 p-2"
+                       >
+                         <Trash2 className="h-4 w-4" />
+                       </button>
+                    </div>
+
+                    <div className="grid gap-6 md:grid-cols-2">
+                       <label className="grid gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                          Referrals Required
+                          <input 
+                            type="number"
+                            value={t.referralsRequired}
+                            onChange={(e) => {
+                              const newT = [...referralTiers]; newT[idx].referralsRequired = parseInt(e.target.value) || 0; updateReferralTiers(newT);
+                            }}
+                            className="h-11 bg-slate-50 rounded-xl px-4 text-sm font-bold ring-1 ring-slate-100"
+                          />
+                       </label>
+                    </div>
+
+                    <label className="grid gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                       Reward Description / Note
+                       <textarea 
+                         value={t.note}
+                         onChange={(e) => {
+                           const newT = [...referralTiers]; newT[idx].note = e.target.value; updateReferralTiers(newT);
+                         }}
+                         className="min-h-20 w-full bg-slate-50 rounded-2xl p-4 text-sm font-medium"
+                       />
+                    </label>
+                  </CardBody>
+                </Card>
+              ))}
+              
+              <button 
+                onClick={() => {
+                  const newT = {
+                    referralsRequired: (referralTiers[referralTiers.length - 1]?.referralsRequired || 0) + 5,
+                    title: "New Reward",
+                    note: "Details about the reward..."
+                  };
+                  updateReferralTiers([...referralTiers, newT]);
+                }}
+                className="p-8 rounded-3xl border-4 border-dashed border-slate-100 text-slate-300 hover:border-amber-200 hover:text-amber-500 hover:bg-amber-50 transition-all flex flex-col items-center justify-center space-y-4"
+              >
+                <Plus className="h-12 w-12" />
+                <span className="text-sm font-black uppercase tracking-widest">Add New Reward Tier</span>
+              </button>
+           </div>
+        </div>
+      )}
+
+      {activeTab === "gamification" && (
+        <div className="space-y-8 animate-in fade-in duration-500">
+           <div className="flex items-center justify-between px-2">
+              <h3 className="text-xl font-bold italic tracking-tight">Spin Wheel Configuration</h3>
+              <Button onClick={() => triggerSave()} className="h-10 px-6 gap-2">
+                 <Save className="h-4 w-4" /> Save Prizes
+              </Button>
+           </div>
+           
+           <div className="grid gap-8">
+              {spinRewards.map((r, idx) => (
+                <Card key={idx} className="border-none shadow-xl ring-1 ring-slate-100">
+                  <CardBody className="p-8 space-y-6">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                       <div className="flex items-center gap-4">
+                          <span className="h-8 w-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-black text-xs">{idx + 1}</span>
+                          <input 
+                            value={r.title}
+                            onChange={(e) => {
+                              const newR = [...spinRewards]; newR[idx].title = e.target.value; updateSpinRewards(newR);
+                            }}
+                            className="text-lg font-black text-slate-900 border-none outline-none focus:text-blue-600 bg-transparent transition-colors"
+                          />
+                       </div>
+                       <button 
+                        onClick={() => {
+                          const newR = spinRewards.filter((_, i) => i !== idx); updateSpinRewards(newR);
+                        }}
+                        className="text-red-400 hover:text-red-500 p-2"
+                       >
+                         <Trash2 className="h-4 w-4" />
+                       </button>
+                    </div>
+
+                    <div className="grid gap-6 md:grid-cols-2">
+                       <label className="grid gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                          Logic Type (Internal ID)
+                          <input 
+                            value={r.type}
+                            onChange={(e) => {
+                              const newR = [...spinRewards]; newR[idx].type = e.target.value as any; updateSpinRewards(newR);
+                            }}
+                            className="h-11 bg-slate-50 rounded-xl px-4 text-sm font-bold ring-1 ring-slate-100"
+                          />
+                       </label>
+                       <label className="grid gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                          Probability Weight (0-100)
+                          <input 
+                            type="number"
+                            value={r.weight}
+                            onChange={(e) => {
+                              const newR = [...spinRewards]; newR[idx].weight = parseInt(e.target.value) || 0; updateSpinRewards(newR);
+                            }}
+                            className="h-11 bg-slate-50 rounded-xl px-4 text-sm font-bold ring-1 ring-slate-100"
+                          />
+                       </label>
+                    </div>
+
+                    <label className="grid gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                       Public Short Description
+                       <textarea 
+                         value={r.short}
+                         onChange={(e) => {
+                           const newR = [...spinRewards]; newR[idx].short = e.target.value; updateSpinRewards(newR);
+                         }}
+                         className="min-h-20 w-full bg-slate-50 rounded-2xl p-4 text-sm font-medium"
+                       />
+                    </label>
+                  </CardBody>
+                </Card>
+              ))}
+              
+              <button 
+                onClick={() => {
+                  const newR = {
+                    type: `custom_${Date.now()}` as any,
+                    title: "New Prize",
+                    short: "Details about the prize...",
+                    weight: 10
+                  };
+                  updateSpinRewards([...spinRewards, newR]);
+                }}
+                className="p-8 rounded-3xl border-4 border-dashed border-slate-100 text-slate-300 hover:border-blue-200 hover:text-blue-500 hover:bg-blue-50 transition-all flex flex-col items-center justify-center space-y-4"
+              >
+                <Plus className="h-12 w-12" />
+                <span className="text-sm font-black uppercase tracking-widest">Add New Wheel Prize</span>
+              </button>
+           </div>
+        </div>
       )}
     </div>
   );
@@ -440,16 +626,3 @@ function InputGroup({ label, value, onChange }: { label: string, value: string, 
   );
 }
 
-function CheckCircle2({ className }: { className?: string }) {
-  return (
-    <svg 
-      className={className} 
-      xmlns="http://www.w3.org/2000/svg" 
-      width="24" height="24" viewBox="0 0 24 24" 
-      fill="none" stroke="currentColor" strokeWidth="3" 
-      strokeLinecap="round" strokeLinejoin="round"
-    >
-      <path d="M20 6 9 17l-5-5"/>
-    </svg>
-  );
-}

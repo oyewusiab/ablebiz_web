@@ -20,11 +20,11 @@ export function ProtectedRoute({ children, requiredRole }: Props) {
   }
 
   if (!user) {
-    return <Navigate to="/admin-porter/login" state={{ from: location }} replace />;
+    return <Navigate to="/admin/login" state={{ from: location }} replace />;
   }
 
   if (requiredRole && user.role !== requiredRole && user.role !== "superadmin") {
-    return <Navigate to="/admin-porter/dashboard" replace />;
+    return <Navigate to="/admin/dashboard" replace />;
   }
 
   return <>{children}</>;

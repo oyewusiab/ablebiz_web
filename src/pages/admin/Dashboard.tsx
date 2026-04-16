@@ -12,7 +12,7 @@ import {
   ArrowUpRight
 } from "lucide-react";
 import { Card, CardBody } from "../../components/ui/Card";
-import { getBusinessHealthReport, getUnifiedClients } from "../../referrals/core";
+import { getBusinessHealthReport, getUnifiedClients, USER_GROUPS } from "../../referrals/core";
 
 export function AdminDashboard() {
   const stats = useMemo(() => getBusinessHealthReport(), []);
@@ -20,8 +20,8 @@ export function AdminDashboard() {
 
   const metricCards = [
     { label: "Total Interactors", value: stats.totalLeads + stats.totalSpins + stats.totalReferrers, icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
-    { label: "Active Referrers", value: stats.totalReferrers, icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50" },
-    { label: "Total Conversions", value: stats.totalConversions, icon: Target, color: "text-purple-600", bg: "bg-purple-50" },
+    { label: "Active Clients", value: (stats.groupBreakdown as any).client + (stats.groupBreakdown as any).returning_client + (stats.groupBreakdown as any).vip, icon: Target, color: "text-emerald-600", bg: "bg-emerald-50" },
+    { label: "Revenue Prospects", value: (stats.groupBreakdown as any).prospect, icon: TrendingUp, color: "text-purple-600", bg: "bg-purple-50" },
     { label: "Pending Rewards", value: stats.pendingRedemptions, icon: Gift, color: "text-amber-600", bg: "bg-amber-50" },
   ];
 
@@ -85,7 +85,14 @@ export function AdminDashboard() {
                          </div>
                          <div className="flex-1 space-y-1">
                             <div className="flex items-center justify-between">
-                               <div className="text-sm font-bold text-slate-900 group-hover/item:text-emerald-600 transition-colors">{c.name}</div>
+                                <div className="flex items-center gap-2">
+                                   <div className="text-sm font-bold text-slate-900 group-hover/item:text-emerald-600 transition-colors">{c.name}</div>
+                                   <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest ${
+                                      USER_GROUPS.find(g => g.id === (c as any).group)?.color || "bg-slate-100 text-slate-500"
+                                   }`}>
+                                      {(c as any).group || 'visitor'}
+                                   </span>
+                                </div>
                                <div className="text-[10px] font-medium text-slate-400 italic">{new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                             </div>
                             <div className="text-xs text-slate-500 font-medium italic">
@@ -155,6 +162,32 @@ export function AdminDashboard() {
                  </div>
                  <div className="pt-2">
                     <div className="text-xs font-medium text-slate-500 italic">User engagement is high. The gamification loop is successfully driving data acquisition.</div>
+                 </div>
+              </CardBody>
+           </Card>
+
+           <Card className="border-none shadow-xl ring-1 ring-slate-100 bg-white">
+              <CardBody className="p-8 space-y-6">
+                 <h3 className="text-sm font-black text-slate-900 uppercase tracking-[0.2em]">Group Distribution</h3>
+                 <div className="space-y-4">
+                    {USER_GROUPS.map((g) => {
+                       const count = (stats.groupBreakdown as any)[g.id] || 0;
+                       const total = stats.totalLeads + stats.totalSpins + stats.totalReferrers || 1;
+                       return (
+                          <div key={g.id} className="space-y-1.5">
+                             <div className="flex justify-between items-center text-[10px] font-bold">
+                                <span className="text-slate-500 uppercase tracking-widest">{g.label}</span>
+                                <span className="text-slate-900">{count}</span>
+                             </div>
+                             <div className="h-1.5 w-full bg-slate-50 rounded-full overflow-hidden">
+                                <div 
+                                   className={`h-full rounded-full ${g.color.split(' ')[0]}`}
+                                   style={{ width: `${(count / total) * 100}%` }}
+                                />
+                             </div>
+                          </div>
+                       );
+                    })}
                  </div>
               </CardBody>
            </Card>

@@ -3,6 +3,8 @@ import { Link, NavLink, useLocation } from "react-router-dom";
 import { Gift, Menu, Phone, X } from "lucide-react";
 import { useSiteConfig } from "../referrals/siteConfig";
 import { useGamification } from "../gamification/GamificationProvider";
+import { Button } from "./ui/Button";
+import { cn } from "../utils/cn";
 
 const nav = [
   { to: "/", label: "Home" },

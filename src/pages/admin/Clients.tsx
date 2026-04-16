@@ -26,7 +26,10 @@ import {
   deleteLead, 
   createOrUpdateClient,
   LeadStatus,
-  deleteReferralClient
+  deleteReferralClient,
+  generateAnonymousCode,
+  USER_GROUPS,
+  UserGroup
 } from "../../referrals/core";
 import { useAuth } from "../../auth/AuthContext";
 import { buildWhatsAppLink } from "../../content/site";
@@ -35,16 +38,17 @@ export function AdminClients() {
   const { user: authUser } = useAuth();
   const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState<"all" | "referral" | "consultation" | "spin">("all");
+  const [groupFilter, setGroupFilter] = useState<"all" | UserGroup>("all");
   const [clients, setClients] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<any>(null);
 
   // Form State
   const [formData, setFormData] = useState({
-    name: "",
     email: "",
     phone: "",
-    referralCode: ""
+    referralCode: "",
+    group: "prospect" as UserGroup
   });
 
   useEffect(() => {
@@ -59,9 +63,15 @@ export function AdminClients() {
           (c.email || "").toLowerCase().includes(search.toLowerCase()) ||
           (c.phone || "").toLowerCase().includes(search.toLowerCase());
         const matchesSource = sourceFilter === "all" || c.source === sourceFilter;
-        return matchesSearch && matchesSource;
+        const matchesGroup = groupFilter === "all" || c.group === groupFilter;
+        return matchesSearch && matchesSource && matchesGroup;
       });
-  }, [clients, search, sourceFilter]);
+  }, [clients, search, sourceFilter, groupFilter]);
+
+  const handleGroupChange = (id: string, group: UserGroup) => {
+    createOrUpdateClient({ id, group });
+    setClients(getUnifiedClients());
+  };
 
   const handleStatusChange = (id: string, source: string, newStatus: LeadStatus) => {
     if (source === "consultation") {
@@ -84,15 +94,16 @@ export function AdminClients() {
   const handleOpenModal = (client: any = null) => {
     if (client) {
       setEditingClient(client);
-      setFormData({
-        name: client.name || "",
-        email: client.email || "",
-        phone: client.phone || "",
-        referralCode: client.referralCode || ""
+      setFormData({ 
+        name: client.name || "", 
+        email: client.email || "", 
+        phone: client.phone || "", 
+        referralCode: client.referralCode || "",
+        group: client.group || "prospect"
       });
     } else {
       setEditingClient(null);
-      setFormData({ name: "", email: "", phone: "", referralCode: "" });
+      setFormData({ name: "", email: "", phone: "", referralCode: "", group: "prospect" });
     }
     setIsModalOpen(true);
   };
@@ -140,25 +151,51 @@ export function AdminClients() {
           />
         </div>
 
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-slate-400 mr-1" />
-          <div className="flex bg-slate-200/50 p-1 rounded-xl ring-1 ring-slate-200">
-            {[
-              { id: "all", label: "All" },
-              { id: "referral", label: "Referrers" },
-              { id: "consultation", label: "Consultation" },
-              { id: "spin", label: "Game Users" },
-            ].map((f) => (
-              <button
-                key={f.id}
-                onClick={() => setSourceFilter(f.id as any)}
-                className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${
-                  sourceFilter === f.id ? "bg-white text-emerald-600 shadow-md" : "text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+             <Filter className="h-4 w-4 text-slate-400 mr-1" />
+             <div className="flex bg-slate-200/50 p-1 rounded-xl ring-1 ring-slate-200">
+               {[
+                 { id: "all", label: "All Sources" },
+                 { id: "referral", label: "Referrers" },
+                 { id: "consultation", label: "Consultation" },
+                 { id: "spin", label: "Game Users" },
+               ].map((f) => (
+                 <button
+                   key={f.id}
+                   onClick={() => setSourceFilter(f.id as any)}
+                   className={`px-3 py-1.5 text-[8px] font-black uppercase tracking-wider rounded-lg transition-all ${
+                     sourceFilter === f.id ? "bg-white text-emerald-600 shadow-md" : "text-slate-500 hover:text-slate-800"
+                   }`}
+                 >
+                   {f.label}
+                 </button>
+               ))}
+             </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+             <div className="flex bg-slate-900/5 p-1 rounded-xl ring-1 ring-slate-200">
+               <button
+                 onClick={() => setGroupFilter("all")}
+                 className={`px-3 py-1.5 text-[8px] font-black uppercase tracking-wider rounded-lg transition-all ${
+                   groupFilter === "all" ? "bg-white text-slate-900 shadow-md" : "text-slate-400 hover:text-slate-600"
+                 }`}
+               >
+                 All Groups
+               </button>
+               {USER_GROUPS.map((g) => (
+                 <button
+                   key={g.id}
+                   onClick={() => setGroupFilter(g.id)}
+                   className={`px-3 py-1.5 text-[8px] font-black uppercase tracking-wider rounded-lg transition-all ${
+                     groupFilter === g.id ? "bg-white shadow-md text-emerald-600" : "text-slate-400 hover:text-slate-600"
+                   }`}
+                 >
+                   {g.label}
+                 </button>
+               ))}
+             </div>
           </div>
         </div>
       </div>
@@ -171,8 +208,8 @@ export function AdminClients() {
                 <tr>
                   <th className="px-6 py-4 font-bold text-slate-300">Client Info</th>
                   <th className="px-6 py-4 font-bold text-slate-300">Origin</th>
+                  <th className="px-6 py-4 font-bold text-slate-300">Business Group</th>
                   <th className="px-6 py-4 font-bold text-slate-300">Status</th>
-                  <th className="px-6 py-4 font-bold text-slate-300">Date</th>
                   <th className="px-6 py-4 font-bold text-slate-300 text-right">Actions</th>
                 </tr>
               </thead>
@@ -216,6 +253,19 @@ export function AdminClients() {
                         )}
                       </td>
                       <td className="px-6 py-5">
+                         <select
+                            value={c.group || "visitor"}
+                            onChange={(e) => handleGroupChange(c.id, e.target.value as UserGroup)}
+                            className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ring-1 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all cursor-pointer ${
+                               USER_GROUPS.find(g => g.id === c.group)?.color || "bg-slate-100 text-slate-500"
+                            }`}
+                         >
+                            {USER_GROUPS.map(g => (
+                               <option key={g.id} value={g.id}>{g.label.toUpperCase()}</option>
+                            ))}
+                         </select>
+                      </td>
+                      <td className="px-6 py-5">
                         {c.source === "consultation" ? (
                           <select
                             value={c.status || "pending"}
@@ -233,9 +283,6 @@ export function AdminClients() {
                             {c.status || "COMPLETED"}
                           </span>
                         )}
-                      </td>
-                      <td className="px-6 py-5 text-slate-500 font-medium text-xs">
-                        {new Date(c.createdAt).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-5 text-right">
                         <div className="flex justify-end gap-1.5">
@@ -334,14 +381,35 @@ export function AdminClients() {
                     {(!editingClient || formData.referralCode) && (
                       <label className="grid gap-2 text-xs font-black text-slate-400 uppercase tracking-widest">
                         Custom Referral Code (Optional)
-                        <input 
-                          value={formData.referralCode}
-                          onChange={(e) => setFormData({...formData, referralCode: e.target.value.toUpperCase()})}
-                          className="h-12 w-full bg-slate-50 rounded-2xl px-4 text-sm font-bold text-slate-900 ring-1 ring-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
-                          placeholder="Leave blank for auto-generate"
-                        />
+                        <div className="relative">
+                          <input 
+                            value={formData.referralCode}
+                            onChange={(e) => setFormData({...formData, referralCode: e.target.value.toUpperCase()})}
+                            className="h-12 w-full bg-slate-50 rounded-2xl px-4 text-sm font-bold text-slate-900 ring-1 ring-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 transition-all pr-24"
+                            placeholder="Leave blank for auto-generate"
+                          />
+                          <button 
+                            type="button"
+                            onClick={() => setFormData({...formData, referralCode: generateAnonymousCode()})}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 bg-slate-900 text-white text-[8px] font-black px-3 py-1.5 rounded-lg hover:bg-emerald-600 transition-all uppercase tracking-widest"
+                          >
+                            Magic Gen
+                          </button>
+                        </div>
                       </label>
                     )}
+                    <label className="grid gap-2 text-xs font-black text-slate-400 uppercase tracking-widest">
+                        Assigned Business Group
+                        <select 
+                          value={formData.group}
+                          onChange={(e) => setFormData({...formData, group: e.target.value as UserGroup})}
+                          className="h-12 w-full bg-slate-50 rounded-2xl px-4 text-sm font-bold text-slate-900 ring-1 ring-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
+                        >
+                           {USER_GROUPS.map(g => (
+                              <option key={g.id} value={g.id}>{g.label}</option>
+                           ))}
+                        </select>
+                    </label>
                  </div>
 
                  <div className="flex gap-4 pt-4">

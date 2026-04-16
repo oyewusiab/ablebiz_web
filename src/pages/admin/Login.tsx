@@ -12,7 +12,7 @@ export function AdminLoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const from = location.state?.from?.pathname || "/admin-porter/dashboard";
+  const from = location.state?.from?.pathname || "/admin/dashboard";
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,7 +33,7 @@ export function AdminLoginPage() {
             <Lock className="h-8 w-8 text-white" />
           </div>
           <h1 className="text-3xl font-black text-white tracking-tight">
-            ABLEBIZ <span className="text-emerald-400">PORTER</span>
+            ABLEBIZ <span className="text-emerald-400">PORTAL</span>
           </h1>
           <p className="mt-2 text-slate-400 text-sm font-medium">
             Enter your credentials to access the business management suite.
@@ -88,7 +88,7 @@ export function AdminLoginPage() {
             </div>
 
             <Button type="submit" className="h-12 mt-2 shadow-lg shadow-emerald-500/20">
-              Sign In to Porter
+              Sign In to Portal
             </Button>
           </form>
 

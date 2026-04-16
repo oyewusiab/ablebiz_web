@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Gift, Phone, Sparkles, X } from "lucide-react";
-import { spinRewards, type SpinRewardType } from "../content/gamification";
-import { buildWhatsAppLink, site } from "../content/site";
+import { type SpinRewardType } from "../content/gamification";
+import { buildWhatsAppLink } from "../content/site";
 import { Button } from "../components/ui/Button";
 import { Card, CardBody } from "../components/ui/Card";
 import {
@@ -15,6 +15,7 @@ import {
 
 import { downloadAblebizEbookPdf } from "../utils/ebookPdf";
 import { supabaseEnabled } from "../lib/supabaseClient";
+import { useSiteConfig } from "../referrals/siteConfig";
 
 type Props = {
   open: boolean;
@@ -27,20 +28,16 @@ const SEGMENT_COLORS = [
   "#CCFFCC",
   "#7CF07C",
   "#B8FFB8",
+  "#A3FFB8",
+  "#D1FFD1",
 ];
-
-function rewardIndex(type: SpinRewardType) {
-  return Math.max(
-    0,
-    spinRewards.findIndex((r) => r.type === type)
-  );
-}
 
 function copy(text: string) {
   return navigator.clipboard?.writeText(text);
 }
 
 export function SpinAndWinModal({ open, onClose, source }: Props) {
+  const { spinRewards, site } = useSiteConfig();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -51,7 +48,7 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
 
   const [spinning, setSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
-  const pendingRewardType = useRef<SpinRewardType | null>(null);
+  const pendingRewardType = useRef<string | null>(null);
 
   const [justCopied, setJustCopied] = useState<string | null>(null);
 
@@ -62,8 +59,6 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
     setRotation(0);
     pendingRewardType.current = null;
     setJustCopied(null);
-
-    // Don't wipe the form: users often close/reopen.
   }, [open]);
 
   // If user types phone/email that already exists, show existing reward (local mode only)
@@ -84,7 +79,7 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
 
   const wheelStyle = useMemo(() => {
     const stops: string[] = [];
-    const n = spinRewards.length;
+    const n = spinRewards.length || 1;
     for (let i = 0; i < n; i++) {
       const start = (i / n) * 100;
       const end = ((i + 1) / n) * 100;
@@ -95,7 +90,7 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
       backgroundImage: `conic-gradient(${stops.join(",")})`,
       transform: `rotate(${rotation}deg)`,
     } as React.CSSProperties;
-  }, [rotation]);
+  }, [rotation, spinRewards]);
 
   const canSpin =
     !spinning &&
@@ -104,10 +99,7 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
     phone.trim().length >= 6 &&
     !reward;
 
-
-
   const whatsapp = useMemo(() => {
-
     if (!reward) {
       return buildWhatsAppLink(
         "Hello ABLEBIZ, I want to register my business. Please guide me on the next steps."
@@ -120,7 +112,6 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
       `Name: ${name || user?.name || "-"}\n` +
       `Phone: ${phone || user?.phone || "-"}\n` +
       `Email: ${email || user?.email || "-"}\n` +
-
       (source ? `Source: ${source}\n` : "") +
       "\nPlease guide me on how to redeem this reward and start my registration.";
 
@@ -135,7 +126,7 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
         : `Hello ABLEBIZ, I want to register my business.\n\nName: ${name || "-"}\nPhone: ${phone || "-"}\nEmail: ${email || "-"}`
     );
     return `mailto:${site.email}?subject=${subject}&body=${body}`;
-  }, [reward, name, phone, email, user, source]);
+  }, [reward, name, phone, email, user, source, site.email]);
 
   const onSpin = () => {
     if (!canSpin) return;
@@ -143,33 +134,20 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
     const created = getOrCreateSpinUser({ name, email, phone });
     setUser(created);
 
-    // award reward first (for persistence)
     const r = awardRewardToUser(created.id);
     setReward(r);
 
-
-
-    // wheel animation
-    const idx = rewardIndex(r.type);
+    const idx = Math.max(0, spinRewards.findIndex((rew) => rew.type === r.type));
     pendingRewardType.current = r.type;
 
-    const n = spinRewards.length;
+    const n = spinRewards.length || 1;
     const segment = 360 / n;
 
-    // Align the chosen segment to the pointer at the top.
     const chosenCenter = idx * segment + segment / 2;
     const stopAt = 360 - chosenCenter;
 
     const baseSpins = 5;
-    const u = (() => {
-      try {
-        const arr = new Uint32Array(1);
-        crypto.getRandomValues(arr);
-        return (arr[0] ?? 0) / 2 ** 32;
-      } catch {
-        return Math.random();
-      }
-    })();
+    const u = Math.random();
     const jitter = u * (segment * 0.25) - segment * 0.125;
     const next = rotation + baseSpins * 360 + stopAt + jitter;
 
@@ -181,13 +159,8 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
     if (!spinning) return;
     setSpinning(false);
 
-    // auto deliver ebook reward
     if (reward?.type === "free_ebook") {
-      try {
-        downloadAblebizEbookPdf();
-      } catch {
-        // ignore
-      }
+      try { downloadAblebizEbookPdf(); } catch { }
     }
 
     if (sendToWhatsApp) {
@@ -216,159 +189,122 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
           <CardBody>
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="inline-flex items-center gap-2 text-lg font-extrabold text-[color:var(--ablebiz-primary)]">
-                  <Sparkles className="h-5 w-5" /> Spin & Win
+                <div className="inline-flex items-center gap-2 text-lg font-extrabold text-[#111827]">
+                  <Sparkles className="h-5 w-5 text-emerald-500" /> Spin & Win
                 </div>
-                <p className="mt-1 text-sm text-slate-700">
+                <p className="mt-1 text-sm text-slate-700 font-medium italic">
                   Get an instant reward and start your registration with confidence.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={onClose}
-                className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-slate-600 ring-1 ring-emerald-100 hover:bg-emerald-50"
+                className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-slate-600 ring-1 ring-emerald-100 hover:bg-emerald-50 transition-all shadow-sm"
               >
                 <X className="h-4 w-4" /> Close
               </button>
             </div>
 
-            <div className="mt-6 grid gap-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
-              <div className="space-y-4">
-                <div className="rounded-2xl bg-emerald-50 p-4 text-xs text-slate-700 ring-1 ring-emerald-100">
-                  We collect your details so we can follow up on WhatsApp/phone. No spam.
+            <div className="mt-6 grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
+              <div className="space-y-6">
+                <div className="rounded-2xl bg-emerald-50 p-4 text-xs font-black text-emerald-700 ring-1 ring-emerald-100 uppercase tracking-widest italic">
+                  Trusted by 5,000+ Nigerian Entrepreneurs
                 </div>
 
-                <div className="grid gap-4">
-                  <label className="grid gap-1 text-sm font-semibold text-slate-700">
+                <div className="grid gap-5">
+                  <label className="grid gap-1.5 text-xs font-black text-slate-500 uppercase tracking-widest px-1">
                     Name
                     <input
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                      className="h-12 rounded-xl bg-slate-50 px-4 text-sm font-bold ring-1 ring-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all"
                       placeholder="Your full name"
                       required
                     />
                   </label>
 
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <label className="grid gap-1 text-sm font-semibold text-slate-700">
+                    <label className="grid gap-1.5 text-xs font-black text-slate-500 uppercase tracking-widest px-1">
                       Email
                       <input
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                        className="h-12 rounded-xl bg-slate-50 px-4 text-sm font-bold ring-1 ring-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all"
                         placeholder="hello@..."
                         required
                       />
                     </label>
-                    <label className="grid gap-1 text-sm font-semibold text-slate-700">
+                    <label className="grid gap-1.5 text-xs font-black text-slate-500 uppercase tracking-widest px-1">
                       Phone (WhatsApp)
                       <input
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
-                        className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                        className="h-12 rounded-xl bg-slate-50 px-4 text-sm font-bold ring-1 ring-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all"
                         placeholder="e.g., 0816..."
                         required
                       />
                     </label>
                   </div>
 
-                  <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <label className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-slate-50 p-3 rounded-xl ring-1 ring-slate-100 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={sendToWhatsApp}
                       onChange={(e) => setSendToWhatsApp(e.target.checked)}
-                      className="h-4 w-4 rounded border-emerald-300"
+                      className="h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
                     />
-                    After I win, send my reward to WhatsApp automatically
+                    Chat on WhatsApp automatically after spin
                   </label>
 
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Button type="button" onClick={onSpin} disabled={!canSpin}>
-                      <Gift className="h-4 w-4" /> {reward ? "Reward claimed" : spinning ? "Spinning..." : "Spin Now"}
+                  <div className="flex flex-wrap items-center gap-4 pt-2">
+                    <Button type="button" onClick={onSpin} disabled={!canSpin} className="h-14 px-8 shadow-xl shadow-emerald-500/20 text-sm font-black uppercase tracking-widest">
+                      <Gift className="h-5 w-5 mr-2" /> {reward ? "Reward claimed" : spinning ? "Spinning..." : "Spin Now"}
                     </Button>
-                    <a
-                      href={whatsapp}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-sm font-semibold text-[color:var(--ablebiz-accent)] underline"
-                    >
-                      Prefer WhatsApp first?
-                    </a>
                   </div>
 
-                  {reward ? (
-                    <div className="rounded-2xl bg-white/80 p-4 ring-1 ring-emerald-100">
-                      <div className="text-sm font-extrabold text-[color:var(--ablebiz-primary)]">
-                        Your reward: {reward.title}
+                  {reward && (
+                    <div className="rounded-3xl bg-slate-900 p-8 text-white space-y-5 animate-in zoom-in-95 duration-500 relative overflow-hidden shadow-2xl">
+                      <div className="absolute top-0 right-0 p-8 opacity-10">
+                         <Sparkles className="h-32 w-32" />
                       </div>
-                      <div className="mt-1 text-sm text-slate-700">
-                        Reward code: <span className="font-semibold">{reward.code}</span>
-                      </div>
-
-                      <div className="mt-4 flex flex-wrap gap-3">
-                        <a
-                          href={whatsapp}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex h-11 items-center justify-center rounded-xl bg-[var(--ablebiz-cta)] px-4 text-sm font-extrabold text-slate-900 shadow-sm ring-1 ring-emerald-200 hover:brightness-95"
-                        >
-                          Chat on WhatsApp (Redeem)
-                        </a>
-                        <a
-                          href={mailto}
-                          className="inline-flex h-11 items-center justify-center rounded-xl bg-white px-4 text-sm font-semibold text-[color:var(--ablebiz-primary)] ring-1 ring-emerald-200 hover:bg-emerald-50"
-                        >
-                          Email us
-                        </a>
-                        <a
-                          href={`tel:${site.phone}`}
-                          className="inline-flex h-11 items-center justify-center rounded-xl bg-white px-4 text-sm font-semibold text-[color:var(--ablebiz-primary)] ring-1 ring-emerald-200 hover:bg-emerald-50"
-                        >
-                          <Phone className="h-4 w-4" /> Call
-                        </a>
-
-                      </div>
-
-                      <div className="mt-4 grid gap-2">
-                        <button
-                          type="button"
-                          onClick={() => copyWithToast("Reward code", reward.code)}
-                          className="text-left text-sm font-semibold text-[color:var(--ablebiz-accent)] underline"
-                        >
-                          Copy reward code
-                        </button>
-                        {justCopied ? (
-                          <div className="text-xs font-semibold text-slate-600">
-                            {justCopied} copied.
+                      <div className="relative">
+                        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400 mb-1">CONGRATULATIONS!</div>
+                        <h4 className="text-xl font-black italic tracking-tight">You won: {reward.title}</h4>
+                        <div className="mt-4 flex items-center justify-between bg-white/5 rounded-2xl p-4 ring-1 ring-white/10 italic">
+                          <div>
+                            <div className="text-[10px] text-slate-400 font-black uppercase mb-0.5">Reward Code</div>
+                            <div className="text-lg font-black tracking-widest">{reward.code}</div>
                           </div>
-                        ) : null}
-                      </div>
-
-                      {reward.type === "free_ebook" ? (
-                        <div className="mt-4 rounded-2xl bg-emerald-50 p-4 text-xs text-slate-700 ring-1 ring-emerald-100">
-                          Your ebook should download automatically. If it doesn’t, you can spin message us
-                          on WhatsApp and we’ll send it.
+                          <button
+                            type="button"
+                            onClick={() => copyWithToast("Reward code", reward.code)}
+                            className="bg-white/10 hover:bg-white/20 p-3 rounded-xl transition-all"
+                          >
+                            <Sparkles className="h-4 w-4 text-emerald-400" />
+                          </button>
                         </div>
-                      ) : null}
 
+                        <div className="grid gap-3 mt-6">
+                           <button
+                             onClick={() => window.open(whatsapp, "_blank", "noreferrer")}
+                             className="h-12 bg-emerald-500 text-slate-950 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-500/30 hover:scale-105 active:scale-95 transition-all"
+                           >
+                             Redeem on WhatsApp
+                           </button>
+                        </div>
+                      </div>
                     </div>
-                  ) : null}
+                  )}
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <div className="rounded-2xl bg-emerald-50 p-4 text-xs text-slate-700 ring-1 ring-emerald-100">
-                  <span className="font-extrabold text-[color:var(--ablebiz-primary)]">Fair spin:</span> each reward has an equal chance.
-                  One spin per phone/email (your reward is saved so you can redeem anytime).
-                </div>
-
-                <div className="grid place-items-center rounded-3xl bg-white/70 p-6 ring-1 ring-emerald-100">
+              <div className="space-y-6">
+                <div className="grid place-items-center rounded-3xl bg-slate-50 p-8 ring-1 ring-slate-200/50 shadow-inner italic">
                   <div className="relative">
-                    <div className="absolute -top-3 left-1/2 h-0 w-0 -translate-x-1/2 border-l-[12px] border-r-[12px] border-b-[18px] border-l-transparent border-r-transparent border-b-[color:var(--ablebiz-primary)]" />
+                    <div className="absolute -top-4 left-1/2 h-0 w-0 -translate-x-1/2 border-l-[14px] border-r-[14px] border-b-[20px] border-l-transparent border-r-transparent border-b-slate-900 z-10" />
                     <div
-                      className="relative h-48 w-48 sm:h-56 sm:w-56 md:h-64 md:w-64 rounded-full ring-1 ring-emerald-200 shadow-sm overflow-hidden"
+                      className="relative h-56 w-56 sm:h-64 sm:w-64 md:h-72 md:w-72 rounded-full ring-[12px] ring-white shadow-2xl overflow-hidden border-4 border-slate-900"
                       style={{
                         ...wheelStyle,
                         transition: spinning ? "transform 3.6s cubic-bezier(0.15, 0.75, 0.15, 1)" : "none",
@@ -377,16 +313,16 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
                       aria-label="Spin wheel"
                     >
                       {spinRewards.map((r, i) => {
-                        const n = spinRewards.length;
+                        const n = spinRewards.length || 1;
                         const segmentAngle = 360 / n;
-                        const rotation = i * segmentAngle + segmentAngle / 2;
+                        const rot = i * segmentAngle + segmentAngle / 2;
                         return (
                           <div
-                            key={r.type}
+                            key={r.type + i}
                             className="absolute inset-0"
-                            style={{ transform: `rotate(${rotation}deg)` }}
+                            style={{ transform: `rotate(${rot}deg)` }}
                           >
-                            <div className="absolute left-1/2 top-3 -translate-x-1/2 text-center text-[10px] font-extrabold text-emerald-950 leading-tight w-[4.5rem] px-0.5 pointer-events-none drop-shadow-sm">
+                            <div className="absolute left-1/2 top-4 -translate-x-1/2 text-center text-[10px] font-black text-slate-900 leading-tight w-[5rem] px-0.5 pointer-events-none drop-shadow-sm uppercase tracking-tight">
                               {r.title}
                             </div>
                           </div>
@@ -394,40 +330,31 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
                       })}
                     </div>
                     <div className="pointer-events-none absolute inset-0 grid place-items-center">
-                      <div className="grid h-16 w-16 place-items-center rounded-full bg-white shadow-sm ring-1 ring-emerald-200">
-                        <span className="text-xs font-extrabold text-[color:var(--ablebiz-primary)]">
-                          ABLEBIZ
-                        </span>
+                      <div className="h-16 w-16 rounded-full bg-white shadow-2xl ring-4 ring-slate-900 flex items-center justify-center font-black text-[9px] text-slate-900 uppercase tracking-widest scale-110">
+                        SPIN
                       </div>
                     </div>
                   </div>
 
-                  <div className="mt-5 w-full">
-                    <div className="text-xs font-extrabold text-[color:var(--ablebiz-primary)]">
-                      Rewards on the wheel
-                    </div>
-                    <div className="mt-2 grid gap-2 text-sm text-slate-700">
-                      {spinRewards.map((r) => (
+                  <div className="mt-8 w-full space-y-3">
+                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Rewards available</div>
+                    <div className="grid gap-2 text-sm text-slate-700">
+                      {spinRewards.slice(0, 4).map((r) => (
                         <div
                           key={r.type}
-                          className="flex items-start gap-2 rounded-xl bg-white/80 px-3 py-2 ring-1 ring-emerald-100"
+                          className="flex items-center justify-between rounded-xl bg-white px-4 py-2.5 ring-1 ring-slate-200 transition-all hover:scale-[1.02] shadow-sm"
                         >
-                          <span className="mt-0.5 inline-block h-2.5 w-2.5 rounded-full bg-emerald-400" />
-                          <div>
-                            <div className="font-semibold text-slate-900">{r.title}</div>
-                            <div className="text-xs text-slate-600">{r.short}</div>
-                          </div>
+                          <span className="text-xs font-bold text-slate-900">{r.title}</span>
+                          <Sparkles className="h-3 w-3 text-emerald-400" />
                         </div>
                       ))}
                     </div>
                   </div>
                 </div>
 
-
-
-                <div className="rounded-2xl bg-emerald-50 p-4 text-xs text-slate-700 ring-1 ring-emerald-100">
-                  Professional note: This MVP stores rewards locally in your browser and also sends your
-                  reward details to WhatsApp (optional) for ABLEBIZ to redeem quickly.
+                <div className="rounded-2xl bg-blue-50 p-5 text-[11px] font-medium text-blue-700 leading-relaxed ring-1 ring-blue-100 flex gap-4">
+                  <div className="h-8 w-8 rounded-lg bg-blue-600 text-white flex shrink-0 items-center justify-center font-black">!</div>
+                  <p>Rewards are linked to your phone/email. You can close this and come back later; your progress is automatically saved for secure redemption.</p>
                 </div>
               </div>
             </div>

@@ -1,4 +1,5 @@
-import { spinRewards, type SpinRewardType } from "../content/gamification";
+import { type SpinRewardType } from "../content/gamification";
+import { getSiteConfig } from "../referrals/siteConfig";
 import { uid, load, save, normalizePhone, secureUint32, secureRandomFloat } from "../utils/storageHelpers";
 
 export type SpinUser = {
@@ -72,6 +73,7 @@ export function getRewardForUser(userId: string) {
 }
 
 export function weightedPickRewardType(): SpinRewardType {
+  const { spinRewards } = getSiteConfig();
   const total = spinRewards.reduce((sum, r) => sum + r.weight, 0);
   const r = secureRandomFloat() * total;
   let acc = 0;
@@ -83,6 +85,7 @@ export function weightedPickRewardType(): SpinRewardType {
 }
 
 function rewardTitle(type: SpinRewardType) {
+  const { spinRewards } = getSiteConfig();
   return spinRewards.find((r) => r.type === type)?.title ?? "Reward";
 }
 

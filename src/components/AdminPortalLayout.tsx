@@ -21,16 +21,16 @@ export function AdminPortalLayout() {
   const navigate = useNavigate();
 
   const navItems = [
-    { name: "Dashboard", path: "/admin-porter/dashboard", icon: LayoutDashboard },
-    { name: "Referrals", path: "/admin-porter/referrals", icon: History },
-    { name: "Clients", path: "/admin-porter/clients", icon: Users },
-    { name: "Reports", path: "/admin-porter/reports", icon: BarChart3 },
-    { name: "Settings", path: "/admin-porter/settings", icon: Settings, superOnly: true },
+    { name: "Dashboard", path: "/admin/dashboard", icon: LayoutDashboard },
+    { name: "Referrals", path: "/admin/referrals", icon: History },
+    { name: "Clients", path: "/admin/clients", icon: Users },
+    { name: "Reports", path: "/admin/reports", icon: BarChart3 },
+    { name: "Settings", path: "/admin/settings", icon: Settings, superOnly: true },
   ];
 
   const handleLogout = () => {
     logout();
-    navigate("/admin-porter/login");
+    navigate("/admin/login");
   };
 
   const isActive = (path: string) => location.pathname === path;
@@ -46,7 +46,7 @@ export function AdminPortalLayout() {
         <div className="flex h-16 items-center justify-between px-4">
           {isSidebarOpen ? (
             <span className="text-xl font-black tracking-tighter text-white">
-              ABLEBIZ <span className="text-emerald-400">PORTER</span>
+              ABLEBIZ <span className="text-emerald-400">PORTAL</span>
             </span>
           ) : (
             <span className="text-xl font-black text-emerald-400 mx-auto">A</span>

@@ -6,19 +6,21 @@ import {
   Activity, 
   CheckCircle2, 
   Calendar,
-  AlertCircle
+  AlertCircle,
+  Users
 } from "lucide-react";
 import { Card, CardBody } from "../../components/ui/Card";
-import { getBusinessHealthReport } from "../../referrals/core";
+import { getBusinessHealthReport, USER_GROUPS } from "../../referrals/core";
 
 export function AdminReports() {
   const stats = useMemo(() => getBusinessHealthReport(), []);
 
-  // Mock Funnel Data based on actual stats
+  // Use actual funnel data from stats
   const funnel = [
-    { label: "Acquisition (Spins/Traffic)", value: stats.totalSpins, color: "bg-blue-500" },
-    { label: "Leads (Forms/Consultations)", value: stats.totalLeads, color: "bg-purple-500" },
-    { label: "Successful Conversions", value: stats.totalConversions, color: "bg-emerald-500" },
+    { label: "Discovery (Total Traffic/Spins)", value: stats.funnel.discovery, color: "bg-blue-500", icon: Activity },
+    { label: "Engagement (Leads + Game Plays)", value: stats.funnel.engagement, color: "bg-purple-500", icon: Target },
+    { label: "Lead Generation", value: stats.totalLeads, color: "bg-emerald-500", icon: CheckCircle2 },
+    { label: "Advocacy (Referrers)", value: stats.totalReferrers, color: "bg-amber-500", icon: Users },
   ];
 
   const milestones = [
@@ -44,19 +46,22 @@ export function AdminReports() {
           <CardBody className="p-8">
             <div className="flex items-center gap-2 mb-8">
               <Target className="h-5 w-5 text-emerald-500" />
-              <h3 className="text-lg font-bold text-slate-900">Success Funnel</h3>
+              <h3 className="text-lg font-bold text-slate-900">Conversion Pipeline</h3>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-8">
               {funnel.map((step, i) => (
                 <div key={step.label} className="relative">
                   <div className="flex justify-between items-end mb-2 px-1">
-                    <span className="text-xs font-black text-slate-400 uppercase tracking-widest">{step.label}</span>
+                    <div className="flex items-center gap-2">
+                      <step.icon className={`h-3.5 w-3.5 ${step.color.replace('bg-', 'text-')}`} />
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{step.label}</span>
+                    </div>
                     <span className="text-lg font-black text-slate-900">{step.value}</span>
                   </div>
-                  <div className="h-4 rounded-full bg-slate-100 overflow-hidden">
+                  <div className="h-4 rounded-full bg-slate-50 overflow-hidden ring-1 ring-slate-100 italic">
                     <div 
-                      className={`h-full ${step.color} rounded-full transition-all duration-1000`}
+                      className={`h-full ${step.color} rounded-full transition-all duration-1000 shadow-[0_0_15px_rgba(0,0,0,0.1)]`}
                       style={{ width: `${Math.min(100, (step.value / (funnel[0].value || 1)) * 100)}%` }}
                     />
                   </div>
@@ -67,14 +72,14 @@ export function AdminReports() {
               ))}
             </div>
 
-            <div className="mt-12 rounded-2xl bg-slate-50 p-6 flex items-start gap-4">
-              <div className="p-2 bg-white rounded-lg shadow-sm">
-                <TrendingUp className="h-5 w-5 text-emerald-500" />
+            <div className="mt-12 rounded-2xl bg-slate-900 p-6 flex items-start gap-4 text-white shadow-xl">
+              <div className="p-2 bg-white/10 rounded-lg shadow-sm">
+                <TrendingUp className="h-5 w-5 text-emerald-400" />
               </div>
               <div>
-                <div className="text-sm font-bold text-slate-900 italic">Conversion Analysis</div>
-                <p className="mt-1 text-xs text-slate-500 leading-relaxed font-medium">
-                  Currently, <span className="text-emerald-600 font-black">{stats.referralSuccessRate} referrals</span> are generated per client. Increasing the game-to-lead conversion by optimizing the Spin & Win UI could boost this by 15%.
+                <div className="text-sm font-bold text-white italic">Strategic Insight</div>
+                <p className="mt-1 text-xs text-slate-400 leading-relaxed font-medium">
+                  The current <span className="text-emerald-400 font-black">{( (stats.totalLeads / (stats.funnel.discovery || 1)) * 100 ).toFixed(1)}% discovery-to-lead</span> conversion suggests strong initial attraction. Focus on the engagement layer to pull more visitors into the lead funnel.
                 </p>
               </div>
             </div>
@@ -86,7 +91,7 @@ export function AdminReports() {
             <CardBody className="p-8">
               <div className="flex items-center gap-2 mb-6">
                 <CheckCircle2 className="h-5 w-5 text-blue-500" />
-                <h3 className="text-lg font-bold text-slate-900">Service Success</h3>
+                <h3 className="text-lg font-bold text-slate-900">Vertical Demand</h3>
               </div>
               
               <div className="grid gap-3">
@@ -130,6 +135,36 @@ export function AdminReports() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </CardBody>
+          </Card>
+
+           <Card className="border-none shadow-sm ring-1 ring-slate-200/50">
+            <CardBody className="p-8">
+              <div className="flex items-center gap-2 mb-6">
+                <Users className="h-5 w-5 text-purple-500" />
+                <h3 className="text-lg font-bold text-slate-900">Unified Group Breakdown</h3>
+              </div>
+              
+              <div className="space-y-4">
+                 {USER_GROUPS.map((g) => {
+                    const count = (stats.groupBreakdown as any)[g.id] || 0;
+                    const total = stats.funnel.discovery || 1;
+                    return (
+                       <div key={g.id} className="space-y-1.5">
+                          <div className="flex justify-between items-center text-[10px] font-bold">
+                             <span className="text-slate-500 uppercase tracking-widest">{g.label}</span>
+                             <span className="text-slate-900">{count} ({( (count/total)*100 ).toFixed(1)}%)</span>
+                          </div>
+                          <div className="h-2 w-full bg-slate-50 rounded-full overflow-hidden ring-1 ring-slate-100 italic">
+                             <div 
+                                className={`h-full rounded-full ${g.color.split(' ')[0]}`}
+                                style={{ width: `${(count / total) * 100}%` }}
+                             />
+                          </div>
+                       </div>
+                    );
+                 })}
               </div>
             </CardBody>
           </Card>
