@@ -20,39 +20,18 @@ type GamificationContextValue = {
   openSpin: (source?: OpenSource) => void;
   closeSpin: () => void;
   isSpinOpen: boolean;
-  referralCode?: string;
 };
 
 const GamificationContext = createContext<GamificationContextValue | null>(null);
 
 const SESSION = {
   prompted: "ablebiz_spin_prompted",
-  referral: "ablebiz_referral_code",
 } as const;
 
 export function GamificationProvider({ children }: PropsWithChildren) {
   const location = useLocation();
   const [isSpinOpen, setIsSpinOpen] = useState(false);
   const [openSource, setOpenSource] = useState<OpenSource>("manual");
-
-  const referralCode = useMemo(() => {
-    const sp = new URLSearchParams(location.search);
-    const ref = sp.get("ref")?.trim();
-    if (!ref) {
-      try {
-        return sessionStorage.getItem(SESSION.referral) ?? undefined;
-      } catch {
-        return undefined;
-      }
-    }
-
-    try {
-      sessionStorage.setItem(SESSION.referral, ref);
-    } catch {
-      // ignore
-    }
-    return ref;
-  }, [location.search]);
 
   const openSpin = (source: OpenSource = "manual") => {
     setOpenSource(source);
@@ -109,9 +88,9 @@ export function GamificationProvider({ children }: PropsWithChildren) {
   }, [location.pathname]);
 
   const value = useMemo<GamificationContextValue>(
-    () => ({ openSpin, closeSpin, isSpinOpen, referralCode }),
+    () => ({ openSpin, closeSpin, isSpinOpen }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isSpinOpen, referralCode]
+    [isSpinOpen]
   );
 
   return (
@@ -120,7 +99,6 @@ export function GamificationProvider({ children }: PropsWithChildren) {
       <SpinAndWinModal
         open={isSpinOpen}
         onClose={closeSpin}
-        referralCode={referralCode}
         source={openSource}
       />
     </GamificationContext.Provider>

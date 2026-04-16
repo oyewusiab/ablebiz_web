@@ -4,12 +4,12 @@ import { Seo } from "../components/Seo";
 import { PageHero } from "../components/PageHero";
 import { Container } from "../components/ui/Container";
 import { Button, ButtonLink } from "../components/ui/Button";
+import { useSiteConfig } from "../referrals/siteConfig";
 import { useGamification } from "../gamification/GamificationProvider";
 import { Card, CardBody } from "../components/ui/Card";
-import { services } from "../content/services";
 import { ServiceIcon } from "../components/ServiceIcon";
 import { AnimateIn } from "../components/AnimateIn";
-import { buildWhatsAppLink, site } from "../content/site";
+import { buildWhatsAppLink } from "../content/site";
 import { testimonials } from "../content/testimonials";
 import { CtaSection } from "../components/CtaSection";
 import { TrustBadges } from "../components/TrustBadges";
@@ -19,6 +19,7 @@ import { TrustVerificationSection } from "../components/TrustVerificationSection
 
 export function HomePage() {
   const { openSpin } = useGamification();
+  const { site, services } = useSiteConfig();
 
   const whatsapp = buildWhatsAppLink(
     "Hello ABLEBIZ, I’m ready to register my business. Please guide me."
@@ -48,12 +49,12 @@ export function HomePage() {
         }
         right={
           <div className="space-y-4">
-            <Card className="overflow-hidden">
-              <div className="aspect-[16/10] w-full bg-emerald-100">
+            <Card className="overflow-hidden transition-all duration-500 hover:shadow-2xl hover:-translate-y-1 group cursor-pointer">
+              <div className="aspect-[16/10] w-full bg-emerald-100 overflow-hidden">
                 <img
                   src="/images/hero-illustration.png"
                   alt="ABLEBIZ helps Nigerians register and grow their businesses"
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
                   loading="eager"
                 />
               </div>

@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { Gift, Menu, Phone, X } from "lucide-react";
-import { site } from "../content/site";
-import { cn } from "../utils/cn";
-import { Button } from "./ui/Button";
+import { useSiteConfig } from "../referrals/siteConfig";
 import { useGamification } from "../gamification/GamificationProvider";
 
 const nav = [
@@ -13,11 +11,12 @@ const nav = [
   { to: "/pricing", label: "Pricing" },
   { to: "/testimonials", label: "Testimonials" },
   { to: "/blog", label: "Blog" },
-  { to: "/contact", label: "Contact" },
+  { to: "/refer-and-earn", label: "Refer & Earn" },
 ];
 
 export function Header() {
   const { openSpin } = useGamification();
+  const { site } = useSiteConfig();
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
 
@@ -29,20 +28,8 @@ export function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-emerald-100 bg-[rgba(204,255,204,0.75)] backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-        <Link to="/" className="flex items-center gap-3 no-underline">
-          <div className="grid h-11 w-11 place-items-center rounded-2xl bg-white shadow-sm ring-1 ring-emerald-100">
-            <span className="text-lg font-extrabold text-[color:var(--ablebiz-primary)]">
-              A
-            </span>
-          </div>
-          <div className="leading-tight">
-            <div className="text-sm font-extrabold tracking-wide text-[color:var(--ablebiz-primary)]">
-              ABLEBIZ
-            </div>
-            <div className="text-xs font-medium text-[color:var(--ablebiz-accent)]">
-              Business Services
-            </div>
-          </div>
+        <Link to="/" className="flex items-center gap-2 no-underline">
+          <img src="/images/ablebiz-logo.png" alt="ABLEBIZ" className="h-[4.5rem] w-auto object-contain drop-shadow-sm" />
         </Link>
 
         <nav className="hidden items-center gap-6 md:flex">
@@ -97,7 +84,7 @@ export function Header() {
                     cn(
                       "rounded-xl px-3 py-2 text-sm font-semibold text-[color:var(--ablebiz-accent)] no-underline hover:bg-emerald-50",
                       isActive &&
-                        "bg-white text-[color:var(--ablebiz-primary)] ring-1 ring-emerald-100"
+                      "bg-white text-[color:var(--ablebiz-primary)] ring-1 ring-emerald-100"
                     )
                   }
                 >

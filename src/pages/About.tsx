@@ -4,11 +4,12 @@ import { PageHero } from "../components/PageHero";
 import { Container } from "../components/ui/Container";
 import { Card, CardBody } from "../components/ui/Card";
 import { CtaSection } from "../components/CtaSection";
-import { site } from "../content/site";
+import { useSiteConfig } from "../referrals/siteConfig";
 import { VideoEmbed } from "../components/VideoEmbed";
 import { TrustVerificationSection } from "../components/TrustVerificationSection";
 
 export function AboutPage() {
+  const { site } = useSiteConfig();
   return (
     <>
       <Seo

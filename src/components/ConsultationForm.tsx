@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { buildWhatsAppLink, site } from "../content/site";
-import { services } from "../content/services";
-import { Button } from "./ui/Button";
-import { Card, CardBody } from "./ui/Card";
+import { useSiteConfig } from "../referrals/siteConfig";
+import { recordReferralConversion, getLeads, saveLeads, ConsultationLead } from "../referrals/core";
+import { uid } from "../utils/storageHelpers";
 
 type PreferredContact = "WhatsApp" | "Phone Call" | "Email";
 
@@ -41,6 +41,7 @@ export function ConsultationForm({
   title = "Request a Consultation",
   subtitle = "Answer a few questions so we can respond faster with the right steps and a clear quote.",
 }: Props) {
+  const { services } = useSiteConfig();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -57,6 +58,7 @@ export function ConsultationForm({
     budgetOptions[0]
   );
   const [message, setMessage] = useState("");
+  const [referralCode, setReferralCode] = useState("");
 
   const [wantsReminders, setWantsReminders] = useState(false);
   const [selectedReminderTopics, setSelectedReminderTopics] = useState<string[]>([
@@ -73,6 +75,15 @@ export function ConsultationForm({
   };
  
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const code = sessionStorage.getItem("ablebiz_referral_code");
+        if (code) setReferralCode(code);
+      } catch {
+        // ignore
+      }
+    }
+
     if (!defaultServiceId) return;
     const found = services.find((s) => s.id === defaultServiceId);
     if (found) setServiceNeeded(found.title);
@@ -92,6 +103,7 @@ export function ConsultationForm({
       (wantsReminders
         ? `Reminder topics: ${selectedReminderTopics.length ? selectedReminderTopics.join(", ") : "-"}\n`
         : "") +
+      (referralCode ? `Referral Code: ${referralCode}\n` : "") +
       (source ? `Source: ${source}\n` : "") +
       `\nMessage: ${message || "-"}`
     );
@@ -106,6 +118,7 @@ export function ConsultationForm({
     wantsReminders,
     selectedReminderTopics,
     message,
+    referralCode,
     source,
   ]);
 
@@ -117,29 +130,19 @@ export function ConsultationForm({
     return `mailto:${site.email}?subject=${subject}&body=${body}`;
   }, [serviceNeeded, summaryText]);
 
-  const saveLead = () => {
-    try {
-      const key = "ablebiz_leads";
-      const existing = JSON.parse(localStorage.getItem(key) ?? "[]") as any[];
-      existing.unshift({
-        type: "consultation_request",
-        name,
-        phone,
-        email,
-        serviceNeeded,
-        preferredContact,
-        urgency,
-        budgetRange,
-        wantsReminders,
-        reminderTopics: wantsReminders ? selectedReminderTopics : [],
-        message,
-        source,
-        createdAt: new Date().toISOString(),
-      });
-      localStorage.setItem(key, JSON.stringify(existing.slice(0, 100)));
-    } catch {
-      // ignore
-    }
+  const saveLeadInternal = () => {
+    const leads = getLeads();
+    const newLead: ConsultationLead = {
+      id: uid(),
+      type: "consultation_request",
+      name,
+      phone,
+      email,
+      serviceNeeded,
+      status: "pending",
+      createdAt: new Date().toISOString(),
+    };
+    saveLeads([newLead, ...leads].slice(0, 100));
   };
 
   const copySummary = async () => {
@@ -154,7 +157,11 @@ export function ConsultationForm({
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    saveLead();
+    saveLeadInternal();
+
+    if (referralCode.trim()) {
+      recordReferralConversion(referralCode.trim(), { name, email, phone });
+    }
 
     if (preferredContact === "WhatsApp") {
       window.open(whatsapp, "_blank", "noreferrer");
@@ -329,6 +336,16 @@ export function ConsultationForm({
               onChange={(e) => setMessage(e.target.value)}
               className="min-h-28 rounded-xl bg-white px-3 py-2 text-sm ring-1 ring-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-400"
               placeholder="Tell us what you want to register, any deadlines, and any questions you have."
+            />
+          </label>
+
+          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+            Referral Code (optional)
+            <input
+              value={referralCode}
+              onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+              className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              placeholder="If you were referred, enter the code here"
             />
           </label>
 

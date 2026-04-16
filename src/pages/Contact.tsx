@@ -6,10 +6,12 @@ import { PageHero } from "../components/PageHero";
 import { Container } from "../components/ui/Container";
 import { Card, CardBody } from "../components/ui/Card";
 import { ButtonLink } from "../components/ui/Button";
-import { buildWhatsAppLink, site } from "../content/site";
+import { useSiteConfig } from "../referrals/siteConfig";
+import { buildWhatsAppLink } from "../content/site";
 import { ConsultationForm } from "../components/ConsultationForm";
 
 export function ContactPage() {
+  const { site } = useSiteConfig();
   const { search } = useLocation();
   const defaultServiceId = useMemo(() => {
     const sp = new URLSearchParams(search);

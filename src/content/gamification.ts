@@ -38,18 +38,3 @@ export const spinRewards: SpinRewardOption[] = [
   },
 ];
 
-export const referralRules = {
-  pointsPerReferral: 50,
-  rewards: [
-    {
-      referrals: 5,
-      title: "Free consultation",
-      note: "Reach 5 referrals in a month to unlock a free consultation.",
-    },
-    {
-      referrals: 10,
-      title: "Discount or free service",
-      note: "Reach 10 referrals to unlock a bigger discount or a free service add-on.",
-    },
-  ],
-} as const;

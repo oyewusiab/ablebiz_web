@@ -5,12 +5,13 @@ import { Container } from "../components/ui/Container";
 import { Card, CardBody } from "../components/ui/Card";
 import { Button, ButtonLink } from "../components/ui/Button";
 import { useGamification } from "../gamification/GamificationProvider";
-import { pricingTiers } from "../content/pricing";
+import { useSiteConfig } from "../referrals/siteConfig";
 import { buildWhatsAppLink } from "../content/site";
 import { CtaSection } from "../components/CtaSection";
 
 export function PricingPage() {
   const { openSpin } = useGamification();
+  const { pricing: pricingTiers } = useSiteConfig();
 
   const quoteLink = buildWhatsAppLink(
     "Hello ABLEBIZ, I need a custom quote. Please ask me the questions you need."
@@ -87,6 +88,35 @@ export function PricingPage() {
                 </CardBody>
               </Card>
             ))}
+          </div>
+
+          <div className="mt-8 rounded-3xl bg-emerald-50 p-6 ring-1 ring-emerald-100">
+            <div className="flex items-center gap-3">
+              <div className="grid h-12 w-12 place-items-center rounded-2xl bg-white ring-1 ring-emerald-200">
+                <Gift className="h-6 w-6 text-[color:var(--ablebiz-primary)]" />
+              </div>
+              <div>
+                <div className="text-lg font-extrabold text-[color:var(--ablebiz-primary)]">
+                  Refer & Earn Program
+                </div>
+                <p className="mt-1 text-sm text-slate-700">
+                  Know someone who needs to register their business? Refer them to ABLEBIZ and earn!
+                </p>
+              </div>
+            </div>
+            
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl bg-white p-4 ring-1 ring-emerald-200">
+                <div className="text-sm font-extrabold text-[color:var(--ablebiz-secondary)]">5 Referrals</div>
+                <div className="mt-1 text-sm font-semibold text-slate-900">Unlock a free consultation</div>
+                <p className="mt-1 text-xs text-slate-600">Reach 5 referrals in a month to unlock a free session with our experts.</p>
+              </div>
+              <div className="rounded-2xl bg-white p-4 ring-1 ring-emerald-200">
+                <div className="text-sm font-extrabold text-[color:var(--ablebiz-secondary)]">10 Referrals</div>
+                <div className="mt-1 text-sm font-semibold text-slate-900">Discount or free service</div>
+                <p className="mt-1 text-xs text-slate-600">Reach 10 referrals to unlock a bigger discount or a free service add-on.</p>
+              </div>
+            </div>
           </div>
 
           <div className="mt-10 rounded-3xl bg-white/70 p-6 ring-1 ring-emerald-100">

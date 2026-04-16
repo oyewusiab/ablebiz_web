@@ -23,7 +23,7 @@ export const site = {
       { label: "Coverage", value: "Nigeria-wide" },
     ],
   },
-} as const;
+};
 
 export function buildWhatsAppLink(message: string) {
   const text = encodeURIComponent(message);

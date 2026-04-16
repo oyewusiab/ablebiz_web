@@ -1,10 +1,12 @@
 import { Link } from "react-router-dom";
 import { Mail, MapPin, Phone } from "lucide-react";
-import { site, buildWhatsAppLink } from "../content/site";
+import { useSiteConfig } from "../referrals/siteConfig";
+import { buildWhatsAppLink } from "../content/site";
 import { Container } from "./ui/Container";
 import { ButtonLink } from "./ui/Button";
 
 export function Footer() {
+  const { site } = useSiteConfig();
   const whatsapp = buildWhatsAppLink(
     "Hello ABLEBIZ, I’m ready to register. Please share the next steps."
   );

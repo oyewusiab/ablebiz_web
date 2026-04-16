@@ -4,7 +4,7 @@ import { Seo } from "../components/Seo";
 import { PageHero } from "../components/PageHero";
 import { Container } from "../components/ui/Container";
 import { Card, CardBody } from "../components/ui/Card";
-import { services } from "../content/services";
+import { useSiteConfig } from "../referrals/siteConfig";
 import { ServiceIcon } from "../components/ServiceIcon";
 import { CtaSection } from "../components/CtaSection";
 import { ConsultationForm } from "../components/ConsultationForm";
@@ -14,6 +14,7 @@ import { FaqAccordion } from "../components/FaqAccordion";
 import { TrustVerificationSection } from "../components/TrustVerificationSection";
 
 export function ServicesPage() {
+  const { services } = useSiteConfig();
   const { hash, search } = useLocation();
   const defaultServiceId = useMemo(() => {
     const sp = new URLSearchParams(search);
