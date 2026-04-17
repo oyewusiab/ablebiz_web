@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { 
   Users, 
   TrendingUp, 
@@ -9,14 +8,22 @@ import {
   Gamepad2,
   CheckCircle2,
   Clock,
-  ArrowUpRight
+  ArrowUpRight,
+  RefreshCw
 } from "lucide-react";
 import { Card, CardBody } from "../../components/ui/Card";
 import { getBusinessHealthReport, getUnifiedClients, USER_GROUPS } from "../../referrals/core";
+import { useStorageData } from "../../utils/useStorageData";
 
 export function AdminDashboard() {
-  const stats = useMemo(() => getBusinessHealthReport(), []);
-  const recentClients = useMemo(() => getUnifiedClients().slice(0, 6), []);
+  const [stats, refresh] = useStorageData(getBusinessHealthReport);
+  const [allClients, refreshClients] = useStorageData(getUnifiedClients);
+  const recentClients = allClients.slice(0, 6);
+
+  const handleRefresh = () => {
+    refresh();
+    refreshClients();
+  };
 
   const metricCards = [
     { label: "Total Interactors", value: stats.totalLeads + stats.totalSpins + stats.totalReferrers, icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
@@ -32,11 +39,17 @@ export function AdminDashboard() {
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Business Command</h1>
           <p className="mt-1 text-sm font-medium text-slate-500 italic">Real-time pulse of your registration flywheel.</p>
         </div>
-        <div className="flex gap-2">
-            <span className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-4 py-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-600 ring-1 ring-emerald-500/20">
-               <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-               Live System Active
-            </span>
+        <div className="flex gap-3">
+          <button
+            onClick={handleRefresh}
+            className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-xs font-black text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50 transition-all active:scale-95"
+          >
+            <RefreshCw className="h-3.5 w-3.5" /> Refresh
+          </button>
+          <span className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-4 py-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-600 ring-1 ring-emerald-500/20">
+             <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+             Live — Auto Updates
+          </span>
         </div>
       </div>
 
@@ -70,6 +83,12 @@ export function AdminDashboard() {
                  </div>
 
                  <div className="space-y-6">
+                    {recentClients.length === 0 && (
+                      <div className="text-center py-10 text-slate-300">
+                        <Users className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                        <p className="text-sm font-medium">No activity yet. Data loads automatically.</p>
+                      </div>
+                    )}
                     {recentClients.map((c) => (
                       <div key={c.id} className="flex gap-4 group/item">
                          <div className="relative">
@@ -114,6 +133,9 @@ export function AdminDashboard() {
               <CardBody className="p-8 relative">
                  <h3 className="text-lg font-bold mb-6">Service Demand Heatmap</h3>
                  <div className="space-y-4">
+                    {Object.entries(stats.leadsByService).length === 0 && (
+                      <p className="text-slate-500 text-xs font-medium italic">Waiting for consultation data...</p>
+                    )}
                     {Object.entries(stats.leadsByService).map(([name, count]: any) => (
                       <div key={name} className="space-y-1">
                          <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-400">
@@ -196,3 +218,4 @@ export function AdminDashboard() {
     </div>
   );
 }
+

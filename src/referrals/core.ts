@@ -120,12 +120,23 @@ export function getOrCreateReferralClient(input: {
   const existing = findClientByPhoneOrEmail(input.phone, input.email);
   if (existing) return existing;
 
+  // Determine referral code: honour a clean provided code if it's unique,
+  // otherwise fall back to the collision-safe generator.
+  let finalCode: string;
+  if (input.referralCode) {
+    const candidate = input.referralCode.trim().toUpperCase();
+    const isDuplicate = clients.some((c) => c.referralCode.toUpperCase() === candidate);
+    finalCode = isDuplicate ? generateCode(clients) : candidate;
+  } else {
+    finalCode = generateCode(clients);
+  }
+
   const client: ReferralClient = {
     id: uid(),
     name: input.name.trim(),
     email: input.email.trim(),
     phone: normalizePhone(input.phone),
-    referralCode: generateCode(clients),
+    referralCode: finalCode,
     group: "client",
     createdAt: new Date().toISOString(),
   };
@@ -423,11 +434,12 @@ export function getUnifiedClients() {
   return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
-export function generateAnonymousCode(): string {
-  const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-  const rand =
-    letters[secureRandomInt(letters.length)] +
-    letters[secureRandomInt(letters.length)] +
-    String(1000 + secureRandomInt(9000));
-  return `REF-${rand}`;
+/**
+ * generateUniqueCode — Collision-safe referral code generator for admin use.
+ * Checks the persisted client list before returning a code so it's guaranteed
+ * to be unique at the time of generation.
+ */
+export function generateUniqueCode(): string {
+  const clients = getReferralClients();
+  return generateCode(clients);
 }

@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { 
   CheckCircle2, 
   Clock, 
@@ -30,6 +30,8 @@ import {
 } from "../../referrals/core";
 import { useAuth } from "../../auth/AuthContext";
 import { buildWhatsAppLink } from "../../content/site";
+import { useStorageData } from "../../utils/useStorageData";
+
 
 export function AdminReferrals() {
   const { user: authUser } = useAuth();
@@ -45,21 +47,19 @@ export function AdminReferrals() {
   const [searchInClients, setSearchInClients] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // Data
-  const [clientsData, setClientsData] = useState<any[]>([]);
-  
-  useEffect(() => {
-    setClientsData(getUnifiedClients());
-  }, []);
+  // Reactive data via polling hook
+  const [referralClients, refreshClients] = useStorageData(getReferralClients);
+  const [conversions, refreshConversions] = useStorageData(getReferralConversions);
+  const [enrichedRedemptions, refreshRedemptions] = useStorageData(getEnrichedRedemptions);
+  const [allClients, refreshAllClients] = useStorageData(getUnifiedClients);
+  const clientsData = allClients;
 
   const refreshData = () => {
-    setClientsData(getUnifiedClients());
-    // In a real app we'd use useQuery, for storage we just trigger re-renders
+    refreshClients();
+    refreshConversions();
+    refreshRedemptions();
+    refreshAllClients();
   };
-
-  const referralClients = useMemo(() => getReferralClients(), []);
-  const conversions = useMemo(() => getReferralConversions(), []);
-  const enrichedRedemptions = useMemo(() => getEnrichedRedemptions(), []);
 
   const leaderboard = useMemo(() => {
     const counts = new Map<string, number>();
@@ -458,16 +458,3 @@ export function AdminReferrals() {
   );
 }
 
-function Activity({ className }: { className?: string }) {
-  return (
-    <svg 
-      className={className} 
-      xmlns="http://www.w3.org/2000/svg" 
-      width="24" height="24" viewBox="0 0 24 24" 
-      fill="none" stroke="currentColor" strokeWidth="2" 
-      strokeLinecap="round" strokeLinejoin="round"
-    >
-      <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-    </svg>
-  );
-}

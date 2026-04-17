@@ -11,7 +11,6 @@ import {
   recordReferralConversion,
   recordRedemption,
   isTierRedeemed,
-  generateAnonymousCode,
   type ReferralClient, 
   type ReferrerStats
 } from "../referrals/core";
@@ -29,7 +28,6 @@ export function ReferralsPage() {
 
   // Dashboard state
   const [dashCode, setDashCode] = useState("");
-  const [customCode, setCustomCode] = useState(""); // New state for custom/pre-generated code
   const [stats, setStats] = useState<ReferrerStats | null>(null);
   const [dashError, setDashError] = useState("");
 
@@ -39,7 +37,7 @@ export function ReferralsPage() {
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !phone) return;
-    const newClient = getOrCreateReferralClient({ name, email, phone, referralCode: customCode });
+    const newClient = getOrCreateReferralClient({ name, email, phone });
     setClient(newClient);
 
     // Record conversion if referred
@@ -189,25 +187,6 @@ export function ReferralsPage() {
                         />
                       </label>
                     </div>
-                    <label className="grid gap-1.5 text-sm font-semibold text-slate-700">
-                      Customize Referral Code (Optional)
-                      <div className="relative">
-                        <input
-                          value={customCode}
-                          onChange={(e) => setCustomCode(e.target.value.toUpperCase())}
-                          className="h-12 w-full rounded-xl bg-white px-4 text-sm ring-1 ring-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-400 pr-32"
-                          placeholder="e.g. MYCODE1"
-                        />
-                        <button 
-                          type="button"
-                          onClick={() => setCustomCode(generateAnonymousCode())}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 bg-[color:var(--ablebiz-primary)] text-white text-[10px] font-black px-4 py-2 rounded-lg hover:brightness-110 transition-all uppercase tracking-widest"
-                        >
-                          Magic Gen
-                        </button>
-                      </div>
-                    </label>
-
                     <Button type="submit" className="h-12 mt-2 w-full justify-center">
                       Generate Referral Link
                     </Button>

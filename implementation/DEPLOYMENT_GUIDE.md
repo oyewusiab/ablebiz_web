@@ -1,95 +1,156 @@
-# ABLEBIZ – Go‑Live Implementation (GitHub + Vercel + Supabase)
+# ABLEBIZ – Go-Live Implementation Guide
+# GitHub + Vercel + Supabase + Admin Portal
 
-This guide is intentionally **simple, step‑by‑step**, and tells you **what**, **where**, and **exactly how** to launch the ABLEBIZ website with a real database on Supabase.
+This guide is **step-by-step** and explains **what**, **where**, and **how** to launch
+the full ABLEBIZ platform including the database backend, Admin Portal, and all dynamic
+configurations.
 
-> Goal: Your website is hosted on **Vercel**, your data is stored in **Supabase**, and leads from:
-> - Spin & Win
-> - Consultation Requests
-> - Checklist downloads
-> - Referrals / Leaderboard
-> …are saved in Supabase.
+> **Goal:** Website on **Vercel**, data in **Supabase**, Admin Portal secured with role-based
+> access, and the Spin Wheel / Referral system fully wired to the live database.
 
 ---
 
-## A) Quick Launch Checklist (20–40 minutes)
+## A) QUICK LAUNCH CHECKLIST (30–60 minutes)
 
-### 1) Supabase: Create DB + backend logic
-- [ ] Create a Supabase project
-- [ ] Run `implementation/SUPABASE_BACKEND.sql` in Supabase SQL Editor (one paste)
-- [ ] Confirm tables + functions exist
+### 1) Supabase Database
+- [ ] Create Supabase project
+- [ ] Run `implementation/SUPABASE_BACKEND.sql` in SQL Editor (single paste → Run)
+- [ ] Confirm all tables, functions, and seed data exist
+- [ ] Create first Superadmin user (see Section B5)
 
-### 2) Frontend: Add Supabase credentials
-- [ ] Create `.env.local` for local development
-- [ ] Add the same environment variables in Vercel
+### 2) Add Credentials to the App
+- [ ] Create `.env.local` with Supabase URL + anon key
+- [ ] Add the same vars to Vercel environment
 
 ### 3) Deploy
 - [ ] Push to GitHub
 - [ ] Import into Vercel
-- [ ] Test Spin & Win + Consultation + Checklist + Leaderboard on production URL
+- [ ] Test public features: Spin & Win, Consultation, Checklist, Leaderboard
+- [ ] Test Admin Portal login and all portal modules
 
 ---
 
-## B) SUPABASE SETUP (Database)
+## B) SUPABASE SETUP
 
-### Step B1 — Create a Supabase project (WHERE)
-1. Go to **https://supabase.com**
-2. **New project**
-3. Choose:
-   - Organization
+### B1 — Create a Supabase project
+1. Go to **https://supabase.com** → **New project**
+2. Settings:
+   - Organization: your org
    - Project name: `ablebiz`
-   - Region (choose closest to Nigeria for better latency)
-   - Generate/save DB password
-4. Wait until the project finishes provisioning.
+   - Region: **Europe West** (closest to Nigeria for best latency)
+   - DB Password: generate and **save it securely**
+3. Wait for provisioning (≈ 2 minutes)
 
-### Step B2 — Run the backend SQL (WHAT + WHERE)
-1. In Supabase, open: **SQL Editor**
-2. Click: **New query**
-3. Open this file in your repo:
-   - `implementation/SUPABASE_BACKEND.sql`
-4. Copy **everything** and paste into SQL Editor
+### B2 — Run the backend SQL
+
+1. In Supabase: **SQL Editor → New query**
+2. Open `implementation/SUPABASE_BACKEND.sql` from your repo
+3. Copy **everything** (Ctrl+A, Ctrl+C)
+4. Paste into the SQL Editor
 5. Click **Run**
 
-✅ Result: Supabase will automatically create:
-- Enums / types
-- Tables
-- Indexes
-- RLS policies
-- RPC functions (server-side functions)
+✅ This creates everything in one shot:
+| Created | What |
+|---|---|
+| Types/Enums | lead_source, reward_status, admin_role, etc. |
+| Utility Functions | normalize email/phone, generate codes |
+| Tables | leads, spin_rewards, referral_events, consultation_requests, checklist_downloads, admin_users, admin_audit_log, site_config, spin_reward_configs, referral_tier_configs |
+| RLS Policies | Secure by default — public can only INSERT via RPC |
+| RPC Functions | 15 functions for public and admin use |
+| Triggers | Auto-update `updated_at` timestamps |
+| Seed Data | 4 default spin wheel prizes + 4 referral tiers |
 
-> Important: The SQL is written to be **idempotent** (safe to run again). If you paste it again later, it should not break.
+> The SQL is **idempotent** — safe to run again without breaking anything.
 
-### Step B3 — Confirm tables exist
-Supabase → **Table Editor** should show these tables:
+### B3 — Confirm tables exist
+
+Supabase → **Table Editor** should show:
+
+**Core tables:**
 - `leads`
 - `spin_rewards`
 - `referral_events`
 - `consultation_requests`
 - `checklist_downloads`
 
-### Step B4 — Confirm functions exist
-Supabase → **Database → Functions** should show:
-- `ablebiz_create_spin_and_reward`
-- `ablebiz_create_consultation_request`
-- `ablebiz_create_checklist_download`
-- `ablebiz_get_monthly_leaderboard`
+**Admin tables:**
+- `admin_users`
+- `admin_audit_log`
 
-### Step B5 — Get your API credentials (WHERE)
+**Configuration tables:**
+- `site_config`
+- `spin_reward_configs`
+- `referral_tier_configs`
+
+### B4 — Confirm RPC functions exist
+
+Supabase → **Database → Functions**:
+
+| Function | Who Calls It |
+|---|---|
+| `ablebiz_create_spin_and_reward` | Public (Spin & Win modal) |
+| `ablebiz_create_consultation_request` | Public (Contact form) |
+| `ablebiz_create_checklist_download` | Public (Checklist modal) |
+| `ablebiz_get_monthly_leaderboard` | Public (Leaderboard) |
+| `ablebiz_get_referral_stats` | Public (Client referral dashboard) |
+| `ablebiz_admin_get_dashboard_stats` | Admin Portal |
+| `ablebiz_admin_get_leads` | Admin Portal |
+| `ablebiz_admin_get_rewards` | Admin Portal |
+| `ablebiz_admin_fulfill_reward` | **Superadmin only** |
+| `ablebiz_admin_link_referral` | Admin Portal |
+| `ablebiz_admin_get_referral_report` | Admin Portal |
+| `ablebiz_admin_upsert_site_config` | **Superadmin only** |
+| `ablebiz_admin_get_site_config` | Admin Portal |
+| `ablebiz_admin_sync_spin_rewards` | **Superadmin only** |
+| `ablebiz_admin_sync_referral_tiers` | **Superadmin only** |
+
+### B5 — Create your first Superadmin
+
+> ⚠️ This step is required before you can log into the Admin Portal.
+
+**Step 1:** In Supabase → **Authentication → Users → Invite user**
+- Enter the admin's email address
+- They will receive an email to set their password
+
+**Step 2:** After they accept the invite, run this in the SQL Editor (replace the values):
+
+```sql
+INSERT INTO public.admin_users (auth_uid, email, name, role)
+VALUES (
+  (SELECT id FROM auth.users WHERE email = 'admin@yourdomain.com'),
+  'admin@yourdomain.com',
+  'Your Full Name',
+  'superadmin'
+);
+```
+
+**Step 3:** To add a regular Admin (read-only, cannot fulfill rewards or change settings):
+
+```sql
+INSERT INTO public.admin_users (auth_uid, email, name, role)
+VALUES (
+  (SELECT id FROM auth.users WHERE email = 'staff@yourdomain.com'),
+  'staff@yourdomain.com',
+  'Staff Name',
+  'admin'
+);
+```
+
+### B6 — Get API credentials
+
 Supabase → **Project Settings → API**:
-- Copy **Project URL** → `VITE_SUPABASE_URL`
-- Copy **anon public key** → `VITE_SUPABASE_ANON_KEY`
+- **Project URL** → `VITE_SUPABASE_URL`
+- **anon public key** → `VITE_SUPABASE_ANON_KEY`
 
-Do **NOT** expose:
-- `service_role key` (keep private; only server-side)
+> ❌ **Never expose** the `service_role` key in frontend code.
 
 ---
 
-## C) LOCAL DEVELOPMENT SETUP (Recommended before Vercel)
+## C) LOCAL DEVELOPMENT SETUP
 
-### Step C1 — Create `.env.local` (WHERE)
-In the project root (same level as `package.json`), create a file named:
-- `.env.local`
+### C1 — Create `.env.local`
 
-Put this inside (COPY/PASTE TEMPLATE):
+In the project root (same folder as `package.json`), create `.env.local`:
 
 ```bash
 VITE_SUPABASE_URL="https://YOUR_PROJECT_ID.supabase.co"
@@ -97,207 +158,281 @@ VITE_SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_KEY"
 VITE_SITE_URL="http://localhost:5173"
 ```
 
-### Step C2 — Run the site locally
+### C2 — Run locally
+
 ```bash
 npm install
 npm run dev
 ```
 
+The app auto-detects whether Supabase is configured. If `VITE_SUPABASE_URL` is set,
+it uses the live database. Otherwise, it falls back to localStorage (MVP mode).
+
 ---
 
-## D) CONNECT THE WEBSITE TO SUPABASE (Frontend wiring)
+## D) FRONTEND → SUPABASE WIRING
 
-Right now, your MVP works visually and captures behavior. To **store data in Supabase**, you connect the frontend to the Supabase RPC functions.
+The Supabase client is already set up in `src/lib/supabaseClient.ts`. These are the
+files and the RPC functions they should call when Supabase is enabled:
 
-### Step D1 — Install Supabase client library (WHAT)
-Run locally:
+### Public Features
 
-```bash
-npm i @supabase/supabase-js
-```
+| Feature | File | RPC Function |
+|---|---|---|
+| Spin & Win | `src/gamification/SpinAndWinModal.tsx` | `ablebiz_create_spin_and_reward` |
+| Consultation | `src/components/ConsultationForm.tsx` | `ablebiz_create_consultation_request` |
+| Checklist | `src/components/checklists/LeadMagnetModal.tsx` | `ablebiz_create_checklist_download` |
+| Leaderboard | `src/gamification/ReferralLeaderboard.tsx` | `ablebiz_get_monthly_leaderboard` |
+| Referral Dashboard | `src/pages/Referrals.tsx` | `ablebiz_get_referral_stats` |
 
-### Step D2 — Create Supabase client file (WHERE)
-Create:
-- `src/lib/supabaseClient.ts`
+### Admin Portal Features
 
-Copy/paste:
+| Feature | File | RPC Function |
+|---|---|---|
+| Dashboard | `src/pages/admin/Dashboard.tsx` | `ablebiz_admin_get_dashboard_stats` |
+| Clients | `src/pages/admin/Clients.tsx` | `ablebiz_admin_get_leads` |
+| Rewards | `src/pages/admin/Referrals.tsx` | `ablebiz_admin_get_rewards` |
+| Fulfill Reward | `src/pages/admin/Referrals.tsx` | `ablebiz_admin_fulfill_reward` |
+| Link Referral | `src/pages/admin/Referrals.tsx` | `ablebiz_admin_link_referral` |
+| Reports | `src/pages/admin/Reports.tsx` | `ablebiz_admin_get_referral_report` |
+| Settings Sync | `src/pages/admin/Settings.tsx` | `ablebiz_admin_sync_spin_rewards` + `ablebiz_admin_sync_referral_tiers` |
 
-```ts
-import { createClient } from '@supabase/supabase-js'
+### Example RPC call pattern
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
-```
-
-### Step D3 — Replace local “storage” calls with RPC calls (WHAT + WHERE)
-You will update these exact files:
-
-1) **Spin & Win submission**
-- File: `src/gamification/SpinAndWinModal.tsx`
-- Call RPC: `ablebiz_create_spin_and_reward`
-
-2) **Consultation form submission**
-- File: `src/components/ConsultationForm.tsx`
-- Call RPC: `ablebiz_create_consultation_request`
-
-3) **Checklist lead capture**
-- File: `src/components/checklists/LeadMagnetModal.tsx`
-- Call RPC: `ablebiz_create_checklist_download`
-
-4) **Leaderboard**
-- File: `src/gamification/ReferralLeaderboard.tsx`
-- Call RPC: `ablebiz_get_monthly_leaderboard`
-
-#### Example RPC call pattern (copy/paste)
 ```ts
 import { supabase } from '@/lib/supabaseClient'
 
+// Public call (no auth needed)
 const { data, error } = await supabase.rpc('ablebiz_create_spin_and_reward', {
-  p_name: name,
-  p_email: email,
-  p_phone: phone,
-  p_referred_by: referredBy || null,
-  p_consent_marketing: consentMarketing,
-  p_page_path: window.location.pathname,
+  p_name:              name,
+  p_email:             email,
+  p_phone:             phone,
+  p_referred_by:       referredBy ?? null,
+  p_consent_marketing: true,
+  p_page_path:         window.location.pathname,
+  p_utm_source:        new URLSearchParams(window.location.search).get('utm_source'),
 })
-
 if (error) throw error
+// data = { lead_id, referral_code, reward_type, reward_title, reward_code }
 ```
 
-✅ This approach is safe for MVP because:
-- We don’t allow public reads on sensitive tables
-- Writes happen through controlled RPC functions + RLS is enabled
+```ts
+// Admin call (requires authenticated Supabase session)
+const { data, error } = await supabase.rpc('ablebiz_admin_fulfill_reward', {
+  p_reward_id:        rewardId,
+  p_fulfillment_note: 'Discount applied via WhatsApp',
+})
+if (error) throw error  // Will throw 'superadmin_required' if not a superadmin
+```
 
 ---
 
-## E) QUICK TESTS (Before deploying)
+## E) TEST BEFORE GOING LIVE
 
-### Test E1 — Test RPC via Supabase (easy)
-Supabase → **SQL Editor** → Run:
+### E1 — Test via Supabase SQL Editor
 
 ```sql
-select public.ablebiz_get_monthly_leaderboard(5);
+-- Test spin creation
+SELECT public.ablebiz_create_spin_and_reward(
+  'Test User', 'test@example.com', '08160000001',
+  null, true, '/', null, null, null, null, null
+);
+
+-- Test monthly leaderboard
+SELECT * FROM public.ablebiz_get_monthly_leaderboard(5);
+
+-- View active spin rewards on the wheel
+SELECT * FROM public.spin_reward_configs WHERE is_active = true ORDER BY sort_order;
+
+-- View referral tiers
+SELECT * FROM public.referral_tier_configs WHERE is_active = true ORDER BY referrals_required;
+
+-- View all leads
+SELECT id, name, email, source, created_at FROM public.leads ORDER BY created_at DESC LIMIT 10;
 ```
 
-(It may return empty until you have referrals.)
+### E2 — Test via HTTP (Postman / curl)
 
-### Test E2 — Test RPC via HTTP (optional but powerful)
-Use Postman/Insomnia or curl.
+**Endpoint:** `POST https://YOUR_PROJECT_ID.supabase.co/rest/v1/rpc/ablebiz_create_spin_and_reward`
 
-Endpoint format:
-- `POST https://YOUR_PROJECT_ID.supabase.co/rest/v1/rpc/ablebiz_create_spin_and_reward`
+**Headers:**
+```
+apikey: YOUR_ANON_KEY
+Authorization: Bearer YOUR_ANON_KEY
+Content-Type: application/json
+```
 
-Headers:
-- `apikey: YOUR_ANON_KEY`
-- `Authorization: Bearer YOUR_ANON_KEY`
-- `Content-Type: application/json`
-
-Body example:
+**Body:**
 ```json
 {
   "p_name": "Test User",
   "p_email": "test@example.com",
-  "p_phone": "08160000000",
+  "p_phone": "08160000001",
   "p_referred_by": null,
   "p_consent_marketing": true,
   "p_page_path": "/"
 }
 ```
 
+**Expected response:**
+```json
+{
+  "lead_id": "...",
+  "referral_code": "ABCDE12345",
+  "reward_type": "free_consultation",
+  "reward_title": "Free Consultation",
+  "reward_code": "ABLE-A1B2C3D4"
+}
+```
+
 ---
 
-## F) GITHUB SETUP (Source control)
+## F) GITHUB (Source Control)
 
-### Step F1 — Create GitHub repo
-1. Create a new repo in GitHub: `ablebiz-website`
-2. Push your code:
+The project is already pushed to GitHub at: `https://github.com/oyewusiab/ablebiz_web`
 
+To push future changes:
 ```bash
-git init
 git add .
-git commit -m "Initial Ablebiz MVP"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/ablebiz-website.git
-git push -u origin main
+git commit -m "Your descriptive commit message"
+git push
 ```
 
 ---
 
 ## G) VERCEL DEPLOYMENT (Hosting)
 
-### Step G1 — Import project into Vercel
-1. Go to **https://vercel.com**
-2. **Add New → Project**
-3. Import your GitHub repo
-4. Framework preset: **Vite** (auto detected)
+### G1 — Import into Vercel
+1. **https://vercel.com** → **Add New → Project**
+2. Import `oyewusiab/ablebiz_web` from GitHub
+3. Framework: **Vite** (auto-detected)
 
-### Step G2 — Add environment variables (WHERE)
-Vercel → Project → **Settings → Environment Variables**
-Add:
-- `VITE_SUPABASE_URL` = your Supabase project URL
-- `VITE_SUPABASE_ANON_KEY` = your Supabase anon key
-- `VITE_SITE_URL` = your production URL (your Vercel domain or custom domain)
+### G2 — Add environment variables
 
-Then redeploy.
+**Vercel → Project → Settings → Environment Variables:**
 
-### Step G3 — Build settings
-Leave defaults:
+| Variable | Value |
+|---|---|
+| `VITE_SUPABASE_URL` | `https://YOUR_PROJECT_ID.supabase.co` |
+| `VITE_SUPABASE_ANON_KEY` | Your Supabase anon public key |
+| `VITE_SITE_URL` | Your production domain (e.g. `https://ablebiz.com.ng`) |
+
+Click **Redeploy** after adding variables.
+
+### G3 — Build settings (leave as defaults)
 - Build command: `npm run build`
 - Output directory: `dist`
 
 ---
 
-## H) WHERE TO VIEW YOUR DATA (Operations)
+## H) ADMIN PORTAL ACCESS
 
-Supabase → Table Editor:
-- `leads` = all captured leads (spin/consultation/checklist)
-- `consultation_requests` = qualified requests (budget/urgency/contact method)
-- `spin_rewards` = reward type + reward code
-- `referral_events` = points credited
+After deployment, your Admin Portal is at: `https://yourdomain.com/admin`
 
----
+| URL | Page |
+|---|---|
+| `/admin` | Redirects to `/admin/login` if not authenticated |
+| `/admin/login` | Login page (uses Supabase Auth) |
+| `/admin/dashboard` | Real-time business overview |
+| `/admin/clients` | All leads and client database |
+| `/admin/referrals` | Referral ecosystem + reward fulfillment |
+| `/admin/reports` | Conversion pipeline + business analytics |
+| `/admin/settings` | **Superadmin only** — site config, spin wheel, referral tiers |
 
-## I) IMPORTANT NOTES (to avoid “constraints” surprises)
+### Role Permissions Summary
 
-### 1) Spin fairness rules (already handled by backend)
-- 25% equal chance for each reward (server-side)
-- One spin per phone and one spin per email (enforced)
-- If someone tries again, backend returns the original reward instead of crashing
-
-### 2) Why you might still see an error
-Usually only when:
-- Required fields are empty
-- Someone already spun with the same email/phone
-
-Your frontend should show a friendly message and/or reuse existing reward.
-
----
-
-## J) TROUBLESHOOTING
-
-### “RLS violation”
-Cause: You tried to insert/select tables directly.
-Fix: Use the RPC functions listed above (`ablebiz_create_*`) and ensure you used the **anon key**.
-
-### “Function not found”
-Cause: SQL didn’t run completely.
-Fix: Re-run `SUPABASE_BACKEND.sql` in SQL Editor.
-
-### Blank website after deploy
-Cause: Missing env vars.
-Fix: Add Vercel env vars and redeploy.
+| Action | Admin | Superadmin |
+|---|---|---|
+| View all leads | ✅ | ✅ |
+| View referrals & conversions | ✅ | ✅ |
+| View pending rewards | ✅ | ✅ |
+| Manually link referrals | ✅ | ✅ |
+| Fulfill/redeem rewards | ❌ | ✅ |
+| Edit site settings | ❌ | ✅ |
+| Configure spin wheel prizes | ❌ | ✅ |
+| Configure referral tiers | ❌ | ✅ |
 
 ---
 
-## K) NEXT (Optional but recommended after go-live)
+## I) OPERATIONS — WHERE TO VIEW YOUR DATA
 
-1) Admin notifications (faster closing)
-- Use a Supabase Edge Function or Vercel Serverless route to notify ABLEBIZ when a high-intent lead comes in.
+| What to see | Where to look |
+|---|---|
+| All leads | Supabase → Table Editor → `leads` |
+| Spin rewards + status | Supabase → Table Editor → `spin_rewards` |
+| Referral events | Supabase → Table Editor → `referral_events` |
+| Consultation requests | Supabase → Table Editor → `consultation_requests` |
+| Admin activity log | Supabase → Table Editor → `admin_audit_log` |
+| Spin wheel prizes | Supabase → Table Editor → `spin_reward_configs` |
+| Referral tiers | Supabase → Table Editor → `referral_tier_configs` |
 
-2) NDPR consent wording
-- Add a clear consent checkbox for contact/marketing follow-up.
+---
 
-3) Spam protection
-- Add rate-limiting (server route) or a simple anti-bot honeypot field.
+## J) SPIN WHEEL — HOW PROBABILITIES WORK
+
+The new backend uses a **weighted probability** system instead of equal odds:
+
+- Each prize in `spin_reward_configs` has a `weight` (e.g. 30, 25, 25, 20)
+- Total weight = sum of all active prize weights
+- A random number between 0 and total_weight is drawn
+- Winner is determined by which prize's cumulative range contains the number
+
+**Example (default setup):**
+
+| Prize | Weight | Probability |
+|---|---|---|
+| ₦1,000 Discount | 30 | 30% |
+| Free Consultation | 25 | 25% |
+| Free Name Search | 25 | 25% |
+| Free E-book | 20 | 20% |
+
+You can change weights anytime from **Admin Portal → Settings → Spin Wheel**.
+Changes take effect immediately for new spins.
+
+---
+
+## K) TROUBLESHOOTING
+
+### "RLS violation" error
+- **Cause:** Trying to read/write tables directly
+- **Fix:** Use the RPC functions. Never access tables directly from the frontend.
+
+### "not_authorized" from admin RPC
+- **Cause:** The logged-in user's `auth.uid()` doesn't exist in `public.admin_users`
+- **Fix:** Run the INSERT into `admin_users` with the correct `auth_uid` (see Section B5)
+
+### "superadmin_required" error
+- **Cause:** A regular admin tried to call a superadmin-only function (e.g., fulfill reward)
+- **Fix:** Expected behavior — have a superadmin perform the action
+
+### "Function not found"
+- **Cause:** SQL script did not run completely
+- **Fix:** Re-run `SUPABASE_BACKEND.sql` in SQL Editor (it is safe to re-run)
+
+### Blank website after Vercel deploy
+- **Cause:** Missing environment variables
+- **Fix:** Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in Vercel → redeploy
+
+### Spin wheel shows old prizes after settings change
+- **Cause:** The admin saved new prizes locally but hasn't synced to Supabase
+- **Fix:** When Supabase is enabled, call `ablebiz_admin_sync_spin_rewards()` on save
+
+---
+
+## L) FUTURE EXPANSION ROADMAP
+
+The backend is built to scale. These features can be added without restructuring:
+
+1. **Email Notifications** — Supabase Edge Function triggered on new `leads` insert
+2. **WhatsApp Webhook** — POST to Twilio/WhatsApp Business when a reward is pending
+3. **Lead Scoring Automation** — DB trigger to auto-upgrade engagement_score based on activity
+4. **Admin Audit Trail UI** — Display `admin_audit_log` in the Admin Portal
+5. **Custom Domains** — Update `VITE_SITE_URL` in Vercel and configure DNS
+6. **Analytics Dashboard** — Connect to Metabase or Grafana using Supabase read-only credentials
+7. **Automated Referral Payouts** — Edge function checks tiers weekly and sends reward notifications
+8. **NDPR Compliance** — Add data deletion RPC that removes a lead by email on request
+9. **Multi-branch Support** — Add `branch` column to leads for franchise/partnership tracking
+
+---
+
+*Last updated: April 2026 — Covers Admin Portal Optimization Suite v2*

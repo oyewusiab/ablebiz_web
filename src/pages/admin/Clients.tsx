@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { 
   Users, 
   MessageSquare, 
@@ -27,33 +27,33 @@ import {
   createOrUpdateClient,
   LeadStatus,
   deleteReferralClient,
-  generateAnonymousCode,
+  generateUniqueCode,
   USER_GROUPS,
   UserGroup
 } from "../../referrals/core";
 import { useAuth } from "../../auth/AuthContext";
 import { buildWhatsAppLink } from "../../content/site";
+import { useStorageData } from "../../utils/useStorageData";
 
 export function AdminClients() {
   const { user: authUser } = useAuth();
   const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState<"all" | "referral" | "consultation" | "spin">("all");
   const [groupFilter, setGroupFilter] = useState<"all" | UserGroup>("all");
-  const [clients, setClients] = useState<any[]>([]);
+  // Reactive data via polling hook
+  const [clients, refreshClients] = useStorageData(getUnifiedClients);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<any>(null);
 
   // Form State
   const [formData, setFormData] = useState({
+    name: "",
     email: "",
     phone: "",
     referralCode: "",
     group: "prospect" as UserGroup
   });
-
-  useEffect(() => {
-    setClients(getUnifiedClients());
-  }, []);
 
   const filteredClients = useMemo(() => {
     return clients
@@ -70,25 +70,24 @@ export function AdminClients() {
 
   const handleGroupChange = (id: string, group: UserGroup) => {
     createOrUpdateClient({ id, group });
-    setClients(getUnifiedClients());
+    refreshClients();
   };
 
   const handleStatusChange = (id: string, source: string, newStatus: LeadStatus) => {
     if (source === "consultation") {
       updateLeadStatus(id, newStatus);
-      setClients(getUnifiedClients());
+      refreshClients();
     }
   };
 
   const handleDelete = (id: string, source: string) => {
     if (!confirm("Are you sure you want to delete this record?")) return;
-    
     if (source === "consultation") {
       deleteLead(id);
     } else if (source === "referral") {
       deleteReferralClient(id);
     }
-    setClients(getUnifiedClients());
+    refreshClients();
   };
 
   const handleOpenModal = (client: any = null) => {
@@ -110,12 +109,9 @@ export function AdminClients() {
 
   const handleSaveClient = (e: React.FormEvent) => {
     e.preventDefault();
-    createOrUpdateClient({
-      id: editingClient?.id,
-      ...formData
-    });
+    createOrUpdateClient({ id: editingClient?.id, ...formData });
     setIsModalOpen(false);
-    setClients(getUnifiedClients());
+    refreshClients();
   };
 
   const getStatusColor = (status: string) => {
@@ -390,7 +386,7 @@ export function AdminClients() {
                           />
                           <button 
                             type="button"
-                            onClick={() => setFormData({...formData, referralCode: generateAnonymousCode()})}
+                          onClick={() => setFormData({...formData, referralCode: generateUniqueCode()})}
                             className="absolute right-2 top-1/2 -translate-y-1/2 bg-slate-900 text-white text-[8px] font-black px-3 py-1.5 rounded-lg hover:bg-emerald-600 transition-all uppercase tracking-widest"
                           >
                             Magic Gen
