@@ -1,16 +1,15 @@
 import { useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { 
-  LayoutDashboard, 
-  Users, 
-  History, 
-  BarChart3, 
-  Settings, 
-  LogOut, 
-  Menu, 
-  X, 
+import {
+  LayoutDashboard,
+  Users,
+  History,
+  BarChart3,
+  Settings,
+  LogOut,
+  Menu,
   ShieldCheck,
-  CircleUser
+  CircleUser,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 
@@ -19,6 +18,7 @@ export function AdminPortalLayout() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const displayName = user?.email?.split("@")[0] ?? "Admin";
 
   const navItems = [
     { name: "Dashboard", path: "/admin/dashboard", icon: LayoutDashboard },
@@ -106,7 +106,7 @@ export function AdminPortalLayout() {
           </div>
 
           <div className="hidden lg:block text-sm font-medium text-slate-500">
-            Welcome back, <span className="text-slate-900 font-bold">{user?.email.split('@')[0]}</span>
+            Welcome back, <span className="text-slate-900 font-bold">{displayName}</span>
           </div>
 
           <div className="flex items-center gap-4">
