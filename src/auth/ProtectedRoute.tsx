@@ -1,13 +1,14 @@
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { useAuth, Role } from "./AuthContext";
+import { useAuth, type AdminPermission, type Role } from "./AuthContext";
 
 interface Props {
   children: ReactNode;
   requiredRole?: Role;
+  requiredPermission?: AdminPermission;
 }
 
-export function ProtectedRoute({ children, requiredRole }: Props) {
+export function ProtectedRoute({ children, requiredRole, requiredPermission }: Props) {
   const { user, isLoading } = useAuth();
   const location = useLocation();
 
@@ -24,6 +25,10 @@ export function ProtectedRoute({ children, requiredRole }: Props) {
   }
 
   if (requiredRole && user.role !== requiredRole && user.role !== "superadmin") {
+    return <Navigate to="/admin/dashboard" replace />;
+  }
+
+  if (requiredPermission && user.role !== "superadmin" && !user.permissions[requiredPermission]) {
     return <Navigate to="/admin/dashboard" replace />;
   }
 

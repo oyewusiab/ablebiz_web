@@ -1,99 +1,115 @@
 import { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { Lock, Mail, ShieldAlert } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { ArrowRight, Lock, Mail, ShieldAlert, ShieldCheck } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext";
-import { Button } from "../../components/ui/Button";
 
 export function AdminLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-
   const from = location.state?.from?.pathname || "/admin/dashboard";
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setError("");
-    const success = login(email, password);
-    if (success) {
+    setIsSubmitting(true);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const ok = login(email, password);
+
+    if (ok) {
       navigate(from, { replace: true });
-    } else {
-      setError("Invalid email or password. Please try again.");
+      return;
     }
+
+    setError("Invalid credentials. Please try again.");
+    setIsSubmitting(false);
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-900 p-6">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500 shadow-xl shadow-emerald-500/20 mb-4">
-            <Lock className="h-8 w-8 text-white" />
+    <div className="admin-theme flex min-h-screen items-center justify-center bg-[var(--color-neutral-950)] px-4">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,197,94,0.18),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.06),transparent_34%)]" />
+
+      <div className="relative z-10 w-full max-w-md">
+        <div className="mb-6 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--color-primary-600)] text-white shadow-[var(--admin-shadow-lg)]">
+            <ShieldCheck className="h-6 w-6" />
           </div>
-          <h1 className="text-3xl font-black text-white tracking-tight">
-            ABLEBIZ <span className="text-emerald-400">PORTAL</span>
-          </h1>
-          <p className="mt-2 text-slate-400 text-sm font-medium">
-            Enter your credentials to access the business management suite.
+          <h1 className="text-3xl font-semibold text-white">Admin portal</h1>
+          <p className="mt-2 text-sm text-[var(--color-neutral-400)]">
+            Secure access for the ABLEBIZ operations team.
           </p>
         </div>
 
-        <div className="rounded-3xl bg-white p-8 shadow-2xl ring-1 ring-white/10">
-          <form onSubmit={handleSubmit} className="grid gap-5">
-            {error && (
-              <div className="flex items-center gap-2 rounded-xl bg-red-50 p-4 text-xs font-bold text-red-600 ring-1 ring-red-100">
-                <ShieldAlert className="h-4 w-4" />
-                {error}
+        <div className="rounded-[var(--radius-xl)] border border-white/10 bg-white/5 p-6 shadow-[var(--admin-shadow-lg)] backdrop-blur-xl">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {error ? (
+              <div className="flex items-center gap-3 rounded-[var(--radius-md)] border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200">
+                <ShieldAlert className="h-4 w-4 shrink-0" />
+                <span>{error}</span>
               </div>
-            )}
+            ) : null}
 
-            <div className="grid gap-2">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">
-                Email Address
-              </label>
+            <label className="block space-y-2">
+              <span className="text-xs font-medium uppercase tracking-[0.12em] text-[var(--color-neutral-400)]">
+                Email
+              </span>
               <div className="relative">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                  <Mail className="h-4 w-4" />
-                </div>
+                <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-neutral-500)]" />
                 <input
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="h-12 w-full rounded-xl bg-slate-50 pl-11 pr-4 text-sm font-semibold text-slate-900 ring-1 ring-slate-200 transition-all focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  onChange={(event) => setEmail(event.target.value)}
+                  className="h-12 w-full rounded-[var(--radius-md)] border border-white/10 bg-white/5 pl-10 pr-4 text-sm text-white outline-none transition focus:border-[var(--color-primary-400)]"
                   placeholder="admin@ablebiz.com"
                   required
                 />
               </div>
-            </div>
+            </label>
 
-            <div className="grid gap-2">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">
+            <label className="block space-y-2">
+              <span className="text-xs font-medium uppercase tracking-[0.12em] text-[var(--color-neutral-400)]">
                 Password
-              </label>
+              </span>
               <div className="relative">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                  <Lock className="h-4 w-4" />
-                </div>
+                <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-neutral-500)]" />
                 <input
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="h-12 w-full rounded-xl bg-slate-50 pl-11 pr-4 text-sm font-semibold text-slate-900 ring-1 ring-slate-200 transition-all focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  placeholder="••••••••"
+                  onChange={(event) => setPassword(event.target.value)}
+                  className="h-12 w-full rounded-[var(--radius-md)] border border-white/10 bg-white/5 pl-10 pr-4 text-sm text-white outline-none transition focus:border-[var(--color-primary-400)]"
+                  placeholder="Enter password"
                   required
                 />
               </div>
-            </div>
+            </label>
 
-            <Button type="submit" className="h-12 mt-2 shadow-lg shadow-emerald-500/20">
-              Sign In to Portal
-            </Button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-primary-600)] text-sm font-medium text-white transition hover:bg-[var(--color-primary-500)] disabled:opacity-70"
+            >
+              {isSubmitting ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              ) : (
+                <>
+                  Access portal
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
+            </button>
           </form>
 
-          <div className="mt-8 rounded-2xl bg-slate-50 p-4 text-[10px] text-slate-400 text-center leading-relaxed">
-            PRO TIP: Use <span className="font-bold text-slate-600">admin@ablebiz.com</span> (pass: admin123) for Admin role or <span className="font-bold text-slate-600">super@ablebiz.com</span> (pass: super123) for Superadmin.
+          <div className="mt-6 border-t border-white/10 pt-4 text-center text-xs text-[var(--color-neutral-400)]">
+            <p>
+              Standard: <span className="text-[var(--color-primary-300)]">admin@ablebiz.com</span> / admin123
+            </p>
+            <p className="mt-1">
+              Super: <span className="text-[var(--color-primary-300)]">super@ablebiz.com</span> / super123
+            </p>
           </div>
         </div>
       </div>

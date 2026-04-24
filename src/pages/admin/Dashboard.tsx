@@ -1,23 +1,36 @@
-import { 
-  Users, 
-  TrendingUp, 
-  Gift, 
-  Target, 
-  Activity, 
-  MessageSquare, 
-  Gamepad2,
+import {
+  Activity,
+  BarChart3,
   CheckCircle2,
-  Clock,
-  ArrowUpRight,
-  RefreshCw
+  Gift,
+  RefreshCw,
+  Target,
+  TrendingUp,
+  Users,
+  Zap,
 } from "lucide-react";
-import { Card, CardBody } from "../../components/ui/Card";
-import { getBusinessHealthReport, getUnifiedClients, USER_GROUPS } from "../../referrals/core";
+import { Link } from "react-router-dom";
+import {
+  getBusinessHealthReport,
+  getUnifiedClients,
+  USER_GROUPS,
+} from "../../referrals/core";
 import { useStorageData } from "../../utils/useStorageData";
+import { useSiteConfig } from "../../referrals/siteConfig";
+import {
+  AdminBadge,
+  AdminEmptyState,
+  AdminPage,
+  AdminSection,
+  AdminStatCard,
+  AdminSurface,
+} from "../../components/admin/AdminPrimitives";
+import { Button } from "../../components/ui/Button";
 
 export function AdminDashboard() {
   const [stats, refresh] = useStorageData(getBusinessHealthReport);
   const [allClients, refreshClients] = useStorageData(getUnifiedClients);
+  const { flashCampaign } = useSiteConfig();
   const recentClients = allClients.slice(0, 6);
 
   const handleRefresh = () => {
@@ -26,196 +39,213 @@ export function AdminDashboard() {
   };
 
   const metricCards = [
-    { label: "Total Interactors", value: stats.totalLeads + stats.totalSpins + stats.totalReferrers, icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
-    { label: "Active Clients", value: (stats.groupBreakdown as any).client + (stats.groupBreakdown as any).returning_client + (stats.groupBreakdown as any).vip, icon: Target, color: "text-emerald-600", bg: "bg-emerald-50" },
-    { label: "Revenue Prospects", value: (stats.groupBreakdown as any).prospect, icon: TrendingUp, color: "text-purple-600", bg: "bg-purple-50" },
-    { label: "Pending Rewards", value: stats.pendingRedemptions, icon: Gift, color: "text-amber-600", bg: "bg-amber-50" },
+    {
+      label: "Total interactors",
+      value: stats.totalLeads + stats.totalSpins + stats.totalReferrers,
+      icon: Users,
+      tone: "success" as const,
+      meta: "Combined referrals, consultations, and game activity",
+    },
+    {
+      label: "Active clients",
+      value:
+        (stats.groupBreakdown as any).client +
+        (stats.groupBreakdown as any).returning_client +
+        (stats.groupBreakdown as any).vip,
+      icon: Target,
+      tone: "info" as const,
+      meta: "Client, returning client, and VIP segments",
+    },
+    {
+      label: "Revenue prospects",
+      value: (stats.groupBreakdown as any).prospect,
+      icon: TrendingUp,
+      tone: "warning" as const,
+      meta: "Leads currently sitting in the prospect stage",
+    },
+    {
+      label: "Pending rewards",
+      value: stats.pendingRedemptions,
+      icon: Gift,
+      tone: "default" as const,
+      meta: "Rewards awaiting fulfillment",
+    },
   ];
 
-  return (
-    <div className="space-y-10 pb-10">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Business Command</h1>
-          <p className="mt-1 text-sm font-medium text-slate-500 italic">Real-time pulse of your registration flywheel.</p>
-        </div>
-        <div className="flex gap-3">
-          <button
-            onClick={handleRefresh}
-            className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-xs font-black text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50 transition-all active:scale-95"
-          >
-            <RefreshCw className="h-3.5 w-3.5" /> Refresh
-          </button>
-          <span className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-4 py-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-600 ring-1 ring-emerald-500/20">
-             <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-             Live — Auto Updates
-          </span>
-        </div>
-      </div>
+  const topServices = Object.entries(stats.leadsByService).slice(0, 5);
 
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {metricCards.map((m) => (
-          <Card key={m.label} className="border-none shadow-xl shadow-slate-200/40 ring-1 ring-slate-100/50 group hover:scale-[1.02] transition-all">
-            <CardBody className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className={`p-3 rounded-2xl ${m.bg} ${m.color}`}>
-                  <m.icon className="h-6 w-6" />
-                </div>
-                <div className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] group-hover:text-emerald-400 transition-colors">ABLEBIZ</div>
+  return (
+    <AdminPage
+      eyebrow="Overview"
+      title="Dashboard"
+      description="Monitor performance, recent activity, and operational follow-up from one place."
+      actions={
+        <>
+          <Button variant="secondary" size="sm" onClick={handleRefresh}>
+            <RefreshCw className="h-3.5 w-3.5" />
+            Refresh
+          </Button>
+          <AdminBadge tone="success">Live system</AdminBadge>
+        </>
+      }
+    >
+      {flashCampaign?.active ? (
+        <AdminSurface className="border-[var(--color-primary-100)] bg-[var(--color-primary-50)] p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="admin-icon-chip admin-icon-chip-success h-12 w-12 rounded-[var(--radius-lg)]">
+                <Zap className="h-5 w-5" />
               </div>
-              <div className="text-2xl font-black text-slate-900">{m.value}</div>
-              <div className="mt-1 text-xs font-bold text-slate-400 uppercase tracking-wider">{m.label}</div>
-            </CardBody>
-          </Card>
+              <div className="space-y-1">
+                <h2 className="admin-section-title">{flashCampaign.name} is active</h2>
+                <p className="admin-section-description">
+                  Referral points are currently multiplied by {flashCampaign.multiplier}x.
+                </p>
+              </div>
+            </div>
+            <AdminBadge tone="success">Campaign live</AdminBadge>
+          </div>
+        </AdminSurface>
+      ) : null}
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {metricCards.map((card) => (
+          <AdminStatCard
+            key={card.label}
+            label={card.label}
+            value={card.value}
+            icon={card.icon}
+            tone={card.tone}
+            meta={card.meta}
+          />
         ))}
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-8">
-           <Card className="border-none shadow-2xl shadow-slate-200/50 ring-1 ring-slate-100 overflow-hidden group">
-              <CardBody className="p-8">
-                 <div className="flex items-center justify-between mb-8">
-                    <div className="flex items-center gap-3">
-                       <Activity className="h-5 w-5 text-emerald-500" />
-                       <h3 className="text-xl font-black text-slate-900 tracking-tight">System Activity Feed</h3>
+      <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
+        <AdminSection
+          title="Recent activity"
+          description="Latest users entering the referral and consultation system."
+          actions={<AdminBadge>{allClients.length} total</AdminBadge>}
+        >
+          {recentClients.length === 0 ? (
+            <AdminEmptyState
+              icon={Users}
+              title="No activity yet"
+              description="New clients and leads will appear here as soon as people begin interacting with the portal."
+            />
+          ) : (
+            <div className="admin-list">
+              {recentClients.map((client) => {
+                const groupLabel =
+                  USER_GROUPS.find((group) => group.id === (client as any).group)?.label || "Visitor";
+
+                return (
+                  <div key={client.id} className="admin-list-row">
+                    <div className="flex min-w-0 items-start gap-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--color-primary-50)] text-[var(--color-primary-700)]">
+                        {client.name?.charAt(0) || "U"}
+                      </div>
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="admin-title-sm truncate">{client.name}</p>
+                          <AdminBadge>{groupLabel}</AdminBadge>
+                        </div>
+                        <p className="admin-meta truncate">
+                          {client.source === "referral" && "Signed up via referral"}
+                          {client.source === "consultation" &&
+                            `Requested ${client.serviceNeeded || client.service || "consultation"}`}
+                          {client.source === "spin" && "Joined from Spin & Win"}
+                        </p>
+                      </div>
                     </div>
-                    <button className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-emerald-600 transition-colors">View All Logs</button>
-                 </div>
+                    <div className="space-y-2 text-right">
+                      <AdminBadge tone={client.status === "completed" ? "success" : "default"}>
+                        {client.status || "pending"}
+                      </AdminBadge>
+                      <p className="admin-meta">
+                        {new Date(client.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {recentClients.length > 0 ? (
+            <div className="mt-5">
+              <Link className="admin-button-secondary" to="/admin/clients">
+                View all clients
+              </Link>
+            </div>
+          ) : null}
+        </AdminSection>
 
-                 <div className="space-y-6">
-                    {recentClients.length === 0 && (
-                      <div className="text-center py-10 text-slate-300">
-                        <Users className="h-10 w-10 mx-auto mb-3 opacity-30" />
-                        <p className="text-sm font-medium">No activity yet. Data loads automatically.</p>
-                      </div>
-                    )}
-                    {recentClients.map((c) => (
-                      <div key={c.id} className="flex gap-4 group/item">
-                         <div className="relative">
-                            <div className={`h-11 w-11 rounded-2xl flex items-center justify-center text-white font-black text-xs ${
-                               c.source === 'referral' ? 'bg-emerald-500' : 
-                               c.source === 'consultation' ? 'bg-blue-500' : 'bg-purple-500'
-                            }`}>
-                               {c.source === 'referral' ? 'R' : c.source === 'consultation' ? 'L' : 'G'}
-                            </div>
-                            <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-white flex items-center justify-center shadow-sm">
-                               {c.status === 'completed' ? <CheckCircle2 className="h-3 w-3 text-emerald-500" /> : <Clock className="h-3 w-3 text-amber-500" />}
-                            </div>
-                         </div>
-                         <div className="flex-1 space-y-1">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                   <div className="text-sm font-bold text-slate-900 group-hover/item:text-emerald-600 transition-colors">{c.name}</div>
-                                   <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest ${
-                                      USER_GROUPS.find(g => g.id === (c as any).group)?.color || "bg-slate-100 text-slate-500"
-                                   }`}>
-                                      {(c as any).group || 'visitor'}
-                                   </span>
-                                </div>
-                               <div className="text-[10px] font-medium text-slate-400 italic">{new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                            </div>
-                            <div className="text-xs text-slate-500 font-medium italic">
-                               {c.source === 'referral' && "Joined the referral program to become a partner."}
-                               {c.source === 'consultation' && `Requested a consultation for ${c.serviceNeeded}.`}
-                               {c.source === 'spin' && `Successfully won a prize in the Spin & Win game.`}
-                            </div>
-                         </div>
-                      </div>
-                    ))}
-                 </div>
-              </CardBody>
-           </Card>
-
-           <Card className="border-none shadow-sm ring-1 ring-slate-100 bg-slate-900 text-white overflow-hidden relative">
-              <div className="absolute top-0 right-0 p-8 opacity-10">
-                <Target className="h-32 w-32" />
+        <div className="space-y-6">
+          <AdminSection title="Predictive outlook" description="A quick read on current acquisition momentum.">
+            <div className="space-y-4">
+              <div className="admin-icon-chip admin-icon-chip-success">
+                <Activity className="h-4 w-4" />
               </div>
-              <CardBody className="p-8 relative">
-                 <h3 className="text-lg font-bold mb-6">Service Demand Heatmap</h3>
-                 <div className="space-y-4">
-                    {Object.entries(stats.leadsByService).length === 0 && (
-                      <p className="text-slate-500 text-xs font-medium italic">Waiting for consultation data...</p>
-                    )}
-                    {Object.entries(stats.leadsByService).map(([name, count]: any) => (
-                      <div key={name} className="space-y-1">
-                         <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            <span>{name}</span>
-                            <span>{count} leads</span>
-                         </div>
-                         <div className="h-2 rounded-full bg-white/5 overflow-hidden">
-                            <div 
-                              className="h-full bg-emerald-500 rounded-full transition-all duration-1000"
-                              style={{ width: `${Math.min(100, (count / (stats.totalLeads || 1)) * 100)}%` }}
-                             />
-                         </div>
+              <p className="admin-page-description max-w-none">
+                {stats.totalLeads > 0
+                  ? `Based on current activity, the system projects roughly ${Math.ceil(
+                      stats.totalLeads * 1.15
+                    )} additional leads next month.`
+                  : "Acquisition is still at baseline. More engagement campaigns will help the pipeline start moving."}
+              </p>
+              <Link className="admin-button-primary w-full sm:w-auto" to="/admin/reports">
+                Open reports
+              </Link>
+            </div>
+          </AdminSection>
+
+          <AdminSection title="Top services" description="Most requested services from current lead data.">
+            {topServices.length === 0 ? (
+              <AdminEmptyState title="No service data yet" description="Service demand will appear here once leads begin selecting services." />
+            ) : (
+              <div className="space-y-4">
+                {topServices.map(([name, count]) => {
+                  const serviceCount = Number(count);
+                  return (
+                    <div key={name} className="space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="admin-kicker text-[var(--text-primary)]">{name}</p>
+                        <p className="admin-meta">{serviceCount}</p>
                       </div>
-                    ))}
-                 </div>
-              </CardBody>
-           </Card>
-        </div>
+                      <div className="h-2 rounded-full bg-[var(--admin-panel-muted)]">
+                        <div
+                          className="h-2 rounded-full bg-[var(--color-primary-500)]"
+                          style={{
+                            width: `${Math.min(100, (serviceCount / (stats.totalLeads || 1)) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </AdminSection>
 
-        <div className="space-y-8">
-           <Card className="border-none shadow-xl shadow-emerald-500/5 ring-1 ring-emerald-500/20 bg-emerald-50/30">
-              <CardBody className="p-8 space-y-4">
-                 <div className="h-12 w-12 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                    <TrendingUp className="h-6 w-6" />
-                 </div>
-                 <div>
-                    <h3 className="text-lg font-black text-slate-900 tracking-tight">Growth Suggestion</h3>
-                    <p className="mt-2 text-xs font-medium text-slate-500 leading-relaxed italic">
-                       Service demand for <span className="text-emerald-600 font-bold">"CAC Registration"</span> has spiked 20% this week. Consider featuring it on the hero section for better conversion.
-                    </p>
-                 </div>
-                 <button className="flex items-center gap-2 text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em] mt-2 group">
-                    Quick Update Link <ArrowUpRight className="h-3 w-3 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
-                 </button>
-              </CardBody>
-           </Card>
-
-           <Card className="border-none shadow-sm ring-1 ring-slate-100 bg-white">
-              <CardBody className="p-8 text-center space-y-4">
-                 <div className="h-16 w-16 mx-auto bg-purple-50 text-purple-600 rounded-3xl flex items-center justify-center">
-                    <Gamepad2 className="h-8 w-8" />
-                 </div>
-                 <div>
-                    <div className="text-2xl font-black text-slate-900">{stats.totalSpins}</div>
-                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Total Game Spins</div>
-                 </div>
-                 <div className="pt-2">
-                    <div className="text-xs font-medium text-slate-500 italic">User engagement is high. The gamification loop is successfully driving data acquisition.</div>
-                 </div>
-              </CardBody>
-           </Card>
-
-           <Card className="border-none shadow-xl ring-1 ring-slate-100 bg-white">
-              <CardBody className="p-8 space-y-6">
-                 <h3 className="text-sm font-black text-slate-900 uppercase tracking-[0.2em]">Group Distribution</h3>
-                 <div className="space-y-4">
-                    {USER_GROUPS.map((g) => {
-                       const count = (stats.groupBreakdown as any)[g.id] || 0;
-                       const total = stats.totalLeads + stats.totalSpins + stats.totalReferrers || 1;
-                       return (
-                          <div key={g.id} className="space-y-1.5">
-                             <div className="flex justify-between items-center text-[10px] font-bold">
-                                <span className="text-slate-500 uppercase tracking-widest">{g.label}</span>
-                                <span className="text-slate-900">{count}</span>
-                             </div>
-                             <div className="h-1.5 w-full bg-slate-50 rounded-full overflow-hidden">
-                                <div 
-                                   className={`h-full rounded-full ${g.color.split(' ')[0]}`}
-                                   style={{ width: `${(count / total) * 100}%` }}
-                                />
-                             </div>
-                          </div>
-                       );
-                    })}
-                 </div>
-              </CardBody>
-           </Card>
+          <AdminSection title="Game activity" description="Spin & Win participation in the current cycle.">
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <div className="admin-icon-chip admin-icon-chip-success">
+                  <BarChart3 className="h-4 w-4" />
+                </div>
+                <div className="admin-stat-value">{stats.totalSpins}</div>
+              </div>
+              <p className="admin-page-description max-w-none">
+                The game channel continues to support engagement and first-party data capture.
+              </p>
+              <AdminBadge tone="info">
+                <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+                Engagement tracked
+              </AdminBadge>
+            </div>
+          </AdminSection>
         </div>
       </div>
-    </div>
+    </AdminPage>
   );
 }
-

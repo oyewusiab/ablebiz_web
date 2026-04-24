@@ -11,10 +11,11 @@ import { BlogIndexPage } from "./pages/BlogIndex";
 import { BlogPostPage } from "./pages/BlogPost";
 import { NotFoundPage } from "./pages/NotFound";
 import { ReferralsPage } from "./pages/Referrals";
-import { AdminDashboardPage } from "./pages/AdminDashboard";
+
 import { useReferralUrl } from "./referrals/useReferralUrl";
 
 import { AuthProvider } from "./auth/AuthContext";
+import { ThemeProvider } from "./auth/ThemeContext";
 import { ProtectedRoute } from "./auth/ProtectedRoute";
 import { AdminPortalLayout } from "./components/AdminPortalLayout";
 import { AdminLoginPage } from "./pages/admin/Login";
@@ -29,7 +30,8 @@ export default function App() {
 
   return (
     <AuthProvider>
-      <GamificationProvider>
+      <ThemeProvider>
+        <GamificationProvider>
         <Routes>
           <Route element={<Layout />}>
             <Route index element={<HomePage />} />
@@ -48,17 +50,18 @@ export default function App() {
           <Route path="/admin/login" element={<AdminLoginPage />} />
           <Route path="/admin" element={<ProtectedRoute><AdminPortalLayout /></ProtectedRoute>}>
             <Route index element={<Navigate to="/admin/dashboard" replace />} />
-            <Route path="dashboard" element={<AdminDashboard />} />
-            <Route path="referrals" element={<AdminReferrals />} />
-            <Route path="clients" element={<AdminClients />} />
-            <Route path="reports" element={<AdminReports />} />
-            <Route path="settings" element={<AdminSettings />} />
+            <Route path="dashboard" element={<ProtectedRoute requiredPermission="dashboard"><AdminDashboard /></ProtectedRoute>} />
+            <Route path="referrals" element={<ProtectedRoute requiredPermission="referrals"><AdminReferrals /></ProtectedRoute>} />
+            <Route path="clients" element={<ProtectedRoute requiredPermission="clients"><AdminClients /></ProtectedRoute>} />
+            <Route path="reports" element={<ProtectedRoute requiredPermission="reports"><AdminReports /></ProtectedRoute>} />
+            <Route path="settings" element={<ProtectedRoute requiredPermission="settings"><AdminSettings /></ProtectedRoute>} />
           </Route>
 
           {/* Legacy Redirects */}
           <Route path="/admin-porter/*" element={<Navigate to="/admin" replace />} />
         </Routes>
       </GamificationProvider>
-    </AuthProvider>
+    </ThemeProvider>
+  </AuthProvider>
   );
 }

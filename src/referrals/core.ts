@@ -1,5 +1,5 @@
 import { uid, load, save, normalizePhone, secureRandomInt } from "../utils/storageHelpers";
-import { getSiteConfig } from "./siteConfig";
+import { getSiteConfig, AutomationRule } from "./siteConfig";
 
 export type UserGroup = "visitor" | "prospect" | "client" | "returning_client" | "vip";
 
@@ -42,6 +42,15 @@ export type ConsultationLead = {
   createdAt: string;
 };
 
+type SpinUserRecord = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  createdAt: string;
+  group?: UserGroup;
+};
+
 export type ReferralConversion = {
   id: string;
   referrerCode: string; // The code that brought them in
@@ -79,10 +88,15 @@ export function getReferralRedemptions(): ReferralRedemption[] {
 
 export function findClientByCode(code: string): ReferralClient | undefined {
   if (!code) return undefined;
-  const cleanCode = code.trim().toLowerCase().replace(/^ref-/, "");
+  const cleanCode = code
+    .trim()
+    .toLowerCase()
+    .replace(/^abz-ref-/, "")
+    .replace(/^ref-/, "");
   const clients = getReferralClients();
   return clients.find((c) => {
-    const target = c.referralCode.toLowerCase().replace(/^ref-/, "");
+    const target =
+      c.referralCode?.toLowerCase().replace(/^abz-ref-/, "").replace(/^ref-/, "") || "";
     return target === cleanCode;
   });
 }
@@ -97,16 +111,16 @@ export function findClientByPhoneOrEmail(phone: string, email: string) {
 }
 
 function generateCode(existing: ReferralClient[]): string {
-  const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   for (let i = 0; i < 20; i++) {
-    const rand =
-      letters[secureRandomInt(letters.length)] +
-      letters[secureRandomInt(letters.length)] +
-      String(1000 + secureRandomInt(9000));
-    const code = `REF-${rand}`;
+    let rand = "";
+    for (let j = 0; j < 6; j += 1) {
+      rand += chars[secureRandomInt(chars.length)];
+    }
+    const code = `ABZ-REF-${rand}`;
     if (!existing.some((u) => u.referralCode === code)) return code;
   }
-  return `REF-${Date.now().toString().slice(-6)}`;
+  return `ABZ-REF-${Date.now().toString().slice(-6)}`;
 }
 
 export function getOrCreateReferralClient(input: {
@@ -158,15 +172,58 @@ export function recordReferralConversion(referrerCode: string, newClientInfo: { 
   const alreadyLinked = conversions.some((c) => c.convertedUserId === newClient.id);
   if (alreadyLinked) return;
 
+  const { flashCampaign } = getSiteConfig();
+  let pointsToAward = 1;
+  if (flashCampaign?.active) {
+    if (!flashCampaign.expiresAt || new Date() < new Date(flashCampaign.expiresAt)) {
+      pointsToAward *= flashCampaign.multiplier;
+    }
+  }
+
   const conversion: ReferralConversion = {
     id: uid(),
     referrerCode: referrer.referralCode,
     convertedUserId: newClient.id,
-    points: 1, // 1 successful referral = 1 point
+    points: pointsToAward, // 1 successful referral = 1 point, multiplied by flash
     createdAt: new Date().toISOString(),
   };
 
   save(KEYS.conversions, [conversion, ...conversions]);
+  
+  // Trigger automation
+  runAutomations("new_referral", newClient);
+}
+
+export function runAutomations(trigger: AutomationRule["trigger"], data: any) {
+  const { automations } = getSiteConfig();
+  if (!automations || automations.length === 0) return;
+
+  automations.filter(a => a.active && a.trigger === trigger).forEach(rule => {
+     let conditionMet = true;
+     if (rule.conditionField && rule.conditionValue) {
+       conditionMet = String(data[rule.conditionField] || "").toLowerCase() === String(rule.conditionValue).toLowerCase();
+     }
+     
+     if (conditionMet) {
+       if (rule.action === "assign_group" && data.id) {
+         if (trigger === "new_lead") {
+           const leads = getLeads();
+           const l = leads.find(x => x.id === data.id);
+           if (l) {
+             l.group = rule.actionValue as UserGroup;
+             saveLeads(leads);
+           }
+         } else if (trigger === "new_referral" || trigger === "spin_won") {
+           const clients = getReferralClients();
+           const c = clients.find(x => x.id === data.id);
+           if (c) {
+             c.group = rule.actionValue as UserGroup;
+             save(KEYS.clients, clients);
+           }
+         }
+       }
+     }
+  });
 }
 
 export type ReferrerStats = {
@@ -181,7 +238,7 @@ export function getReferrerStats(code: string): ReferrerStats | null {
   if (!client) return null;
 
   const conversions = getReferralConversions();
-  const count = conversions.filter((c) => c.referrerCode.toLowerCase() === code.toLowerCase()).length;
+  const count = conversions.filter((c) => c.referrerCode?.toLowerCase() === code.toLowerCase()).length;
 
   const { referralTiers } = getSiteConfig();
   let currentTier: any | null = null;
@@ -250,7 +307,7 @@ export function getEnrichedConversions() {
   
   return conversions.map(conv => ({
     ...conv,
-    referrer: clients.find(c => c.referralCode.toLowerCase() === conv.referrerCode.toLowerCase()),
+    referrer: clients.find(c => c.referralCode?.toLowerCase() === conv.referrerCode?.toLowerCase()),
     converted: clients.find(c => c.id === conv.convertedUserId),
   }));
 }
@@ -261,7 +318,7 @@ export function getEnrichedRedemptions() {
   
   return redemptions.map(red => ({
     ...red,
-    client: clients.find(c => c.referralCode.toLowerCase() === red.clientCode.toLowerCase()),
+    client: clients.find(c => c.referralCode?.toLowerCase() === red.clientCode?.toLowerCase()),
   }));
 }
 
@@ -367,6 +424,88 @@ export function updateLeadStatus(id: string, status: LeadStatus) {
   saveLeads(leads);
 }
 
+function getSpinUsers(): SpinUserRecord[] {
+  return load<SpinUserRecord[]>("ablebiz_spin_users", []);
+}
+
+function saveSpinUsers(users: SpinUserRecord[]) {
+  save("ablebiz_spin_users", users);
+}
+
+export function updateUnifiedClientGroup(id: string, source: string, group: UserGroup) {
+  if (source === "consultation") {
+    const leads = getLeads();
+    const idx = leads.findIndex((lead) => lead.id === id);
+    if (idx !== -1) {
+      leads[idx] = { ...leads[idx], group };
+      saveLeads(leads);
+    }
+    return;
+  }
+
+  if (source === "spin") {
+    const spinUsers = getSpinUsers();
+    const idx = spinUsers.findIndex((item) => item.id === id);
+    if (idx !== -1) {
+      spinUsers[idx] = { ...spinUsers[idx], group };
+      saveSpinUsers(spinUsers);
+    }
+    return;
+  }
+
+  const clients = getReferralClients();
+  const idx = clients.findIndex((client) => client.id === id);
+  if (idx !== -1) {
+    clients[idx] = { ...clients[idx], group };
+    save(KEYS.clients, clients);
+  }
+}
+
+export function updateUnifiedClientRecord(
+  data: Partial<ReferralClient> &
+    Partial<ConsultationLead> & {
+      id: string;
+      source: "referral" | "consultation" | "spin";
+    }
+) {
+  if (data.source === "consultation") {
+    const leads = getLeads();
+    const idx = leads.findIndex((lead) => lead.id === data.id);
+    if (idx === -1) return null;
+
+    leads[idx] = {
+      ...leads[idx],
+      name: data.name?.trim() || leads[idx].name,
+      email: data.email?.trim() || leads[idx].email,
+      phone: normalizePhone(data.phone || leads[idx].phone),
+      serviceNeeded: data.serviceNeeded || leads[idx].serviceNeeded,
+      message: data.message ?? leads[idx].message,
+      status: (data.status as LeadStatus) || leads[idx].status,
+      group: data.group || leads[idx].group,
+    };
+    saveLeads(leads);
+    return leads[idx];
+  }
+
+  if (data.source === "spin") {
+    const spinUsers = getSpinUsers();
+    const idx = spinUsers.findIndex((item) => item.id === data.id);
+    if (idx === -1) return null;
+
+    spinUsers[idx] = {
+      ...spinUsers[idx],
+      name: data.name?.trim() || spinUsers[idx].name,
+      email: data.email?.trim() || spinUsers[idx].email,
+      phone: normalizePhone(data.phone || spinUsers[idx].phone),
+      group: data.group || spinUsers[idx].group,
+    };
+    saveSpinUsers(spinUsers);
+    return spinUsers[idx];
+  }
+
+  return createOrUpdateClient(data);
+}
+
 export function deleteLead(id: string) {
   const leads = getLeads();
   const filtered = leads.filter(l => l.id !== id);
@@ -378,7 +517,14 @@ export function createOrUpdateClient(data: Partial<ReferralClient>) {
   if (data.id) {
     const idx = clients.findIndex(c => c.id === data.id);
     if (idx !== -1) {
-      clients[idx] = { ...clients[idx], ...data } as ReferralClient;
+      clients[idx] = {
+        ...clients[idx],
+        ...data,
+        name: data.name?.trim() || clients[idx].name,
+        email: data.email?.trim() || clients[idx].email,
+        phone: normalizePhone(data.phone || clients[idx].phone),
+        referralCode: data.referralCode?.trim().toUpperCase() || clients[idx].referralCode,
+      } as ReferralClient;
       save(KEYS.clients, clients);
       return clients[idx];
     }
@@ -389,7 +535,7 @@ export function createOrUpdateClient(data: Partial<ReferralClient>) {
     name: data.name || "",
     email: data.email || "",
     phone: normalizePhone(data.phone || ""),
-    referralCode: data.referralCode || `REF-${uid().slice(0, 6).toUpperCase()}`,
+    referralCode: data.referralCode?.trim().toUpperCase() || generateCode(clients),
     group: data.group || "client",
     createdAt: new Date().toISOString(),
   };

@@ -1,58 +1,60 @@
-import { useState, useMemo } from "react";
-import { 
-  CheckCircle2, 
-  Clock, 
-  Copy, 
-  Gift, 
-  History, 
-  Users, 
-  Link as LinkIcon, 
-  Trash2, 
-  PlusCircle,
+import { useMemo, useState } from "react";
+import {
+  CheckCircle2,
+  Gift,
+  History,
+  Link as LinkIcon,
   MessageSquareShare,
+  PlusCircle,
   Search,
+  Users,
   Zap,
-  ChevronDown
 } from "lucide-react";
-import { Card, CardBody } from "../../components/ui/Card";
-import { Button } from "../../components/ui/Button";
-import { 
-  getReferralClients, 
-  getReferralConversions, 
-  getEnrichedConversions, 
+import {
+  getEnrichedConversions,
   getEnrichedRedemptions,
-  updateRedemptionStatus,
+  getReferralClients,
+  getReferralConversions,
+  getUnifiedClients,
   manualRecordConversion,
-  deleteReferralClient,
-  awardPoints,
-  findClientByCode,
-  getUnifiedClients
+  generateUniqueCode,
+  updateRedemptionStatus,
 } from "../../referrals/core";
 import { useAuth } from "../../auth/AuthContext";
 import { buildWhatsAppLink } from "../../content/site";
 import { useStorageData } from "../../utils/useStorageData";
+import {
+  AdminBadge,
+  AdminEmptyState,
+  AdminField,
+  AdminInput,
+  AdminPage,
+  AdminSection,
+  AdminSelect,
+  AdminStatCard,
+  AdminSurface,
+  AdminTabs,
+} from "../../components/admin/AdminPrimitives";
+import { Button } from "../../components/ui/Button";
 
+type ReferralTab = "referrers" | "conversions" | "redemptions" | "manual";
 
 export function AdminReferrals() {
   const { user: authUser } = useAuth();
-  const [activeTab, setActiveTab] = useState<"referrers" | "conversions" | "redemptions" | "manual">("referrers");
+  const [activeTab, setActiveTab] = useState<ReferralTab>("referrers");
   const [search, setSearch] = useState("");
-  
-  // Manual Link Form State
   const [refCode, setRefCode] = useState("");
+  const [selectedReferrerId, setSelectedReferrerId] = useState("");
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [manualMsg, setManualMsg] = useState("");
   const [searchInClients, setSearchInClients] = useState("");
-  const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // Reactive data via polling hook
   const [referralClients, refreshClients] = useStorageData(getReferralClients);
   const [conversions, refreshConversions] = useStorageData(getReferralConversions);
   const [enrichedRedemptions, refreshRedemptions] = useStorageData(getEnrichedRedemptions);
   const [allClients, refreshAllClients] = useStorageData(getUnifiedClients);
-  const clientsData = allClients;
 
   const refreshData = () => {
     refreshClients();
@@ -62,150 +64,168 @@ export function AdminReferrals() {
   };
 
   const leaderboard = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const c of conversions) {
-      const code = c.referrerCode.toLowerCase();
-      counts.set(code, (counts.get(code) || 0) + c.points);
+    const pointsMap = new Map<string, number>();
+    for (const conversion of conversions) {
+      const code = conversion.referrerCode.toLowerCase();
+      pointsMap.set(code, (pointsMap.get(code) || 0) + conversion.points);
     }
-    
+
     return referralClients
-      .map((c) => ({
-        ...c,
-        points: counts.get(c.referralCode.toLowerCase()) || 0,
+      .map((client) => ({
+        ...client,
+        points: pointsMap.get(client.referralCode.toLowerCase()) || 0,
       }))
-      .filter(c => 
-        c.name.toLowerCase().includes(search.toLowerCase()) || 
-        c.referralCode.toLowerCase().includes(search.toLowerCase())
+      .filter(
+        (client) =>
+          client.name.toLowerCase().includes(search.toLowerCase()) ||
+          client.referralCode.toLowerCase().includes(search.toLowerCase())
       )
       .sort((a, b) => b.points - a.points);
-  }, [referralClients, conversions, search]);
+  }, [conversions, referralClients, search]);
 
   const clientSuggestions = useMemo(() => {
     if (!searchInClients.trim()) return [];
-    return clientsData.filter(c => 
-      c.name.toLowerCase().includes(searchInClients.toLowerCase()) ||
-      (c.email || "").toLowerCase().includes(searchInClients.toLowerCase())
-    ).slice(0, 5);
-  }, [searchInClients, clientsData]);
+    return allClients
+      .filter(
+        (client) =>
+          client.name.toLowerCase().includes(searchInClients.toLowerCase()) ||
+          (client.email || "").toLowerCase().includes(searchInClients.toLowerCase())
+      )
+      .slice(0, 5);
+  }, [allClients, searchInClients]);
 
-  const selectSuggestion = (c: any) => {
-    setNewName(c.name);
-    setNewEmail(c.email || "");
-    setNewPhone(c.phone || "");
-    setSearchInClients("");
-    setShowSuggestions(false);
-  };
+  const handleManualLink = (event: React.FormEvent) => {
+    event.preventDefault();
 
-  const handleManualLink = (e: React.FormEvent) => {
-    e.preventDefault();
     try {
       manualRecordConversion(refCode, newName, newEmail, newPhone);
-      setManualMsg("Successfully linked conversion!");
-      setRefCode(""); setNewName(""); setNewEmail(""); setNewPhone("");
+      setManualMsg("Conversion linked successfully.");
+      setRefCode("");
+      setNewName("");
+      setNewEmail("");
+      setNewPhone("");
+      setSearchInClients("");
       refreshData();
-    } catch (err: any) {
-      setManualMsg(err.message || "Failed to link");
+    } catch (error: any) {
+      setManualMsg(error.message || "Failed to link conversion.");
     }
   };
 
-  const openWhatsApp = (phone: string, name: string) => {
-    const link = buildWhatsAppLink(`Hello ${name}, this is ABLEBIZ support regarding your referral profile...`);
+  const generateReferrerCode = () => {
+    const selectedReferrer = referralClients.find((client) => client.id === selectedReferrerId);
+    if (selectedReferrer?.referralCode) {
+      setRefCode(selectedReferrer.referralCode);
+      setManualMsg(`Using ${selectedReferrer.name}'s referral code.`);
+      return;
+    }
+
+    setRefCode(generateUniqueCode());
+    setManualMsg("A code was generated, but please select a valid referrer before linking.");
+  };
+
+  const openWhatsApp = (name: string) => {
+    const link = buildWhatsAppLink(
+      `Hello ${name}, this is ABLEBIZ support regarding your referral profile.`
+    );
     window.open(link, "_blank");
   };
 
   return (
-    <div className="space-y-10">
-      <div className="flex flex-wrap items-center justify-between gap-6">
-        <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Referral Ecosystem</h1>
-          <p className="mt-1 text-sm font-medium text-slate-500 italic">Intervene, reward, and track your viral registration loop.</p>
-        </div>
-        
-        <div className="flex overflow-hidden bg-slate-200/50 p-1.5 rounded-2xl ring-1 ring-slate-200">
-          {[
-            { id: "referrers", label: "Referrers", icon: Users },
-            { id: "conversions", label: "Conversions", icon: History },
-            { id: "redemptions", label: "Rewards", icon: Gift },
-            { id: "manual", label: "Manual Link", icon: Zap },
-          ].map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setActiveTab(t.id as any)}
-              className={`flex items-center gap-2 px-6 py-2.5 text-xs font-black rounded-xl uppercase tracking-widest transition-all ${
-                activeTab === t.id ? "bg-white text-emerald-600 shadow-xl" : "text-slate-500 hover:text-slate-800"
-              }`}
-            >
-              <t.icon className="h-4 w-4" />
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {activeTab === "referrers" && (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
-          <div className="flex bg-white rounded-3xl p-8 items-center justify-between shadow-2xl shadow-emerald-500/5 ring-1 ring-slate-100">
-             <div className="space-y-1">
-                <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Active Referrers</div>
-                <div className="text-4xl font-black text-slate-900">{referralClients.length}</div>
-             </div>
-             <div className="h-12 w-px bg-slate-100" />
-             <div className="space-y-1">
-                <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Total Conversions</div>
-                <div className="text-4xl font-black text-slate-900">{conversions.length}</div>
-             </div>
-             <div className="h-12 w-px bg-slate-100" />
-             <div className="space-y-1">
-                <div className="text-[10px] font-black text-purple-600 uppercase tracking-widest">Success Rate</div>
-                <div className="text-4xl font-black text-slate-900">{(conversions.length / (referralClients.length || 1)).toFixed(1)}</div>
-             </div>
-          </div>
-
-          <div className="relative max-w-sm group">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
-            <input 
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-11 w-full pl-10 pr-4 bg-white rounded-2xl text-sm ring-1 ring-slate-200 shadow-sm focus:ring-2 focus:ring-emerald-500 transition-colors"
-              placeholder="Filter by name or code..."
+    <AdminPage
+      eyebrow="Referral program"
+      title="Referrals"
+      description="Track partners, conversions, rewards, and manual reconciliation for missed attribution."
+      actions={
+        <AdminTabs
+          value={activeTab}
+          onChange={setActiveTab}
+          items={[
+            { value: "referrers", label: "Referrers", icon: Users },
+            { value: "conversions", label: "Conversions", icon: History },
+            { value: "redemptions", label: "Rewards", icon: Gift },
+            { value: "manual", label: "Manual link", icon: Zap },
+          ]}
+        />
+      }
+    >
+      {activeTab === "referrers" ? (
+        <div className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-3">
+            <AdminStatCard
+              label="Active referrers"
+              value={referralClients.length}
+              icon={Users}
+              tone="success"
+            />
+            <AdminStatCard
+              label="Total conversions"
+              value={conversions.length}
+              icon={Zap}
+              tone="info"
+            />
+            <AdminStatCard
+              label="Average referrals per user"
+              value={(conversions.length / (referralClients.length || 1)).toFixed(1)}
+              icon={LinkIcon}
+              tone="warning"
             />
           </div>
 
-          <Card className="overflow-hidden border-none shadow-xl shadow-slate-200/50 ring-1 ring-slate-200/50">
-            <CardBody className="p-0">
+          <AdminSection title="Leaderboard" description="Rank referrers by total points earned.">
+            <div className="mb-5 max-w-sm">
+              <AdminField label="Search referrers">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-secondary)]" />
+                  <AdminInput
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    className="pl-10"
+                    placeholder="Search by name or referral code"
+                  />
+                </div>
+              </AdminField>
+            </div>
+
+            {leaderboard.length === 0 ? (
+              <AdminEmptyState
+                icon={Users}
+                title="No referrers found"
+                description="Try another search term or come back after the referral program has more activity."
+              />
+            ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm whitespace-nowrap italic">
-                  <thead className="bg-slate-900 border-b border-slate-800">
+                <table className="admin-table">
+                  <thead>
                     <tr>
-                      <th className="px-6 py-4 font-bold text-slate-400">Referrer</th>
-                      <th className="px-6 py-4 font-bold text-slate-400">Unique Code</th>
-                      <th className="px-6 py-4 font-bold text-slate-400 text-center">Referrals</th>
-                      <th className="px-6 py-4 font-bold text-slate-400 text-right">Perform</th>
+                      <th>Referrer</th>
+                      <th>Referral code</th>
+                      <th>Points</th>
+                      <th className="text-right">Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 italic font-medium">
-                    {leaderboard.map((c) => (
-                      <tr key={c.id} className="hover:bg-slate-50/50 transition-all group">
-                        <td className="px-6 py-5">
-                          <div className="font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">{c.name}</div>
-                          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tight mt-0.5">{c.email} • {c.phone}</div>
+                  <tbody>
+                    {leaderboard.map((client) => (
+                      <tr key={client.id}>
+                        <td>
+                          <div className="space-y-1">
+                            <p className="admin-title-sm">{client.name}</p>
+                            <p className="admin-meta">{client.email}</p>
+                          </div>
                         </td>
-                        <td className="px-6 py-5">
-                          <code className="bg-slate-100 px-3 py-1.5 rounded-lg text-xs font-black text-slate-600 ring-1 ring-slate-200">
-                            {c.referralCode}
-                          </code>
+                        <td>
+                          <AdminBadge>{client.referralCode}</AdminBadge>
                         </td>
-                        <td className="px-6 py-5 text-center">
-                          <span className="inline-flex items-center gap-1.5 font-black text-slate-900 bg-white ring-1 ring-slate-100 rounded-full px-4 py-1.5 shadow-sm">
-                            {c.points} <Users className="h-4 w-4 text-emerald-500" />
-                          </span>
+                        <td>
+                          <AdminBadge tone="success">{client.points} points</AdminBadge>
                         </td>
-                        <td className="px-6 py-5 text-right">
-                          <button 
-                            onClick={() => openWhatsApp(c.phone, c.name)}
-                            className="bg-emerald-500 text-white p-2.5 rounded-xl shadow-lg shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all"
+                        <td className="text-right">
+                          <button
+                            type="button"
+                            onClick={() => openWhatsApp(client.name)}
+                            className="admin-button-secondary"
                           >
                             <MessageSquareShare className="h-4 w-4" />
+                            Contact
                           </button>
                         </td>
                       </tr>
@@ -213,248 +233,262 @@ export function AdminReferrals() {
                   </tbody>
                 </table>
               </div>
-            </CardBody>
-          </Card>
+            )}
+          </AdminSection>
         </div>
-      )}
+      ) : null}
 
-      {activeTab === "manual" && (
-        <div className="grid gap-10 lg:grid-cols-[1.5fr_1fr] animate-in fade-in slide-in-from-right-4 duration-500">
-          <Card className="border-none shadow-2xl shadow-emerald-500/10 ring-1 ring-emerald-500/20 rounded-3xl overflow-hidden">
-            <CardBody className="p-10 space-y-8">
-              <div className="space-y-2">
-                <div className="flex items-center gap-3 text-emerald-600">
-                  <Zap className="h-6 w-6" />
-                  <h3 className="text-2xl font-black">Intelligent Linkage</h3>
-                </div>
-                <p className="text-slate-500 text-sm font-medium italic">Manually associate a lead with a referrer. Search your client list to pull data instantly.</p>
-              </div>
-
-              {manualMsg && (
-                <div className="p-4 rounded-2xl bg-blue-50 text-xs font-black text-blue-700 ring-1 ring-blue-100 flex items-center gap-3">
-                   <LinkIcon className="h-4 w-4" /> {manualMsg}
-                </div>
-              )}
-
-              <form onSubmit={handleManualLink} className="space-y-6">
-                <div className="grid gap-6 sm:grid-cols-2">
-                  <label className="grid gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                    Referrer Alphanumeric Code*
-                    <input 
-                      required value={refCode} onChange={(e) => setRefCode(e.target.value)}
-                      className="h-12 bg-slate-50 rounded-2xl px-4 text-sm font-bold ring-1 ring-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
-                      placeholder="e.g. REF-ABC1234"
-                    />
-                  </label>
-                  
-                  <div className="relative">
-                    <label className="grid gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                      Search Existing Client Name
-                      <div className="relative">
-                        <input 
-                          value={searchInClients}
-                          onFocus={() => setShowSuggestions(true)}
-                          onChange={(e) => setSearchInClients(e.target.value)}
-                          className="h-12 w-full bg-slate-100 rounded-2xl px-4 pl-10 text-sm font-bold text-slate-900 border-none outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
-                          placeholder="Type to suggest..."
-                        />
-                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                      </div>
-                    </label>
-                    
-                    {showSuggestions && clientSuggestions.length > 0 && (
-                      <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-white rounded-2xl shadow-2xl ring-1 ring-slate-200 overflow-hidden">
-                         {clientSuggestions.map((c) => (
-                           <button
-                             key={c.id}
-                             type="button"
-                             onClick={() => selectSuggestion(c)}
-                             className="w-full text-left px-4 py-3 text-xs font-bold hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors flex items-center justify-between"
-                           >
-                              <span>{c.name} <span className="text-[10px] opacity-40 font-medium italic ml-1">{c.sourceLabel}</span></span>
-                              <ChevronDown className="h-3 w-3 -rotate-90 text-slate-400" />
-                           </button>
-                         ))}
-                      </div>
-                    )}
+      {activeTab === "manual" ? (
+        <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
+          <AdminSection title="Manual conversion link" description="Use this when a client joined without the correct referral code.">
+            <form onSubmit={handleManualLink} className="space-y-6">
+              {manualMsg ? (
+                <AdminSurface className="bg-[var(--color-info-100)]/40 p-4">
+                  <div className="flex items-center gap-3 text-[var(--color-info-600)]">
+                    <LinkIcon className="h-4 w-4" />
+                    <span className="text-sm font-medium">{manualMsg}</span>
                   </div>
-                </div>
+                </AdminSurface>
+              ) : null}
 
-                <div className="p-6 bg-slate-50 rounded-3xl space-y-4 ring-1 ring-slate-200/50">
-                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Target Client Details</div>
-                  <label className="grid gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                    Full Name
-                    <input 
-                      required value={newName} onChange={(e) => setNewName(e.target.value)}
-                      className="h-12 bg-white rounded-2xl px-4 text-sm font-bold ring-1 ring-slate-100 outline-none focus:ring-2 focus:ring-emerald-500"
-                    />
-                  </label>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <label className="grid gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                      Email address
-                      <input 
-                        required type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)}
-                        className="h-12 bg-white rounded-2xl px-4 text-sm font-bold ring-1 ring-slate-100 outline-none focus:ring-2 focus:ring-emerald-500"
-                      />
-                    </label>
-                    <label className="grid gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                      Phone Number
-                      <input 
-                        required value={newPhone} onChange={(e) => setNewPhone(e.target.value)}
-                        className="h-12 bg-white rounded-2xl px-4 text-sm font-bold ring-1 ring-slate-100 outline-none focus:ring-2 focus:ring-emerald-500"
-                      />
-                    </label>
-                  </div>
-                </div>
-
-                <Button type="submit" className="w-full h-14 rounded-2xl shadow-xl shadow-emerald-500/20 text-sm">
-                   Finalize Link & Award Points
-                </Button>
-              </form>
-            </CardBody>
-          </Card>
-
-          <Card className="bg-slate-900 text-white border-none shadow-2xl rounded-3xl h-fit sticky top-8">
-            <CardBody className="p-10 space-y-6">
-               <h3 className="text-xl font-bold italic tracking-tight">Referral Intervention Notes</h3>
-               <div className="space-y-4">
-                  <p className="text-sm text-slate-400 leading-relaxed font-medium italic">
-                    Use the manual override when a conversion happens outside the digital tracking route. By searching the existing "Clients" database, you can quickly link records without manual data entry.
-                  </p>
-                  <div className="p-4 bg-white/5 rounded-2xl border border-white/10 italic">
-                    <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">Key Tip</div>
-                    <p className="text-xs text-slate-300 font-medium">Linking a record manually will instantly update the Referrer's score and potentially unlock a new reward tier for them.</p>
-                  </div>
-               </div>
-            </CardBody>
-          </Card>
-        </div>
-      )}
-
-      {activeTab === "conversions" && (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-           <div className="flex items-center justify-between px-2">
-              <h3 className="text-xl font-bold italic tracking-tight">Referral History</h3>
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Showing last {getEnrichedConversions().length} successful links</div>
-           </div>
-
-           <Card className="overflow-hidden border-none shadow-xl ring-1 ring-slate-100">
-            <CardBody className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm whitespace-nowrap italic">
-                  <thead className="bg-slate-50 border-b border-slate-100">
-                    <tr>
-                      <th className="px-6 py-4 font-bold text-slate-500 text-[10px] uppercase">Referrer</th>
-                      <th className="px-6 py-4 font-bold text-slate-500 text-[10px] uppercase">Converted Client</th>
-                      <th className="px-6 py-4 font-bold text-slate-500 text-[10px] uppercase">Points</th>
-                      <th className="px-6 py-4 font-bold text-slate-500 text-[10px] uppercase text-right">Date</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50 italic font-medium">
-                    {getEnrichedConversions().map((conv) => (
-                      <tr key={conv.id} className="hover:bg-slate-50/50 transition-all">
-                        <td className="px-6 py-4">
-                          <div className="font-bold text-slate-900">{conv.referrer?.name || conv.referrerCode}</div>
-                          <div className="text-[10px] text-slate-400 font-bold uppercase">{conv.referrerCode}</div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="font-bold text-slate-900">{conv.converted?.name || "System Record"}</div>
-                          <div className="text-[10px] text-slate-400 font-bold uppercase">{conv.converted?.email}</div>
-                        </td>
-                        <td className="px-6 py-4">
-                           <span className="text-blue-600 font-black">+{conv.points}</span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <span className="text-[10px] font-black text-slate-400 uppercase">{new Date(conv.createdAt).toLocaleDateString()}</span>
-                        </td>
-                      </tr>
+              <div className="grid gap-4 md:grid-cols-2">
+                <AdminField label="Referrer">
+                  <AdminSelect
+                    value={selectedReferrerId}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setSelectedReferrerId(value);
+                      const selectedReferrer = referralClients.find((client) => client.id === value);
+                      if (selectedReferrer?.referralCode) {
+                        setRefCode(selectedReferrer.referralCode);
+                      }
+                    }}
+                  >
+                    <option value="">Select a referrer</option>
+                    {referralClients.map((client) => (
+                      <option key={client.id} value={client.id}>{client.name} - {client.referralCode}</option>
                     ))}
-                  </tbody>
-                </table>
+                  </AdminSelect>
+                </AdminField>
+
+                <AdminField label="Referral code" hint="Generated from the selected referrer.">
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <AdminInput readOnly required value={refCode} placeholder="Generate referral code" />
+                    <button type="button" className="admin-button-secondary" onClick={generateReferrerCode}>
+                      Generate
+                    </button>
+                  </div>
+                </AdminField>
               </div>
-            </CardBody>
-          </Card>
+
+              <div className="grid gap-4 md:grid-cols-1">
+                <AdminField label="Find existing client" hint="Select a suggestion to prefill the details.">
+                  <div className="space-y-3">
+                    <AdminInput
+                      value={searchInClients}
+                      onChange={(event) => setSearchInClients(event.target.value)}
+                      placeholder="Search by name or email"
+                    />
+                    {clientSuggestions.length > 0 ? (
+                      <AdminSurface className="overflow-hidden">
+                        {clientSuggestions.map((client) => (
+                          <button
+                            key={client.id}
+                            type="button"
+                            onClick={() => {
+                              setNewName(client.name);
+                              setNewEmail(client.email || "");
+                              setNewPhone(client.phone || "");
+                              setSearchInClients("");
+                            }}
+                            className="flex w-full items-center justify-between gap-3 border-b border-[var(--admin-border)] px-4 py-3 text-left last:border-b-0 hover:bg-[var(--admin-panel-muted)]"
+                          >
+                            <div>
+                              <p className="admin-title-sm">{client.name}</p>
+                              <p className="admin-meta">{client.email || client.sourceLabel}</p>
+                            </div>
+                            <AdminBadge>{client.sourceLabel}</AdminBadge>
+                          </button>
+                        ))}
+                      </AdminSurface>
+                    ) : null}
+                  </div>
+                </AdminField>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <AdminField label="Client name">
+                  <AdminInput
+                    required
+                    value={newName}
+                    onChange={(event) => setNewName(event.target.value)}
+                    placeholder="Full name"
+                  />
+                </AdminField>
+                <AdminField label="Email address">
+                  <AdminInput
+                    required
+                    type="email"
+                    value={newEmail}
+                    onChange={(event) => setNewEmail(event.target.value)}
+                    placeholder="name@example.com"
+                  />
+                </AdminField>
+              </div>
+
+              <AdminField label="Phone number">
+                <AdminInput
+                  required
+                  value={newPhone}
+                  onChange={(event) => setNewPhone(event.target.value)}
+                  placeholder="Phone number"
+                />
+              </AdminField>
+
+              <Button type="submit">Link conversion</Button>
+            </form>
+          </AdminSection>
+
+          <AdminSection title="How it works" description="Manual linking protects attribution quality when the automated path is missed.">
+            <div className="space-y-4">
+              <p className="admin-page-description max-w-none">
+                Search for an existing client first to reduce duplicate records. Once linked, reward calculations and tier movement update immediately.
+              </p>
+              <AdminBadge tone="success">Instant reward recalculation</AdminBadge>
+            </div>
+          </AdminSection>
         </div>
-      )}
+      ) : null}
 
-      {activeTab === "redemptions" && (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-           <div className="flex items-center justify-between px-2">
-              <h3 className="text-xl font-bold italic tracking-tight">Reward Requests</h3>
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{enrichedRedemptions.filter(r => r.status === "pending").length} Pending fulfillment</div>
-           </div>
-
-           <Card className="overflow-hidden border-none shadow-xl ring-1 ring-slate-100">
-            <CardBody className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm whitespace-nowrap italic">
-                  <thead className="bg-slate-50 border-b border-slate-100">
-                    <tr>
-                      <th className="px-6 py-4 font-bold text-slate-500 text-[10px] uppercase">Beneficiary</th>
-                      <th className="px-6 py-4 font-bold text-slate-500 text-[10px] uppercase">Reward Item</th>
-                      <th className="px-6 py-4 font-bold text-slate-500 text-[10px] uppercase">Status</th>
-                      <th className="px-6 py-4 font-bold text-slate-500 text-[10px] uppercase text-right">Action</th>
+      {activeTab === "conversions" ? (
+        <AdminSection
+          title="Conversion history"
+          description="Every successful referral conversion recorded in the system."
+          actions={<AdminBadge>{getEnrichedConversions().length} records</AdminBadge>}
+        >
+          {getEnrichedConversions().length === 0 ? (
+            <AdminEmptyState
+              icon={History}
+              title="No conversions recorded"
+              description="Successful referral conversions will appear here once people begin completing the flow."
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Referrer</th>
+                    <th>New client</th>
+                    <th>Points earned</th>
+                    <th>Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {getEnrichedConversions().map((conversion) => (
+                    <tr key={conversion.id}>
+                      <td>
+                        <div className="space-y-1">
+                          <p className="admin-title-sm">{conversion.referrer?.name || conversion.referrerCode}</p>
+                          <p className="admin-meta">{conversion.referrerCode}</p>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="space-y-1">
+                          <p className="admin-title-sm">{conversion.converted?.name || "Linked client"}</p>
+                          <p className="admin-meta">{conversion.converted?.email || "-"}</p>
+                        </div>
+                      </td>
+                      <td>
+                        <AdminBadge tone="info">
+                          <PlusCircle className="mr-1 h-3.5 w-3.5" />
+                          {conversion.points} points
+                        </AdminBadge>
+                      </td>
+                      <td className="admin-meta">
+                        {new Date(conversion.createdAt).toLocaleDateString()}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50 italic font-medium">
-                    {enrichedRedemptions.map((red) => (
-                      <tr key={red.id} className={`hover:bg-slate-50/50 transition-all ${red.status === 'fulfilled' ? 'opacity-60' : ''}`}>
-                        <td className="px-6 py-4">
-                          <div className="font-bold text-slate-900">{red.client?.name || "Unknown"}</div>
-                          <div className="text-[10px] text-slate-400 font-bold uppercase">{red.clientCode}</div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-black ring-1 ring-amber-100">
-                             <Gift className="h-3 w-3" /> {red.rewardTitle}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                           <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${
-                             red.status === 'fulfilled' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'
-                           }`}>
-                             {red.status}
-                           </span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          {red.status === "pending" && (
-                            authUser?.role === "superadmin" ? (
-                              <button 
-                                onClick={() => {
-                                  updateRedemptionStatus(red.id, "fulfilled");
-                                  refreshData();
-                                }}
-                                className="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all"
-                              >
-                                <CheckCircle2 className="h-3 w-3" /> Mark Fulfilled
-                              </button>
-                            ) : (
-                              <div className="text-[10px] font-black text-slate-400 italic">Superadmin Only</div>
-                            )
-                          )}
-                          {red.status === "fulfilled" && (
-                            <span className="text-emerald-500 inline-flex items-center gap-1 text-[10px] font-black uppercase">
-                               <CheckCircle2 className="h-3 w-3" /> Handed Over
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                    {enrichedRedemptions.length === 0 && (
-                      <tr>
-                        <td colSpan={4} className="px-6 py-20 text-center">
-                           <Gift className="h-10 w-10 text-slate-100 mx-auto mb-4" />
-                           <div className="text-sm font-bold text-slate-300">No reward redemptions yet.</div>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CardBody>
-          </Card>
-        </div>
-      )}
-    </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </AdminSection>
+      ) : null}
+
+      {activeTab === "redemptions" ? (
+        <AdminSection
+          title="Reward redemptions"
+          description="Fulfill pending rewards and confirm completed ones."
+          actions={
+            <AdminBadge tone="warning">
+              {enrichedRedemptions.filter((item) => item.status === "pending").length} pending
+            </AdminBadge>
+          }
+        >
+          {enrichedRedemptions.length === 0 ? (
+            <AdminEmptyState
+              icon={Gift}
+              title="No redemptions yet"
+              description="Reward requests will show up here once referrers begin redeeming points."
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Referrer</th>
+                    <th>Reward</th>
+                    <th>Status</th>
+                    <th className="text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {enrichedRedemptions.map((redemption) => (
+                    <tr key={redemption.id}>
+                      <td>
+                        <div className="space-y-1">
+                          <p className="admin-title-sm">{redemption.client?.name || "Unknown"}</p>
+                          <p className="admin-meta">{redemption.clientCode}</p>
+                        </div>
+                      </td>
+                      <td>
+                        <AdminBadge tone="warning">{redemption.rewardTitle}</AdminBadge>
+                      </td>
+                      <td>
+                        <AdminBadge tone={redemption.status === "fulfilled" ? "success" : "info"}>
+                          {redemption.status}
+                        </AdminBadge>
+                      </td>
+                      <td className="text-right">
+                        {redemption.status === "pending" ? (
+                          authUser?.role === "superadmin" ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updateRedemptionStatus(redemption.id, "fulfilled");
+                                refreshData();
+                              }}
+                              className="admin-button-primary"
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                              Mark fulfilled
+                            </button>
+                          ) : (
+                            <span className="admin-meta">Superadmin access required</span>
+                          )
+                        ) : (
+                          <AdminBadge tone="success">Reward sent</AdminBadge>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </AdminSection>
+      ) : null}
+    </AdminPage>
   );
 }
-

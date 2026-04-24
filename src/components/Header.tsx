@@ -12,6 +12,7 @@ const nav = [
   { to: "/services", label: "Services" },
   { to: "/pricing", label: "Pricing" },
   { to: "/testimonials", label: "Testimonials" },
+  { to: "/contact", label: "Contacts" },
   { to: "/blog", label: "Blog" },
   { to: "/refer-and-earn", label: "Refer & Earn" },
 ];
@@ -39,10 +40,11 @@ export function Header() {
             <NavLink
               key={item.to}
               to={item.to}
+              end={item.to === "/"}
               className={({ isActive }) =>
                 cn(
-                  "text-sm font-semibold text-[color:var(--ablebiz-accent)] no-underline hover:text-[color:var(--ablebiz-primary)]",
-                  isActive && "text-[color:var(--ablebiz-primary)]"
+                  "rounded-full px-3 py-2 text-sm font-semibold text-[color:var(--ablebiz-accent)] no-underline transition-all hover:bg-white/70 hover:text-[color:var(--ablebiz-primary)]",
+                  isActive && "bg-white text-[color:var(--ablebiz-primary)] ring-1 ring-emerald-100 shadow-sm"
                 )
               }
             >
@@ -82,6 +84,7 @@ export function Header() {
                 <NavLink
                   key={item.to}
                   to={item.to}
+                  end={item.to === "/"}
                   className={({ isActive }) =>
                     cn(
                       "rounded-xl px-3 py-2 text-sm font-semibold text-[color:var(--ablebiz-accent)] no-underline hover:bg-emerald-50",

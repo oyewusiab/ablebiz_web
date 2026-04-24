@@ -1,430 +1,697 @@
 import { useMemo, useState } from "react";
-import { 
-  Users, 
-  MessageSquare, 
-  Gamepad2, 
-  Search, 
-  Filter, 
-  Mail, 
-  Phone,
-  ArrowRight,
-  Plus,
-  Edit2,
-  Trash2,
+import {
   CheckCircle2,
   Clock,
-  AlertCircle,
-  X,
+  Edit2,
+  Gamepad2,
   History,
-  ExternalLink
+  Mail,
+  MessageSquare,
+  Phone,
+  Printer,
+  RefreshCw,
+  Search,
+  Trash2,
+  UserPlus,
+  Users,
+  X,
 } from "lucide-react";
-import { Card, CardBody } from "../../components/ui/Card";
-import { Button } from "../../components/ui/Button";
-import { 
-  getUnifiedClients, 
-  updateLeadStatus, 
-  deleteLead, 
+import {
   createOrUpdateClient,
-  LeadStatus,
+  deleteLead,
   deleteReferralClient,
   generateUniqueCode,
+  getUnifiedClients,
+  LeadStatus,
+  updateLeadStatus,
+  updateUnifiedClientGroup,
+  updateUnifiedClientRecord,
   USER_GROUPS,
-  UserGroup
+  UserGroup,
 } from "../../referrals/core";
 import { useAuth } from "../../auth/AuthContext";
-import { buildWhatsAppLink } from "../../content/site";
 import { useStorageData } from "../../utils/useStorageData";
+import {
+  AdminBadge,
+  AdminEmptyState,
+  AdminField,
+  AdminInput,
+  AdminPage,
+  AdminSection,
+  AdminSelect,
+  AdminSurface,
+  AdminTabs,
+  AdminTextarea,
+} from "../../components/admin/AdminPrimitives";
+import { Button } from "../../components/ui/Button";
+
+type UnifiedSource = "referral" | "consultation" | "spin";
+
+type ClientForm = {
+  name: string;
+  email: string;
+  phone: string;
+  referralCode: string;
+  group: UserGroup;
+  serviceNeeded: string;
+  message: string;
+  status: LeadStatus;
+};
+
+const defaultForm: ClientForm = {
+  name: "",
+  email: "",
+  phone: "",
+  referralCode: "",
+  group: "prospect",
+  serviceNeeded: "",
+  message: "",
+  status: "pending",
+};
+
+function openJourneyPrint(client: any) {
+  const printWindow = window.open("", "_blank", "width=1000,height=800");
+  if (!printWindow) return;
+
+  const details = [
+    ["Full name", client.name || "-"],
+    ["Email", client.email || "-"],
+    ["Phone", client.phone || "-"],
+    ["Source", client.sourceLabel || client.source || "-"],
+    ["Category", client.group || "-"],
+    ["Status", client.status || "-"],
+    ["Created", new Date(client.createdAt).toLocaleString()],
+    ["Referral code", client.referralCode || client.registeredWithCode || "-"],
+    ["Service", client.serviceNeeded || client.service || "-"],
+  ]
+    .map(([label, value]) => `<tr><th>${label}</th><td>${value}</td></tr>`)
+    .join("");
+
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>Client Journey - ${client.name || "Client"}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 32px; color: #0f172a; }
+          h1 { margin: 0 0 8px; font-size: 28px; }
+          h2 { margin: 24px 0 12px; font-size: 18px; }
+          p { margin: 0 0 8px; line-height: 1.5; }
+          table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+          th, td { border: 1px solid #dbe4dd; padding: 10px; text-align: left; vertical-align: top; }
+          th { width: 180px; background: #f8fafc; }
+          .panel { border: 1px solid #dbe4dd; border-radius: 12px; padding: 16px; margin-top: 16px; }
+        </style>
+      </head>
+      <body>
+        <h1>Client Journey</h1>
+        <p>ABLEBIZ admin record generated on ${new Date().toLocaleString()}</p>
+        <table>${details}</table>
+        <div class="panel">
+          <h2>Captured message</h2>
+          <p>${client.message || client.serviceNeeded || "No message captured."}</p>
+        </div>
+        <div class="panel">
+          <h2>Operational note</h2>
+          <p>This record originated from ${client.sourceLabel || client.source}. Use this printout for follow-up, review, or offline record keeping.</p>
+        </div>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+}
 
 export function AdminClients() {
   const { user: authUser } = useAuth();
   const [search, setSearch] = useState("");
-  const [sourceFilter, setSourceFilter] = useState<"all" | "referral" | "consultation" | "spin">("all");
+  const [sourceFilter, setSourceFilter] = useState<"all" | UnifiedSource>("all");
   const [groupFilter, setGroupFilter] = useState<"all" | UserGroup>("all");
-  // Reactive data via polling hook
   const [clients, refreshClients] = useStorageData(getUnifiedClients);
-
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<any>(null);
-
-  // Form State
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    referralCode: "",
-    group: "prospect" as UserGroup
-  });
+  const [journeyClient, setJourneyClient] = useState<any>(null);
+  const [formData, setFormData] = useState<ClientForm>(defaultForm);
 
   const filteredClients = useMemo(() => {
-    return clients
-      .filter(c => {
-        const matchesSearch = 
-          (c.name || "").toLowerCase().includes(search.toLowerCase()) || 
-          (c.email || "").toLowerCase().includes(search.toLowerCase()) ||
-          (c.phone || "").toLowerCase().includes(search.toLowerCase());
-        const matchesSource = sourceFilter === "all" || c.source === sourceFilter;
-        const matchesGroup = groupFilter === "all" || c.group === groupFilter;
-        return matchesSearch && matchesSource && matchesGroup;
-      });
-  }, [clients, search, sourceFilter, groupFilter]);
+    return clients.filter((client) => {
+      const matchesSearch =
+        (client.name || "").toLowerCase().includes(search.toLowerCase()) ||
+        (client.email || "").toLowerCase().includes(search.toLowerCase()) ||
+        (client.phone || "").toLowerCase().includes(search.toLowerCase());
+      const matchesSource = sourceFilter === "all" || client.source === sourceFilter;
+      const matchesGroup = groupFilter === "all" || client.group === groupFilter;
+      return matchesSearch && matchesSource && matchesGroup;
+    });
+  }, [clients, groupFilter, search, sourceFilter]);
 
-  const handleGroupChange = (id: string, group: UserGroup) => {
-    createOrUpdateClient({ id, group });
+  const handleGroupChange = (id: string, source: UnifiedSource, group: UserGroup) => {
+    updateUnifiedClientGroup(id, source, group);
     refreshClients();
   };
 
-  const handleStatusChange = (id: string, source: string, newStatus: LeadStatus) => {
+  const handleStatusChange = (id: string, source: UnifiedSource, status: LeadStatus) => {
     if (source === "consultation") {
-      updateLeadStatus(id, newStatus);
+      updateLeadStatus(id, status);
       refreshClients();
     }
   };
 
-  const handleDelete = (id: string, source: string) => {
+  const handleDelete = (id: string, source: UnifiedSource) => {
     if (!confirm("Are you sure you want to delete this record?")) return;
-    if (source === "consultation") {
-      deleteLead(id);
-    } else if (source === "referral") {
-      deleteReferralClient(id);
-    }
+    if (source === "consultation") deleteLead(id);
+    if (source === "referral") deleteReferralClient(id);
     refreshClients();
   };
 
-  const handleOpenModal = (client: any = null) => {
+  const openModal = (client: any = null) => {
     if (client) {
       setEditingClient(client);
-      setFormData({ 
-        name: client.name || "", 
-        email: client.email || "", 
-        phone: client.phone || "", 
+      setFormData({
+        name: client.name || "",
+        email: client.email || "",
+        phone: client.phone || "",
         referralCode: client.referralCode || "",
-        group: client.group || "prospect"
+        group: client.group || "prospect",
+        serviceNeeded: client.serviceNeeded || client.service || "",
+        message: client.message || "",
+        status: client.status || "pending",
       });
     } else {
       setEditingClient(null);
-      setFormData({ name: "", email: "", phone: "", referralCode: "", group: "prospect" });
+      setFormData(defaultForm);
     }
     setIsModalOpen(true);
   };
 
-  const handleSaveClient = (e: React.FormEvent) => {
-    e.preventDefault();
-    createOrUpdateClient({ id: editingClient?.id, ...formData });
+  const handleSaveClient = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (editingClient) {
+      updateUnifiedClientRecord({
+        id: editingClient.id,
+        source: editingClient.source,
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        referralCode: formData.referralCode,
+        group: formData.group,
+        serviceNeeded: formData.serviceNeeded,
+        message: formData.message,
+        status: formData.status,
+      });
+    } else {
+      createOrUpdateClient({
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        referralCode: formData.referralCode,
+        group: formData.group,
+      });
+    }
     setIsModalOpen(false);
     refreshClients();
   };
 
-  const getStatusColor = (status: string) => {
+  const statusTone = (status: string) => {
     switch (status) {
-      case "completed": return "bg-emerald-50 text-emerald-700 ring-emerald-100";
-      case "in-progress": return "bg-blue-50 text-blue-700 ring-blue-100";
-      case "reversed": return "bg-red-50 text-red-700 ring-red-100";
-      default: return "bg-amber-50 text-amber-700 ring-amber-100";
+      case "completed":
+        return "success" as const;
+      case "in-progress":
+        return "info" as const;
+      case "reversed":
+        return "danger" as const;
+      default:
+        return "warning" as const;
     }
   };
 
   return (
-    <div className="space-y-8 pb-20">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Business Clients</h1>
-          <p className="mt-1 text-sm font-medium text-slate-500 italic">Centralized control for every interaction and lead.</p>
-        </div>
-        
-        <Button onClick={() => handleOpenModal()} className="flex items-center gap-2 shadow-lg shadow-emerald-500/20">
-          <Plus className="h-4 w-4" /> Add New Client
-        </Button>
-      </div>
+    <AdminPage
+      eyebrow="CRM"
+      title="Clients"
+      description="Manage leads, referrals, and lifecycle stages without leaving the admin workspace."
+      actions={
+        <>
+          <Button variant="secondary" size="sm" onClick={refreshClients}>
+            <RefreshCw className="h-3.5 w-3.5" />
+            Refresh
+          </Button>
+          <Button size="sm" onClick={() => openModal()}>
+            <UserPlus className="h-3.5 w-3.5" />
+            New client
+          </Button>
+        </>
+      }
+    >
+      <AdminSection title="Filters" description="Use source and lifecycle filters to narrow the list.">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div className="w-full max-w-md">
+            <AdminField label="Search">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-secondary)]" />
+                <AdminInput
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  className="pl-10"
+                  placeholder="Search by name, email, or phone"
+                />
+              </div>
+            </AdminField>
+          </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="relative max-w-sm w-full group">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
-          <input 
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-11 w-full pl-10 pr-4 bg-white rounded-2xl text-sm ring-1 ring-slate-200 focus:ring-2 focus:ring-emerald-500 shadow-sm transition-all"
-            placeholder="Search by name, email, or phone..."
+          <div className="flex flex-col gap-3 xl:items-end">
+            <AdminTabs
+              value={sourceFilter}
+              onChange={setSourceFilter}
+              items={[
+                { value: "all", label: "All" },
+                { value: "referral", label: "Referrals" },
+                { value: "consultation", label: "Leads" },
+                { value: "spin", label: "Game" },
+              ]}
+            />
+
+            <AdminTabs
+              value={groupFilter}
+              onChange={setGroupFilter}
+              items={[
+                { value: "all", label: "All tiers" },
+                ...USER_GROUPS.map((group) => ({ value: group.id, label: group.label })),
+              ]}
+            />
+          </div>
+        </div>
+      </AdminSection>
+
+      <AdminSection
+        title="Client records"
+        description="Current unified list of referrals, leads, and game participants."
+        actions={<AdminBadge>{filteredClients.length} records</AdminBadge>}
+      >
+        {filteredClients.length === 0 ? (
+          <AdminEmptyState
+            icon={Users}
+            title="No matching clients"
+            description="Try broadening the filters or clearing the search to see more records."
           />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2">
-             <Filter className="h-4 w-4 text-slate-400 mr-1" />
-             <div className="flex bg-slate-200/50 p-1 rounded-xl ring-1 ring-slate-200">
-               {[
-                 { id: "all", label: "All Sources" },
-                 { id: "referral", label: "Referrers" },
-                 { id: "consultation", label: "Consultation" },
-                 { id: "spin", label: "Game Users" },
-               ].map((f) => (
-                 <button
-                   key={f.id}
-                   onClick={() => setSourceFilter(f.id as any)}
-                   className={`px-3 py-1.5 text-[8px] font-black uppercase tracking-wider rounded-lg transition-all ${
-                     sourceFilter === f.id ? "bg-white text-emerald-600 shadow-md" : "text-slate-500 hover:text-slate-800"
-                   }`}
-                 >
-                   {f.label}
-                 </button>
-               ))}
-             </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-             <div className="flex bg-slate-900/5 p-1 rounded-xl ring-1 ring-slate-200">
-               <button
-                 onClick={() => setGroupFilter("all")}
-                 className={`px-3 py-1.5 text-[8px] font-black uppercase tracking-wider rounded-lg transition-all ${
-                   groupFilter === "all" ? "bg-white text-slate-900 shadow-md" : "text-slate-400 hover:text-slate-600"
-                 }`}
-               >
-                 All Groups
-               </button>
-               {USER_GROUPS.map((g) => (
-                 <button
-                   key={g.id}
-                   onClick={() => setGroupFilter(g.id)}
-                   className={`px-3 py-1.5 text-[8px] font-black uppercase tracking-wider rounded-lg transition-all ${
-                     groupFilter === g.id ? "bg-white shadow-md text-emerald-600" : "text-slate-400 hover:text-slate-600"
-                   }`}
-                 >
-                   {g.label}
-                 </button>
-               ))}
-             </div>
-          </div>
-        </div>
-      </div>
-
-      <Card className="overflow-hidden border-none shadow-xl shadow-slate-200/50 ring-1 ring-slate-200/50">
-        <CardBody className="p-0">
+        ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-slate-900 border-b border-slate-800">
+            <table className="admin-table">
+              <thead>
                 <tr>
-                  <th className="px-6 py-4 font-bold text-slate-300">Client Info</th>
-                  <th className="px-6 py-4 font-bold text-slate-300">Origin</th>
-                  <th className="px-6 py-4 font-bold text-slate-300">Business Group</th>
-                  <th className="px-6 py-4 font-bold text-slate-300">Status</th>
-                  <th className="px-6 py-4 font-bold text-slate-300 text-right">Actions</th>
+                  <th>Name / contact</th>
+                  <th>Source</th>
+                  <th>Category</th>
+                  <th>Status</th>
+                  <th className="text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 italic">
-                {filteredClients.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-20 text-center text-slate-400 font-medium italic">
-                      No matching business records found.
+              <tbody>
+                {filteredClients.map((client) => (
+                  <tr key={`${client.source}-${client.id}`}>
+                    <td>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <p className="admin-title-sm">{client.name}</p>
+                          {client.group === "prospect" &&
+                          Date.now() - new Date(client.createdAt).getTime() > 14 * 24 * 60 * 60 * 1000 ? (
+                            <AdminBadge tone="danger">Churn risk</AdminBadge>
+                          ) : null}
+                        </div>
+                        <p className="admin-meta">{client.email || "-"}</p>
+                        <p className="admin-meta">{client.phone || "-"}</p>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="flex items-center gap-2">
+                        <div className="admin-icon-chip">
+                          {client.source === "referral" ? <History className="h-4 w-4" /> : null}
+                          {client.source === "consultation" ? <MessageSquare className="h-4 w-4" /> : null}
+                          {client.source === "spin" ? <Gamepad2 className="h-4 w-4" /> : null}
+                        </div>
+                        <div className="space-y-1">
+                          <p className="admin-title-sm">{client.sourceLabel}</p>
+                          {client.referralCode ? (
+                            <p className="admin-meta">Code: {client.referralCode}</p>
+                          ) : client.serviceNeeded || client.service ? (
+                            <p className="admin-meta">Focus: {client.serviceNeeded || client.service}</p>
+                          ) : null}
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <AdminSelect
+                        value={client.group || "prospect"}
+                        onChange={(event) =>
+                          handleGroupChange(client.id, client.source as UnifiedSource, event.target.value as UserGroup)
+                        }
+                      >
+                        {USER_GROUPS.map((group) => (
+                          <option key={group.id} value={group.id}>
+                            {group.label}
+                          </option>
+                        ))}
+                      </AdminSelect>
+                    </td>
+                    <td>
+                      {client.source === "consultation" ? (
+                        <AdminSelect
+                          value={client.status || "pending"}
+                          onChange={(event) =>
+                            handleStatusChange(
+                              client.id,
+                              client.source as UnifiedSource,
+                              event.target.value as LeadStatus
+                            )
+                          }
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="in-progress">Follow-up</option>
+                          <option value="completed">Converted</option>
+                          <option value="reversed">Lost</option>
+                        </AdminSelect>
+                      ) : (
+                        <AdminBadge tone={statusTone(client.status || "completed")}>
+                          {client.status === "completed" ? (
+                            <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+                          ) : (
+                            <Clock className="mr-1 h-3.5 w-3.5" />
+                          )}
+                          {client.status || "ready"}
+                        </AdminBadge>
+                      )}
+                    </td>
+                    <td>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setJourneyClient(client)}
+                          className="admin-button-secondary"
+                        >
+                          <MessageSquare className="h-4 w-4" />
+                          Journey
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openModal(client)}
+                          className="admin-button-secondary"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                          Edit
+                        </button>
+                        {authUser?.role === "superadmin" && client.source !== "spin" ? (
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(client.id, client.source as UnifiedSource)}
+                            className="admin-button-secondary text-[var(--admin-danger-fg)]"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                          </button>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
-                ) : (
-                  filteredClients.map((c) => (
-                    <tr key={c.id} className="hover:bg-slate-50/50 transition-colors group">
-                      <td className="px-6 py-5">
-                        <div className="flex items-center gap-3">
-                          <div className={`h-10 w-10 flex items-center justify-center rounded-full text-white font-black text-xs ${
-                             c.source === 'referral' ? 'bg-emerald-500' : 
-                             c.source === 'consultation' ? 'bg-blue-500' : 'bg-purple-500'
-                          }`}>
-                            {c.name?.charAt(0) || "U"}
-                          </div>
-                          <div>
-                            <div className="font-bold text-slate-900 tracking-tight">{c.name}</div>
-                            <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-bold uppercase mt-0.5">
-                              <Mail className="h-2.5 w-2.5" /> {c.email || "-"}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-5">
-                        <div className="flex items-center gap-1.5 text-slate-700 font-bold mb-1">
-                          {c.source === "referral" && <History className="h-3 w-3 text-emerald-500" />}
-                          {c.source === "consultation" && <MessageSquare className="h-3 w-3 text-blue-500" />}
-                          {c.source === "spin" && <Gamepad2 className="h-3 w-3 text-purple-500" />}
-                          <span className="text-xs">{c.sourceLabel}</span>
-                        </div>
-                        {c.service && (
-                          <div className="text-[10px] font-medium text-slate-400 italic">
-                            Interest: {c.service}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-5">
-                         <select
-                            value={c.group || "visitor"}
-                            onChange={(e) => handleGroupChange(c.id, e.target.value as UserGroup)}
-                            className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ring-1 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all cursor-pointer ${
-                               USER_GROUPS.find(g => g.id === c.group)?.color || "bg-slate-100 text-slate-500"
-                            }`}
-                         >
-                            {USER_GROUPS.map(g => (
-                               <option key={g.id} value={g.id}>{g.label.toUpperCase()}</option>
-                            ))}
-                         </select>
-                      </td>
-                      <td className="px-6 py-5">
-                        {c.source === "consultation" ? (
-                          <select
-                            value={c.status || "pending"}
-                            onChange={(e) => handleStatusChange(c.id, c.source, e.target.value as LeadStatus)}
-                            className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ring-1 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all cursor-pointer ${getStatusColor(c.status || "pending")}`}
-                          >
-                            <option value="pending">PENDING</option>
-                            <option value="in-progress">IN PROGRESS</option>
-                            <option value="completed">COMPLETED</option>
-                            <option value="reversed">REVERSED</option>
-                          </select>
-                        ) : (
-                          <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ring-1 ${getStatusColor(c.status || "completed")}`}>
-                            {c.status === "completed" ? <CheckCircle2 className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
-                            {c.status || "COMPLETED"}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-5 text-right">
-                        <div className="flex justify-end gap-1.5">
-                          <a 
-                            href={c.phone ? buildWhatsAppLink(`Hello ${c.name}, I am following up from ABLEBIZ regarding your ${c.sourceLabel}...`) : "#"}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="p-2 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
-                            title="Message on WhatsApp"
-                          >
-                            <Phone className="h-4 w-4" />
-                          </a>
-                          {c.source === "referral" && (
-                             <button
-                               onClick={() => handleOpenModal(c)}
-                               className="p-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-900 hover:text-white transition-all shadow-sm"
-                               title="Edit Referrer"
-                             >
-                                <Edit2 className="h-4 w-4" />
-                             </button>
-                          )}
-                          {(authUser?.role === "superadmin") && (
-                             <button
-                               onClick={() => handleDelete(c.id, c.source)}
-                               className="p-2 rounded-xl bg-red-50 text-red-600 hover:bg-red-500 hover:text-white transition-all shadow-sm"
-                               title="Delete User"
-                             >
-                                <Trash2 className="h-4 w-4" />
-                             </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
+                ))}
               </tbody>
             </table>
           </div>
-        </CardBody>
-      </Card>
+        )}
+      </AdminSection>
 
-      {/* Manual Input Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in zoom-in duration-300">
-          <Card className="w-full max-w-lg overflow-hidden shadow-2xl border-none ring-1 ring-white/10">
-            <CardBody className="p-0">
-              <div className="bg-slate-900 p-8 text-white relative">
-                <button 
-                  onClick={() => setIsModalOpen(false)}
-                  className="absolute top-6 right-6 p-2 rounded-full hover:bg-white/10 transition-colors"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-                <div className="flex items-center gap-3 mb-2">
-                  <Users className="h-6 w-6 text-emerald-400" />
-                  <h3 className="text-2xl font-black">{editingClient ? "Edit Client" : "Add New Client"}</h3>
+      {isModalOpen ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-3xl">
+            <AdminSurface className="overflow-hidden">
+              <div className="flex items-center justify-between border-b border-[var(--admin-border)] px-6 py-4">
+                <div>
+                  <h2 className="admin-section-title">{editingClient ? "Edit client record" : "Add new client"}</h2>
+                  <p className="admin-section-description">
+                    {editingClient
+                      ? `Update ${editingClient.sourceLabel} data without changing the original source.`
+                      : "Create a new referral-program client record."}
+                  </p>
                 </div>
-                <p className="text-slate-400 text-sm italic">Manually input or update business contact details.</p>
+                <button type="button" onClick={() => setIsModalOpen(false)} className="admin-button-secondary">
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-              
-              <form onSubmit={handleSaveClient} className="p-8 space-y-6">
-                 <div className="grid gap-4">
-                    <label className="grid gap-2 text-xs font-black text-slate-400 uppercase tracking-widest">
-                      Full Client Name*
-                      <input 
-                        required
-                        value={formData.name}
-                        onChange={(e) => setFormData({...formData, name: e.target.value})}
-                        className="h-12 w-full bg-slate-50 rounded-2xl px-4 text-sm font-bold text-slate-900 ring-1 ring-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
-                        placeholder="e.g. Samuel Adekunle"
-                      />
-                    </label>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <label className="grid gap-2 text-xs font-black text-slate-400 uppercase tracking-widest">
-                        Email Address*
-                        <input 
-                          type="email"
-                          required
-                          value={formData.email}
-                          onChange={(e) => setFormData({...formData, email: e.target.value})}
-                          className="h-12 w-full bg-slate-50 rounded-2xl px-4 text-sm font-bold text-slate-900 ring-1 ring-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
-                          placeholder="client@email.com"
-                        />
-                      </label>
-                      <label className="grid gap-2 text-xs font-black text-slate-400 uppercase tracking-widest">
-                        WhatsApp/Phone*
-                        <input 
-                          required
-                          value={formData.phone}
-                          onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                          className="h-12 w-full bg-slate-50 rounded-2xl px-4 text-sm font-bold text-slate-900 ring-1 ring-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
-                          placeholder="081..."
-                        />
-                      </label>
-                    </div>
-                    {(!editingClient || formData.referralCode) && (
-                      <label className="grid gap-2 text-xs font-black text-slate-400 uppercase tracking-widest">
-                        Custom Referral Code (Optional)
-                        <div className="relative">
-                          <input 
-                            value={formData.referralCode}
-                            onChange={(e) => setFormData({...formData, referralCode: e.target.value.toUpperCase()})}
-                            className="h-12 w-full bg-slate-50 rounded-2xl px-4 text-sm font-bold text-slate-900 ring-1 ring-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 transition-all pr-24"
-                            placeholder="Leave blank for auto-generate"
-                          />
-                          <button 
-                            type="button"
-                          onClick={() => setFormData({...formData, referralCode: generateUniqueCode()})}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 bg-slate-900 text-white text-[8px] font-black px-3 py-1.5 rounded-lg hover:bg-emerald-600 transition-all uppercase tracking-widest"
-                          >
-                            Magic Gen
-                          </button>
-                        </div>
-                      </label>
-                    )}
-                    <label className="grid gap-2 text-xs font-black text-slate-400 uppercase tracking-widest">
-                        Assigned Business Group
-                        <select 
-                          value={formData.group}
-                          onChange={(e) => setFormData({...formData, group: e.target.value as UserGroup})}
-                          className="h-12 w-full bg-slate-50 rounded-2xl px-4 text-sm font-bold text-slate-900 ring-1 ring-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
-                        >
-                           {USER_GROUPS.map(g => (
-                              <option key={g.id} value={g.id}>{g.label}</option>
-                           ))}
-                        </select>
-                    </label>
-                 </div>
 
-                 <div className="flex gap-4 pt-4">
-                    <Button type="submit" className="flex-1 h-12 shadow-lg shadow-emerald-500/20">
-                      {editingClient ? "Save Changes" : "Create Record"}
-                    </Button>
-                    <button 
-                      type="button"
-                      onClick={() => setIsModalOpen(false)}
-                      className="px-6 rounded-2xl text-xs font-black text-slate-400 uppercase tracking-widest hover:text-slate-900 transition-colors"
+              <form onSubmit={handleSaveClient} className="space-y-5 p-6">
+                {editingClient ? (
+                  <div className="flex flex-wrap gap-2">
+                    <AdminBadge tone="info">{editingClient.sourceLabel}</AdminBadge>
+                    <AdminBadge>{editingClient.group || "prospect"}</AdminBadge>
+                  </div>
+                ) : null}
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <AdminField label="Full name">
+                    <AdminInput
+                      required
+                      value={formData.name}
+                      onChange={(event) => setFormData({ ...formData, name: event.target.value })}
+                      placeholder="Client name"
+                    />
+                  </AdminField>
+                  <AdminField label="Phone number">
+                    <AdminInput
+                      required
+                      value={formData.phone}
+                      onChange={(event) => setFormData({ ...formData, phone: event.target.value })}
+                      placeholder="Phone number"
+                    />
+                  </AdminField>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <AdminField label="Email address">
+                    <AdminInput
+                      required
+                      type="email"
+                      value={formData.email}
+                      onChange={(event) => setFormData({ ...formData, email: event.target.value })}
+                      placeholder="name@example.com"
+                    />
+                  </AdminField>
+                  <AdminField label="Client category">
+                    <AdminSelect
+                      value={formData.group}
+                      onChange={(event) => setFormData({ ...formData, group: event.target.value as UserGroup })}
                     >
-                      Cancel
-                    </button>
-                 </div>
+                      {USER_GROUPS.map((group) => (
+                        <option key={group.id} value={group.id}>
+                          {group.label}
+                        </option>
+                      ))}
+                    </AdminSelect>
+                  </AdminField>
+                </div>
+
+                {!editingClient || editingClient.source === "referral" ? (
+                  <AdminField label="Referral code" hint="Referral records use the ABZ-REF-XXXXXX pattern.">
+                    <div className="flex flex-col gap-3 sm:flex-row">
+                      <AdminInput
+                        value={formData.referralCode}
+                        onChange={(event) =>
+                          setFormData({ ...formData, referralCode: event.target.value.toUpperCase() })
+                        }
+                        placeholder="ABZ-REF-XXXXXX"
+                      />
+                      <button
+                        type="button"
+                        className="admin-button-secondary"
+                        onClick={() => setFormData({ ...formData, referralCode: generateUniqueCode() })}
+                      >
+                        Generate code
+                      </button>
+                    </div>
+                  </AdminField>
+                ) : null}
+
+                {editingClient?.source === "consultation" ? (
+                  <>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <AdminField label="Requested service">
+                        <AdminInput
+                          value={formData.serviceNeeded}
+                          onChange={(event) =>
+                            setFormData({ ...formData, serviceNeeded: event.target.value })
+                          }
+                          placeholder="Requested service"
+                        />
+                      </AdminField>
+                      <AdminField label="Lead status">
+                        <AdminSelect
+                          value={formData.status}
+                          onChange={(event) =>
+                            setFormData({ ...formData, status: event.target.value as LeadStatus })
+                          }
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="in-progress">Follow-up</option>
+                          <option value="completed">Converted</option>
+                          <option value="reversed">Lost</option>
+                        </AdminSelect>
+                      </AdminField>
+                    </div>
+                    <AdminField label="Message">
+                      <AdminTextarea
+                        value={formData.message}
+                        onChange={(event) => setFormData({ ...formData, message: event.target.value })}
+                        placeholder="Consultation notes or captured message"
+                      />
+                    </AdminField>
+                  </>
+                ) : null}
+
+                <div className="flex justify-end gap-3">
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="admin-button-secondary">
+                    Cancel
+                  </button>
+                  <Button type="submit">{editingClient ? "Save changes" : "Add client"}</Button>
+                </div>
               </form>
-            </CardBody>
-          </Card>
+            </AdminSurface>
+          </div>
         </div>
-      )}
-    </div>
+      ) : null}
+
+      {journeyClient ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-6xl">
+            <AdminSurface className="overflow-hidden">
+              <div className="flex items-center justify-between border-b border-[var(--admin-border)] px-6 py-4">
+                <div>
+                  <h2 className="admin-section-title">{journeyClient.name}</h2>
+                  <p className="admin-section-description">
+                    Comprehensive client record, acquisition path, and printable follow-up summary.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openJourneyPrint(journeyClient)}
+                    className="admin-button-secondary"
+                  >
+                    <Printer className="h-4 w-4" />
+                    Print
+                  </button>
+                  <button type="button" onClick={() => setJourneyClient(null)} className="admin-button-secondary">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid gap-0 xl:grid-cols-[320px_1fr]">
+                <div className="border-r border-[var(--admin-border)] bg-[var(--admin-panel-muted)] p-6">
+                  <p className="admin-eyebrow">Journey map</p>
+                  <div className="mt-5 space-y-5">
+                    <div className="space-y-1">
+                      <p className="admin-title-sm">Lead acquired</p>
+                      <p className="admin-meta">Via {journeyClient.sourceLabel}</p>
+                      <p className="admin-meta">{new Date(journeyClient.createdAt).toLocaleString()}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="admin-title-sm">Lifecycle state</p>
+                      <p className="admin-meta">Category: {journeyClient.group || "prospect"}</p>
+                      <p className="admin-meta">Status: {journeyClient.status || "ready"}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="admin-title-sm">Source details</p>
+                      <p className="admin-meta">Type: {journeyClient.source}</p>
+                      <p className="admin-meta">
+                        Referral code: {journeyClient.referralCode || journeyClient.registeredWithCode || "-"}
+                      </p>
+                      <p className="admin-meta">
+                        Service: {journeyClient.serviceNeeded || journeyClient.service || "-"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-6">
+                  <div className="mb-5 flex flex-wrap gap-2">
+                    <AdminBadge tone="success">{journeyClient.sourceLabel}</AdminBadge>
+                    <AdminBadge>{journeyClient.group || "prospect"}</AdminBadge>
+                    <AdminBadge tone={statusTone(journeyClient.status || "completed")}>
+                      {journeyClient.status || "ready"}
+                    </AdminBadge>
+                  </div>
+
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <AdminSurface className="p-4">
+                      <p className="admin-title-sm">Client details</p>
+                      <div className="mt-4 space-y-3">
+                        <div className="flex items-center gap-3">
+                          <Mail className="h-4 w-4 text-[var(--text-secondary)]" />
+                          <div>
+                            <p className="admin-kicker">Email</p>
+                            <p className="admin-meta">{journeyClient.email || "-"}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Phone className="h-4 w-4 text-[var(--text-secondary)]" />
+                          <div>
+                            <p className="admin-kicker">Phone</p>
+                            <p className="admin-meta">{journeyClient.phone || "-"}</p>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="admin-kicker">Created</p>
+                          <p className="admin-meta">{new Date(journeyClient.createdAt).toLocaleString()}</p>
+                        </div>
+                      </div>
+                    </AdminSurface>
+
+                    <AdminSurface className="p-4">
+                      <p className="admin-title-sm">Commercial context</p>
+                      <div className="mt-4 space-y-3">
+                        <div>
+                          <p className="admin-kicker">Requested service</p>
+                          <p className="admin-meta">{journeyClient.serviceNeeded || journeyClient.service || "-"}</p>
+                        </div>
+                        <div>
+                          <p className="admin-kicker">Referral / acquisition code</p>
+                          <p className="admin-meta">
+                            {journeyClient.referralCode || journeyClient.registeredWithCode || "-"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="admin-kicker">Source label</p>
+                          <p className="admin-meta">{journeyClient.sourceLabel}</p>
+                        </div>
+                      </div>
+                    </AdminSurface>
+                  </div>
+
+                  <div className="mt-4 grid gap-4">
+                    <AdminSurface className="bg-[var(--admin-panel-muted)] p-4">
+                      <p className="admin-title-sm">Captured message</p>
+                      <p className="admin-page-description mt-2 max-w-none">
+                        {journeyClient.message
+                          ? journeyClient.message
+                          : journeyClient.source === "consultation"
+                            ? `I am interested in ${
+                                journeyClient.serviceNeeded || journeyClient.service || "consultation"
+                              }. Please contact me.`
+                            : `Registered through ${journeyClient.sourceLabel}.`}
+                      </p>
+                    </AdminSurface>
+
+                    <AdminSurface className="bg-[var(--color-primary-50)] p-4">
+                      <p className="admin-title-sm">Follow-up guidance</p>
+                      <p className="admin-page-description mt-2 max-w-none">
+                        Use this record to confirm contact details, continue the onboarding conversation, and document the next action before closing the lead.
+                      </p>
+                    </AdminSurface>
+                  </div>
+                </div>
+              </div>
+            </AdminSurface>
+          </div>
+        </div>
+      ) : null}
+    </AdminPage>
   );
 }
