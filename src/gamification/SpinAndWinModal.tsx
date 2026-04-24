@@ -24,12 +24,12 @@ type Props = {
 };
 
 const SEGMENT_COLORS = [
-  "#5CE65C",
-  "#CCFFCC",
-  "#7CF07C",
-  "#B8FFB8",
-  "#A3FFB8",
-  "#D1FFD1",
+  "#107A10", // Primary Green
+  "#FFD700", // Gold
+  "#C0C0C0", // Silver
+  "#1E40AF", // Blue
+  "#78c51c", // Ablebiz Green
+  "#F59E0B", // Amber
 ];
 
 function copy(text: string) {
@@ -146,7 +146,7 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
     const chosenCenter = idx * segment + segment / 2;
     const stopAt = 360 - chosenCenter;
 
-    const baseSpins = 5;
+    const baseSpins = 8; // More spins for longer duration
     const u = Math.random();
     const jitter = u * (segment * 0.25) - segment * 0.125;
     const next = rotation + baseSpins * 360 + stopAt + jitter;
@@ -263,7 +263,7 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
                     </Button>
                   </div>
 
-                  {reward && (
+                  {reward && !spinning && (
                     <div className="rounded-3xl bg-slate-900 p-8 text-white space-y-5 animate-in zoom-in-95 duration-500 relative overflow-hidden shadow-2xl">
                       <div className="absolute top-0 right-0 p-8 opacity-10">
                          <Sparkles className="h-32 w-32" />
@@ -307,7 +307,7 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
                       className="relative h-56 w-56 sm:h-64 sm:w-64 md:h-72 md:w-72 rounded-full ring-[12px] ring-white shadow-2xl overflow-hidden border-4 border-slate-900"
                       style={{
                         ...wheelStyle,
-                        transition: spinning ? "transform 3.6s cubic-bezier(0.15, 0.75, 0.15, 1)" : "none",
+                        transition: spinning ? "transform 5.0s cubic-bezier(0.15, 0.75, 0.15, 1)" : "none",
                       }}
                       onTransitionEnd={onWheelTransitionEnd}
                       aria-label="Spin wheel"

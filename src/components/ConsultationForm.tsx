@@ -3,6 +3,8 @@ import { buildWhatsAppLink, site } from "../content/site";
 import { useSiteConfig } from "../referrals/siteConfig";
 import { recordReferralConversion, getLeads, saveLeads, ConsultationLead } from "../referrals/core";
 import { uid } from "../utils/storageHelpers";
+import { Card, CardBody } from "./ui/Card";
+import { Button } from "./ui/Button";
 
 type PreferredContact = "WhatsApp" | "Phone Call" | "Email";
 
@@ -140,6 +142,7 @@ export function ConsultationForm({
       email,
       serviceNeeded,
       status: "pending",
+      group: "prospect",
       createdAt: new Date().toISOString(),
     };
     saveLeads([newLead, ...leads].slice(0, 100));

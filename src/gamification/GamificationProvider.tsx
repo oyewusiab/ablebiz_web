@@ -54,6 +54,7 @@ export function GamificationProvider({ children }: PropsWithChildren) {
       already = false;
     }
     if (already) return;
+    if (location.pathname.startsWith("/admin")) return;
 
     const t = window.setTimeout(() => {
       openSpin("auto_timer");
@@ -76,6 +77,7 @@ export function GamificationProvider({ children }: PropsWithChildren) {
     if (already) return;
 
     const onMouseLeave = (e: MouseEvent) => {
+      if (location.pathname.startsWith("/admin")) return;
       // Exit intent: cursor leaves viewport at the top
       if (e.clientY <= 0) {
         openSpin("contact_exit_intent");

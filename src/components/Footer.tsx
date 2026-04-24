@@ -78,7 +78,7 @@ export function Footer() {
         <div className="mt-10 flex flex-col gap-2 border-t border-emerald-100 pt-6 text-xs text-slate-600 md:flex-row md:items-center md:justify-between">
           <div>© {new Date().getFullYear()} {site.name}. All rights reserved.</div>
           <div className="text-slate-600">
-            Keywords: Business registration in Abeokuta • CAC agent in Nigeria • Register business in Nigeria
+
           </div>
         </div>
       </Container>

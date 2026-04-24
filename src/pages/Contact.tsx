@@ -26,7 +26,7 @@ export function ContactPage() {
     <>
       <Seo
         title="Contact"
-        description="Contact ABLEBIZ Business Services in Abeokuta, Ogun State. Call, WhatsApp, or send a message for CAC registration and compliance services." 
+        description="Contact ABLEBIZ Business Services in Abeokuta, Ogun State. Call, WhatsApp, or send a message for CAC registration and compliance services."
         path="/contact"
       />
 
@@ -97,7 +97,9 @@ export function ContactPage() {
                     className="h-full w-full"
                     loading="lazy"
                     referrerPolicy="no-referrer-when-downgrade"
-                    src="https://www.google.com/maps?q=Abeokuta%2C%20Ogun%20State&output=embed"
+                    style={{ border: 0 }}
+                    allowFullScreen
+                    src="https://www.google.com/maps/embed?pb=!1m17!1m12!1m3!1d247.42880605392742!2d3.3631815885844443!3d7.142079595823527!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m2!1m1!2zN8KwMDgnMzEuNiJOIDPCsDIxJzQ4LjAiRQ!5e0!3m2!1sen!2sng!4v1776944050104!5m2!1sen!2sng"
                   />
                 </div>
                 <CardBody>

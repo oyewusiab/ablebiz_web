@@ -12,20 +12,20 @@ type BaseProps = {
 
 function styles(variant: Variant, size: "sm" | "md" | "lg") {
   const base =
-    "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ablebiz-cta)] focus-visible:ring-offset-2 active:translate-y-px disabled:opacity-60 disabled:pointer-events-none";
+    "inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] font-semibold transition shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-500)] focus-visible:ring-offset-2 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none";
 
   const sizes = {
-    sm: "h-9 px-3 text-sm",
-    md: "h-11 px-4 text-sm",
-    lg: "h-12 px-5 text-base",
+    sm: "h-8 px-3 text-xs",
+    md: "h-10 px-4 text-sm",
+    lg: "h-12 px-6 text-base",
   };
 
   const variants: Record<Variant, string> = {
     primary:
-      "bg-[var(--ablebiz-cta)] text-[color:var(--ablebiz-primary)] hover:brightness-95 shadow-[0_10px_25px_rgba(15,77,15,0.18)]",
+      "bg-[var(--ablebiz-primary)] text-white hover:brightness-110 shadow-sm",
     secondary:
-      "bg-white text-[color:var(--ablebiz-primary)] ring-1 ring-emerald-200 hover:bg-emerald-50",
-    ghost: "bg-transparent text-[color:var(--ablebiz-primary)] hover:bg-emerald-50",
+      "bg-white text-[var(--text-primary)] border border-[var(--admin-border)] hover:bg-[var(--color-neutral-50)] dark:bg-white/5",
+    ghost: "bg-transparent text-[var(--text-primary)] hover:bg-[var(--color-neutral-100)] dark:hover:bg-white/5",
   };
 
   return cn(base, sizes[size], variants[variant]);

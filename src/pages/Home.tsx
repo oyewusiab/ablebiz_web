@@ -86,17 +86,17 @@ export function HomePage() {
                   Want a simple checklist for your exact registration type? Message us now.
                 </p>
               </div>
-                <div className="flex flex-wrap gap-3">
-                  <ButtonLink to={whatsapp} external>
-                    Chat on WhatsApp
-                  </ButtonLink>
-                  <ButtonLink to="/services#checklists" variant="secondary">
-                    Download checklists
-                  </ButtonLink>
-                  <ButtonLink to={`tel:${site.phone}`} external variant="secondary">
-                    Call {site.phoneDisplay}
-                  </ButtonLink>
-                </div>
+              <div className="flex flex-wrap gap-3">
+                <ButtonLink to={whatsapp} external>
+                  Chat on WhatsApp
+                </ButtonLink>
+                <ButtonLink to="/services#checklists" variant="secondary">
+                  Download checklists
+                </ButtonLink>
+                <ButtonLink to={`tel:${site.phone}`} external variant="secondary">
+                  Call {site.phoneDisplay}
+                </ButtonLink>
+              </div>
             </div>
           </AnimateIn>
         </Container>
@@ -268,7 +268,7 @@ export function HomePage() {
       <section>
         <Container className="pb-16">
           <div className="text-center text-xs font-semibold text-slate-600">
-            Keywords: Business registration in Abeokuta • CAC agent in Nigeria • Register business in Nigeria
+
           </div>
         </Container>
       </section>
