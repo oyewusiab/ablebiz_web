@@ -91,7 +91,7 @@ export function ContactPage() {
               </Card>
 
               <Card className="overflow-hidden">
-                <div className="aspect-[16/10] bg-emerald-100">
+                <div className="aspect-[16/10] bg-slate-100 dark:bg-slate-800">
                   <iframe
                     title="Google Map"
                     className="h-full w-full"

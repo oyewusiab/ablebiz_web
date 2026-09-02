@@ -39,18 +39,27 @@ export function HomePage() {
         subtitle="We help entrepreneurs and organizations handle CAC registration, compliance, and documentation — fast, reliable, and stress-free."
         actions={
           <>
-            <Button type="button" onClick={() => openSpin("get_started")}>
-              Get Started <ArrowRight className="h-4 w-4" />
+            <Button
+              type="button"
+              onClick={() => openSpin("get_started")}
+              className="h-13 px-7 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-base border-0 shadow-lg shadow-amber-500/25 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all"
+            >
+              Get Started <ArrowRight className="h-5 w-5 ml-1" />
             </Button>
-            <ButtonLink to={whatsapp} external variant="secondary">
+            <ButtonLink
+              to={whatsapp}
+              external
+              variant="secondary"
+              className="h-13 px-7 rounded-2xl text-base font-bold bg-white text-slate-800 ring-1 ring-slate-200 hover:bg-slate-50 transition-all shadow-xs dark:bg-slate-800 dark:text-white dark:ring-slate-700"
+            >
               Chat on WhatsApp
             </ButtonLink>
           </>
         }
         right={
           <div className="space-y-4">
-            <Card className="overflow-hidden transition-all duration-500 hover:shadow-2xl hover:-translate-y-1 group cursor-pointer">
-              <div className="aspect-[16/10] w-full bg-emerald-100 overflow-hidden">
+            <Card className="overflow-hidden transition-all duration-500 hover:shadow-2xl hover:-translate-y-1 group cursor-pointer border border-slate-200 dark:border-slate-800">
+              <div className="aspect-[16/11] w-full bg-slate-100 overflow-hidden dark:bg-slate-900">
                 <img
                   src="/images/hero-illustration.png"
                   alt="ABLEBIZ helps Nigerians register and grow their businesses"
@@ -58,11 +67,11 @@ export function HomePage() {
                   loading="eager"
                 />
               </div>
-              <CardBody>
-                <div className="text-sm font-extrabold text-[color:var(--ablebiz-primary)]">
+              <CardBody className="p-6">
+                <div className="text-base font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
                   Trusted CAC Agent • Abeokuta, Ogun State
                 </div>
-                <p className="mt-2 text-sm text-slate-700">
+                <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
                   Clear guidance, real-time updates, and a professional process.
                 </p>
                 <div className="mt-4">
@@ -75,25 +84,29 @@ export function HomePage() {
       />
 
       <section>
-        <Container className="py-10">
+        <Container className="py-8">
           <AnimateIn>
-            <div className="grid gap-6 rounded-3xl bg-white/60 p-6 ring-1 ring-emerald-100 md:grid-cols-[1fr_auto] md:items-center">
+            <div className="grid gap-6 rounded-3xl bg-white p-7 sm:p-8 shadow-sm ring-1 ring-slate-200 md:grid-cols-[1fr_auto] md:items-center dark:bg-slate-800/90 dark:ring-slate-700">
               <div>
-                <div className="text-lg font-extrabold text-[color:var(--ablebiz-primary)]">
+                <div className="text-xl font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
                   Quick help (WhatsApp or Call)
                 </div>
-                <p className="mt-1 text-sm text-slate-700">
+                <p className="mt-1 text-sm sm:text-base text-slate-600 dark:text-slate-300">
                   Want a simple checklist for your exact registration type? Message us now.
                 </p>
               </div>
-              <div className="flex flex-wrap gap-3">
-                <ButtonLink to={whatsapp} external>
+              <div className="flex flex-wrap items-center gap-3">
+                <ButtonLink
+                  to={whatsapp}
+                  external
+                  className="h-12 px-6 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold border-0 shadow-md"
+                >
                   Chat on WhatsApp
                 </ButtonLink>
-                <ButtonLink to="/services#checklists" variant="secondary">
+                <ButtonLink to="/services#checklists" variant="secondary" className="h-12 px-5 rounded-xl">
                   Download checklists
                 </ButtonLink>
-                <ButtonLink to={`tel:${site.phone}`} external variant="secondary">
+                <ButtonLink to={`tel:${site.phone}`} external variant="secondary" className="h-12 px-5 rounded-xl">
                   Call {site.phoneDisplay}
                 </ButtonLink>
               </div>
@@ -103,56 +116,56 @@ export function HomePage() {
       </section>
 
       <section id="services">
-        <Container className="py-14">
+        <Container className="py-14 sm:py-16">
           <AnimateIn>
             <div className="flex items-end justify-between gap-6">
               <div>
-                <h2 className="text-2xl font-extrabold text-[color:var(--ablebiz-primary)]">
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
                   What We Do
                 </h2>
-                <p className="mt-2 text-sm text-slate-700 sm:text-base">
+                <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 sm:text-base">
                   Everything you need to register properly, stay compliant, and grow with confidence.
                 </p>
               </div>
               <Link
                 to="/services"
-                className="hidden text-sm font-semibold text-[color:var(--ablebiz-accent)] underline md:inline"
+                className="hidden text-sm font-bold text-[color:var(--ablebiz-primary)] hover:underline md:inline dark:text-amber-400"
               >
-                View all services
+                View all services →
               </Link>
             </div>
 
-            <div className="mt-8 grid gap-4 md:grid-cols-2">
+            <div className="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {services.map((s, idx) => (
                 <AnimateIn key={s.id} delayMs={idx * 80}>
-                  <div className="rounded-2xl bg-white/80 p-6 shadow-sm ring-1 ring-emerald-100">
+                  <div className="flex flex-col justify-between rounded-2xl bg-white p-6 shadow-xs ring-1 ring-slate-200 transition-all hover:shadow-lg hover:ring-slate-300 h-full dark:bg-slate-800 dark:ring-slate-700">
                     <div className="flex items-start gap-4">
-                      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-50 ring-1 ring-emerald-100">
+                      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-50 ring-1 ring-blue-100 shrink-0 dark:bg-blue-950 dark:ring-blue-900">
                         <ServiceIcon
                           icon={s.icon}
-                          className="h-6 w-6 text-[color:var(--ablebiz-primary)]"
+                          className="h-6 w-6 text-[color:var(--ablebiz-cta)]"
                         />
                       </div>
                       <div className="flex-1">
-                        <div className="text-base font-extrabold text-[color:var(--ablebiz-primary)]">
+                        <div className="text-base font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
                           {s.title}
                         </div>
-                        <p className="mt-1 text-sm text-slate-700">{s.short}</p>
-                        <div className="mt-3 flex flex-wrap items-center gap-4">
-                          <Link
-                            to={`/services#${s.id}`}
-                            className="text-sm font-semibold text-[color:var(--ablebiz-accent)] underline"
-                          >
-                            Learn More
-                          </Link>
-                          <Link
-                            to={`/contact?service=${encodeURIComponent(s.id)}`}
-                            className="text-sm font-semibold text-slate-900 underline"
-                          >
-                            Request Consultation
-                          </Link>
-                        </div>
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">{s.short}</p>
                       </div>
+                    </div>
+                    <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-700/60 flex flex-wrap items-center justify-between gap-3">
+                      <Link
+                        to={`/services#${s.id}`}
+                        className="text-xs font-bold text-[color:var(--ablebiz-primary)] hover:underline dark:text-amber-400"
+                      >
+                        Learn More →
+                      </Link>
+                      <Link
+                        to={`/contact?service=${encodeURIComponent(s.id)}`}
+                        className="text-xs font-bold text-slate-700 hover:text-slate-950 dark:text-slate-300 dark:hover:text-white"
+                      >
+                        Request Consultation
+                      </Link>
                     </div>
                   </div>
                 </AnimateIn>
@@ -217,7 +230,7 @@ export function HomePage() {
                 </p>
               </div>
               <VideoEmbed
-                url="https://www.youtube.com/embed/ysz5S6PUM-U"
+                url="https://www.youtube.com/embed/Q3mgyZsFhWM"
                 title="ABLEBIZ Intro Video"
               />
             </div>

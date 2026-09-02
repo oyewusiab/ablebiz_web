@@ -1,12 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  /* --- Original Website Colors (Preserved) --- */
-  --ablebiz-primary: #0f4d0f;
-  --ablebiz-cta: #5ce65c;
-  --ablebiz-bg: #ccffcc;
-  --ablebiz-accent: #005434;
-  --ablebiz-secondary: #008000;
+  /* --- ABLEBIZ Brand Colors (Navy & Gold Identity) --- */
+  --ablebiz-primary: #0A2558;
+  --ablebiz-cta: #D97706;
+  --ablebiz-bg: #F8FAFC;
+  --ablebiz-accent: #0C2B64;
+  --ablebiz-secondary: #F59E0B;
+  --ablebiz-gold: #E5A00D;
+  --ablebiz-gold-light: #FEF3C7;
+  --ablebiz-navy-dark: #061738;
   
   /* --- Global Design Tokens --- */
   --radius-sm: 6px;
@@ -15,9 +18,9 @@
   --radius-xl: 24px;
   
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  --shadow-xl: 0 20px 30px -12px rgba(15, 23, 42, 0.14);
+  --shadow-md: 0 4px 6px -1px rgba(10, 37, 88, 0.07), 0 2px 4px -1px rgba(10, 37, 88, 0.04);
+  --shadow-lg: 0 10px 20px -3px rgba(10, 37, 88, 0.1), 0 4px 6px -2px rgba(10, 37, 88, 0.05);
+  --shadow-xl: 0 20px 30px -12px rgba(10, 37, 88, 0.16);
   
   --spacing-1: 4px;
   --spacing-2: 8px;
@@ -31,18 +34,22 @@
   --spacing-16: 64px;
 
   /* Shared values for website */
-  --card-bg: rgba(255, 255, 255, 0.8);
-  --sidebar-bg: #043F2E;
-  --text-primary: #0f172a;
+  --card-bg: rgba(255, 255, 255, 0.92);
+  --sidebar-bg: #061738;
+  --text-primary: #0F172A;
   --text-secondary: #475569;
+  --admin-border: #E2E8F0;
+  --admin-border-strong: #CBD5E1;
 }
 
 .dark {
-  --ablebiz-bg: #021a13;
-  --card-bg: rgba(15, 23, 42, 0.6);
-  --sidebar-bg: #01110c;
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
+  --ablebiz-bg: #070D18;
+  --card-bg: rgba(15, 23, 42, 0.75);
+  --sidebar-bg: #040A14;
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --admin-border: #1E293B;
+  --admin-border-strong: #334155;
 }
 
 /* --- Professional Admin Portal Theme --- */
@@ -59,17 +66,27 @@
   --color-neutral-800: #1e293b;
   --color-neutral-900: #0f172a;
 
-  /* Primary Brand (Green) */
-  --color-primary-50: #f0fdf4;
-  --color-primary-100: #dcfce7;
-  --color-primary-200: #bbf7d0;
-  --color-primary-300: #86efac;
-  --color-primary-400: #4ade80;
-  --color-primary-500: #22c55e;
-  --color-primary-600: #16a34a;
-  --color-primary-700: #15803d;
-  --color-primary-800: #166534;
-  --color-primary-900: #14532d;
+  /* Primary Brand (Navy Scale) */
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-200: #bfdbfe;
+  --color-primary-300: #93c5fd;
+  --color-primary-400: #60a5fa;
+  --color-primary-500: #2563eb;
+  --color-primary-600: #0a2558;
+  --color-primary-700: #081e48;
+  --color-primary-800: #061738;
+  --color-primary-900: #040e24;
+
+  /* Accent Gold & Alert Tokens */
+  --color-gold-50: #fffbeb;
+  --color-gold-100: #fef3c7;
+  --color-gold-200: #fde68a;
+  --color-gold-400: #fbbf24;
+  --color-gold-500: #f59e0b;
+  --color-gold-600: #d97706;
+  --color-gold-700: #b45309;
+
   --color-info-100: #dbeafe;
   --color-info-600: #2563eb;
   --color-warning-100: #fef3c7;
@@ -79,7 +96,7 @@
 
   /* Theme Mapping */
   --ablebiz-primary: var(--color-primary-600);
-  --ablebiz-cta: var(--color-primary-500);
+  --ablebiz-cta: var(--color-gold-600);
   --ablebiz-bg: var(--color-neutral-50);
   --ablebiz-accent: var(--color-primary-700);
   --admin-border: var(--color-neutral-200);
@@ -88,23 +105,23 @@
   --admin-panel: #ffffff;
   --admin-panel-muted: var(--color-neutral-50);
   --admin-panel-strong: var(--color-neutral-100);
-  --sidebar-bg: var(--color-neutral-900);
+  --sidebar-bg: #061738;
   --text-primary: var(--color-neutral-900);
   --text-secondary: var(--color-neutral-500);
   --text-muted: var(--color-neutral-400);
   --admin-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
-  --admin-shadow-md: 0 8px 24px rgba(15, 23, 42, 0.06);
-  --admin-shadow-lg: 0 20px 40px rgba(15, 23, 42, 0.08);
-  --admin-focus-ring: 0 0 0 3px rgba(34, 197, 94, 0.16);
-  --admin-success-bg: var(--color-primary-50);
-  --admin-success-fg: var(--color-primary-700);
+  --admin-shadow-md: 0 8px 24px rgba(10, 37, 88, 0.06);
+  --admin-shadow-lg: 0 20px 40px rgba(10, 37, 88, 0.09);
+  --admin-focus-ring: 0 0 0 3px rgba(10, 37, 88, 0.18);
+  --admin-success-bg: #f0fdf4;
+  --admin-success-fg: #15803d;
   --admin-info-bg: var(--color-info-100);
   --admin-info-fg: var(--color-info-600);
   --admin-warning-bg: var(--color-warning-100);
   --admin-warning-fg: var(--color-warning-700);
   --admin-danger-bg: var(--color-danger-100);
   --admin-danger-fg: var(--color-danger-700);
-  --admin-font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+  --admin-font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
   --admin-font-size-xs: 12px;
   --admin-font-size-sm: 14px;
   --admin-font-size-md: 16px;
@@ -117,14 +134,14 @@
 }
 
 .dark.admin-theme {
-  --ablebiz-bg: #020617;
+  --ablebiz-bg: #070d18;
   --card-bg: #0f172a;
   --admin-border: #1e293b;
   --admin-border-strong: #334155;
   --admin-panel: #0f172a;
   --admin-panel-muted: #111c2d;
   --admin-panel-strong: #162235;
-  --sidebar-bg: #020617;
+  --sidebar-bg: #040a14;
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
@@ -143,7 +160,8 @@
   }
 
   ::selection {
-    background: rgba(34, 197, 94, 0.2);
+    background: rgba(217, 119, 6, 0.25);
+    color: #0A2558;
   }
 }
 

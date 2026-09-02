@@ -70,29 +70,34 @@ export function CommentSection({ slug }: { slug: string }) {
         <CardBody>
           <form onSubmit={submit} className="grid gap-3">
             <div className="grid gap-2 sm:grid-cols-2">
-              <label className="grid gap-1 text-sm font-semibold text-slate-700">
+              <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
                 Your Name
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                  className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-800 dark:ring-slate-700 dark:text-white"
                   placeholder="e.g., Tolu"
                 />
               </label>
             </div>
 
-            <label className="grid gap-1 text-sm font-semibold text-slate-700">
+            <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
               Message
               <textarea
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                className="min-h-28 rounded-xl bg-white px-3 py-2 text-sm ring-1 ring-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                className="min-h-28 rounded-xl bg-white px-3 py-2 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-800 dark:ring-slate-700 dark:text-white"
                 placeholder="Share your thoughts..."
               />
             </label>
 
             <div className="flex justify-end">
-              <Button type="submit">Post comment</Button>
+              <Button
+                type="submit"
+                className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold border-0"
+              >
+                Post comment
+              </Button>
             </div>
 
             <p className="text-xs text-slate-600">

@@ -12,73 +12,88 @@ export function Footer() {
   );
 
   return (
-    <footer className="border-t border-emerald-100 bg-white/50">
+    <footer className="border-t border-slate-200/80 bg-slate-900 text-slate-300">
       <Container className="py-12">
         <div className="grid gap-10 md:grid-cols-3">
-          <div className="space-y-3">
-            <div className="text-base font-extrabold text-[color:var(--ablebiz-primary)]">
-              {site.name}
-            </div>
-            <p className="text-sm text-slate-700">{site.tagline}</p>
-            <p className="text-sm font-semibold text-[color:var(--ablebiz-accent)]">
+          <div className="space-y-4">
+            <Link to="/" className="inline-block">
+              <img
+                src="/images/ablebiz-logo.png"
+                alt="ABLEBIZ"
+                className="h-11 w-auto brightness-0 invert"
+              />
+            </Link>
+            <p className="text-sm text-slate-400 leading-relaxed">{site.tagline}</p>
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-400 ring-1 ring-amber-500/20">
               {site.awardBadge}
-            </p>
+            </div>
           </div>
 
           <div className="space-y-3">
-            <div className="text-sm font-bold text-[color:var(--ablebiz-primary)]">
+            <div className="text-sm font-bold text-white tracking-wide uppercase">
               Quick Links
             </div>
             <div className="grid gap-2 text-sm">
-              <Link className="text-slate-700 no-underline hover:underline" to="/services">
+              <Link className="text-slate-400 no-underline transition hover:text-amber-400" to="/services">
                 Services
               </Link>
-              <Link className="text-slate-700 no-underline hover:underline" to="/pricing">
+              <Link className="text-slate-400 no-underline transition hover:text-amber-400" to="/pricing">
                 Pricing
               </Link>
-              <Link className="text-slate-700 no-underline hover:underline" to="/blog">
+              <Link className="text-slate-400 no-underline transition hover:text-amber-400" to="/blog">
                 Blog / Resources
               </Link>
-              <Link className="text-slate-700 no-underline hover:underline" to="/contact">
-                Contact
+              <Link className="text-slate-400 no-underline transition hover:text-amber-400" to="/refer-and-earn">
+                Refer & Earn
+              </Link>
+              <Link className="text-slate-400 no-underline transition hover:text-amber-400" to="/contact">
+                Contact Us
               </Link>
             </div>
           </div>
 
           <div className="space-y-3">
-            <div className="text-sm font-bold text-[color:var(--ablebiz-primary)]">
-              Contact
+            <div className="text-sm font-bold text-white tracking-wide uppercase">
+              Contact & Support
             </div>
-            <div className="space-y-2 text-sm text-slate-700">
-              <a className="flex items-center gap-2 no-underline hover:underline" href={`tel:${site.phone}`}>
-                <Phone className="h-4 w-4" />
+            <div className="space-y-2.5 text-sm text-slate-400">
+              <a className="flex items-center gap-2.5 no-underline transition hover:text-amber-400" href={`tel:${site.phone}`}>
+                <Phone className="h-4 w-4 text-amber-400" />
                 {site.phoneDisplay}
               </a>
-              <a className="flex items-center gap-2 no-underline hover:underline" href={`mailto:${site.email}`}>
-                <Mail className="h-4 w-4" />
+              <a className="flex items-center gap-2.5 no-underline transition hover:text-amber-400" href={`mailto:${site.email}`}>
+                <Mail className="h-4 w-4 text-amber-400" />
                 {site.email}
               </a>
-              <div className="flex items-start gap-2">
-                <MapPin className="mt-0.5 h-4 w-4" />
+              <div className="flex items-start gap-2.5">
+                <MapPin className="mt-0.5 h-4 w-4 text-amber-400 shrink-0" />
                 <span>{site.location}</span>
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2 pt-2">
-              <ButtonLink to={whatsapp} external>
+            <div className="flex flex-wrap gap-2.5 pt-2">
+              <ButtonLink
+                to={whatsapp}
+                external
+                className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold border-0 shadow-sm"
+              >
                 Chat on WhatsApp
               </ButtonLink>
-              <ButtonLink to="/contact" variant="secondary">
+              <ButtonLink
+                to="/contact"
+                variant="secondary"
+                className="bg-slate-800 text-white border-slate-700 hover:bg-slate-700 hover:text-white"
+              >
                 Contact Form
               </ButtonLink>
             </div>
           </div>
         </div>
 
-        <div className="mt-10 flex flex-col gap-2 border-t border-emerald-100 pt-6 text-xs text-slate-600 md:flex-row md:items-center md:justify-between">
+        <div className="mt-10 flex flex-col gap-2 border-t border-slate-800 pt-6 text-xs text-slate-400 md:flex-row md:items-center md:justify-between">
           <div>© {new Date().getFullYear()} {site.name}. All rights reserved.</div>
-          <div className="text-slate-600">
-
+          <div className="text-slate-400">
+            Certified CAC Accreditation Support • Abeokuta, Nigeria
           </div>
         </div>
       </Container>

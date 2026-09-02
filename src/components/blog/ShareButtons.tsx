@@ -19,7 +19,7 @@ function IconButton({
       onClick={onClick}
       aria-label={label}
       className={cn(
-        "inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-slate-700 ring-1 ring-emerald-100 hover:bg-emerald-50",
+        "inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 transition shadow-xs dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700",
         className
       )}
     >
@@ -64,14 +64,14 @@ export function ShareButtons({ title }: { title: string }) {
   return (
     <div className="flex flex-wrap gap-2">
       <IconButton onClick={share} label="Share">
-        <Share2 className="h-4 w-4" />
+        <Share2 className="h-4 w-4 text-[color:var(--ablebiz-primary)]" />
         Share
       </IconButton>
       <IconButton onClick={whatsapp} label="Share on WhatsApp">
         WhatsApp
       </IconButton>
-      <IconButton onClick={copy} label="Copy link" className={copied ? "bg-emerald-50" : undefined}>
-        <Copy className="h-4 w-4" />
+      <IconButton onClick={copy} label="Copy link" className={copied ? "bg-amber-50 text-amber-900 ring-amber-300 dark:bg-amber-950/40 dark:text-amber-200" : undefined}>
+        <Copy className="h-4 w-4 text-amber-500" />
         {copied ? "Copied" : "Copy link"}
       </IconButton>
     </div>

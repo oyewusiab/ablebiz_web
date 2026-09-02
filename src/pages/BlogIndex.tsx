@@ -59,7 +59,7 @@ export function BlogIndexPage() {
                     <input
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
-                      className="h-11 w-full rounded-xl bg-white pl-9 pr-3 text-sm ring-1 ring-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                      className="h-11 w-full rounded-xl bg-white pl-9 pr-3 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-800 dark:ring-slate-700 dark:text-white"
                       placeholder="Search articles..."
                     />
                   </label>

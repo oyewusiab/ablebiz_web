@@ -43,20 +43,20 @@ export function BusinessRegistrationStepsInfographic() {
             return (
               <div
                 key={s.title}
-                className="rounded-2xl bg-emerald-50 p-4 ring-1 ring-emerald-100"
+                className="rounded-2xl bg-white p-4 ring-1 ring-slate-200 shadow-xs dark:bg-slate-800 dark:ring-slate-700"
               >
                 <div className="flex items-center justify-between">
-                  <div className="grid h-10 w-10 place-items-center rounded-xl bg-white ring-1 ring-emerald-100">
-                    <Icon className="h-5 w-5 text-[color:var(--ablebiz-primary)]" />
+                  <div className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 ring-1 ring-blue-100 dark:bg-blue-950 dark:ring-blue-900">
+                    <Icon className="h-5 w-5 text-[color:var(--ablebiz-cta)]" />
                   </div>
-                  <div className="text-xs font-extrabold text-[color:var(--ablebiz-accent)]">
-                    {idx + 1}
+                  <div className="text-xs font-black text-amber-600 dark:text-amber-400">
+                    0{idx + 1}
                   </div>
                 </div>
-                <div className="mt-3 text-sm font-bold text-[color:var(--ablebiz-primary)]">
+                <div className="mt-3 text-sm font-bold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
                   {s.title}
                 </div>
-                <div className="text-sm text-slate-700">{s.desc}</div>
+                <div className="text-xs text-slate-600 dark:text-slate-300 mt-1">{s.desc}</div>
               </div>
             );
           })}

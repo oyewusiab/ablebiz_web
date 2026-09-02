@@ -10,11 +10,11 @@ export type ReferralTier = {
 };
 
 export const USER_GROUPS: { id: UserGroup; label: string; color: string }[] = [
-  { id: "visitor", label: "Visitor", color: "bg-slate-100 text-slate-500" },
-  { id: "prospect", label: "Prospect", color: "bg-blue-100 text-blue-600" },
-  { id: "client", label: "Client", color: "bg-emerald-100 text-emerald-600" },
-  { id: "returning_client", label: "Returning Client", color: "bg-amber-100 text-amber-600" },
-  { id: "vip", label: "VIP", color: "bg-purple-100 text-purple-600" },
+  { id: "visitor", label: "Visitor", color: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300" },
+  { id: "prospect", label: "Prospect", color: "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300" },
+  { id: "client", label: "Client", color: "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300" },
+  { id: "returning_client", label: "Returning Client", color: "bg-blue-200 text-blue-900 dark:bg-blue-900/60 dark:text-blue-200" },
+  { id: "vip", label: "VIP", color: "bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300" },
 ];
 
 export type ReferralClient = {

@@ -12,11 +12,11 @@ export function VideoEmbed({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-2xl bg-white shadow-[0_18px_45px_rgba(0,0,0,0.08)] ring-1 ring-emerald-100",
+        "overflow-hidden rounded-2xl bg-white shadow-lg ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700",
         className
       )}
     >
-      <div className="aspect-video w-full bg-emerald-100">
+      <div className="aspect-video w-full bg-slate-100 dark:bg-slate-900">
         <iframe
           className="h-full w-full"
           src={url}

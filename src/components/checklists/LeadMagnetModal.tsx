@@ -80,7 +80,7 @@ export function LeadMagnetModal({ checklist, onClose }: Props) {
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 ring-1 ring-emerald-100 hover:bg-emerald-50"
+                className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-800"
               >
                 Close
               </button>
@@ -88,45 +88,45 @@ export function LeadMagnetModal({ checklist, onClose }: Props) {
 
             <form onSubmit={submit} className="mt-6 grid gap-4">
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="grid gap-1 text-sm font-semibold text-slate-700">
+                <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
                   Name
                   <input
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                    className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-800 dark:ring-slate-700 dark:text-white"
                     placeholder="Your full name"
                   />
                 </label>
-                <label className="grid gap-1 text-sm font-semibold text-slate-700">
+                <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
                   Phone
                   <input
                     required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                    className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-800 dark:ring-slate-700 dark:text-white"
                     placeholder="e.g., 0816..."
                   />
                 </label>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="grid gap-1 text-sm font-semibold text-slate-700">
+                <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
                   Email
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                    className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-800 dark:ring-slate-700 dark:text-white"
                     placeholder="hello@..."
                   />
                 </label>
-                <label className="grid gap-1 text-sm font-semibold text-slate-700">
+                <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
                   Service Interest
                   <select
                     value={interest}
                     onChange={(e) => setInterest(e.target.value)}
-                    className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                    className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-800 dark:ring-slate-700 dark:text-white"
                   >
                     {services.map((s) => (
                       <option key={s.id} value={s.title}>
@@ -138,31 +138,36 @@ export function LeadMagnetModal({ checklist, onClose }: Props) {
                 </label>
               </div>
 
-              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
                 <input
                   type="checkbox"
                   checked={sendToWhatsApp}
                   onChange={(e) => setSendToWhatsApp(e.target.checked)}
-                  className="h-4 w-4 rounded border-emerald-300"
+                  className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
                 />
                 Also send my details to WhatsApp (fast response)
               </label>
 
               <div className="flex flex-wrap items-center gap-3">
-                <Button type="submit">Download PDF</Button>
+                <Button
+                  type="submit"
+                  className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold border-0 shadow-md"
+                >
+                  Download PDF
+                </Button>
                 {sendToWhatsApp ? (
                   <a
                     href={whatsapp}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-sm font-semibold text-[color:var(--ablebiz-accent)] underline"
+                    className="text-sm font-semibold text-[color:var(--ablebiz-primary)] hover:underline dark:text-amber-400"
                   >
                     Preview WhatsApp message
                   </a>
                 ) : null}
               </div>
 
-              <div className="rounded-2xl bg-emerald-50 p-4 text-xs text-slate-700 ring-1 ring-emerald-100">
+              <div className="rounded-2xl bg-slate-50 p-4 text-xs text-slate-600 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:ring-slate-700">
                 We use this info only to respond faster to your request. No spam.
               </div>
             </form>

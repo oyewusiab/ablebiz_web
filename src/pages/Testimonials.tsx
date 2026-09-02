@@ -28,14 +28,14 @@ export function TestimonialsPage() {
               <Card key={t.id}>
                 <CardBody>
                   <div className="flex items-start justify-between gap-4">
-                    <div className="text-sm font-extrabold text-[color:var(--ablebiz-primary)]">
+                    <div className="text-sm font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
                       {t.name ?? "Client"}
                     </div>
-                    <Quote className="h-5 w-5 text-emerald-300" />
+                    <Quote className="h-5 w-5 text-amber-500" />
                   </div>
-                  <p className="mt-3 text-sm leading-relaxed text-slate-700">“{t.quote}”</p>
+                  <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300">“{t.quote}”</p>
                   {t.roleOrBusiness ? (
-                    <div className="mt-4 text-xs font-semibold text-slate-600">
+                    <div className="mt-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
                       {t.roleOrBusiness}
                     </div>
                   ) : null}
@@ -44,9 +44,9 @@ export function TestimonialsPage() {
             ))}
           </div>
 
-          <div className="mt-10 grid gap-4 lg:grid-cols-2">
-            <Card className="overflow-hidden">
-              <div className="aspect-[16/10] bg-emerald-100">
+          <div className="mt-10 grid gap-6 lg:grid-cols-2">
+            <Card className="overflow-hidden border border-slate-200 shadow-sm dark:border-slate-800">
+              <div className="aspect-[16/10] bg-slate-100 dark:bg-slate-800">
                 <img
                   src="/images/testimonials/whatsapp-review-1.png"
                   alt="WhatsApp review screenshot"
@@ -55,17 +55,17 @@ export function TestimonialsPage() {
                 />
               </div>
               <CardBody>
-                <div className="text-sm font-extrabold text-[color:var(--ablebiz-primary)]">
+                <div className="text-sm font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
                   WhatsApp Reviews
                 </div>
-                <p className="mt-2 text-sm text-slate-700">
+                <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
                   We also receive feedback directly on WhatsApp after successful registrations.
                 </p>
               </CardBody>
             </Card>
 
-            <Card className="overflow-hidden">
-              <div className="aspect-[16/10] bg-emerald-100">
+            <Card className="overflow-hidden border border-slate-200 shadow-sm dark:border-slate-800">
+              <div className="aspect-[16/10] bg-slate-100 dark:bg-slate-800">
                 <img
                   src="/images/testimonials/whatsapp-review-2.png"
                   alt="WhatsApp review screenshot"

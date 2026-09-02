@@ -11,12 +11,12 @@ export function BlogPostCard({ post }: { post: BlogPost }) {
   return (
     <Card className="overflow-hidden">
       <Link to={`/blog/${post.slug}`} className="no-underline">
-        <div className="aspect-[16/9] w-full bg-emerald-100">
+        <div className="aspect-[16/9] w-full bg-slate-100 dark:bg-slate-800">
           <img
             src={post.featuredImage}
             alt={post.title}
             loading="lazy"
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         </div>
         <CardBody>

@@ -16,9 +16,9 @@ export function TrustBadges() {
         return (
           <div
             key={i.label}
-            className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-[color:var(--ablebiz-accent)] ring-1 ring-emerald-100"
+            className="inline-flex items-center gap-2 rounded-full bg-blue-50/80 px-3 py-1 text-xs font-semibold text-[color:var(--ablebiz-primary)] ring-1 ring-blue-200/70 dark:bg-blue-950/40 dark:ring-blue-800 dark:text-blue-200"
           >
-            <Icon className="h-4 w-4 text-[color:var(--ablebiz-primary)]" />
+            <Icon className="h-4 w-4 text-[color:var(--ablebiz-cta)]" />
             <span>{i.label}</span>
           </div>
         );

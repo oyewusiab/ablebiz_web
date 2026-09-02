@@ -96,7 +96,7 @@ export function BlogPostPage() {
               </div>
 
               <Card className="overflow-hidden">
-                <div className="aspect-[16/9] bg-emerald-100">
+                <div className="aspect-[16/9] bg-slate-100 dark:bg-slate-800">
                   <img
                     src={post.featuredImage}
                     alt={post.title}

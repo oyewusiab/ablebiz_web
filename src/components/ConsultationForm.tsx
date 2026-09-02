@@ -187,45 +187,45 @@ export function ConsultationForm({
 
         <form onSubmit={submit} className="mt-6 grid gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="grid gap-1 text-sm font-semibold text-slate-700">
+            <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
               Name
               <input
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-800 dark:ring-slate-700 dark:text-white"
                 placeholder="Your full name"
               />
             </label>
-            <label className="grid gap-1 text-sm font-semibold text-slate-700">
+            <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
               Phone
               <input
                 required
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-800 dark:ring-slate-700 dark:text-white"
                 placeholder="e.g., 0816..."
               />
             </label>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="grid gap-1 text-sm font-semibold text-slate-700">
+            <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
               Email
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-800 dark:ring-slate-700 dark:text-white"
                 placeholder="hello@..."
               />
             </label>
-            <label className="grid gap-1 text-sm font-semibold text-slate-700">
+            <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
               Service Needed
               <select
                 value={serviceNeeded}
                 onChange={(e) => setServiceNeeded(e.target.value)}
-                className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-800 dark:ring-slate-700 dark:text-white"
               >
                 {services.map((s) => (
                   <option key={s.id} value={s.title}>
@@ -238,12 +238,12 @@ export function ConsultationForm({
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="grid gap-1 text-sm font-semibold text-slate-700">
+            <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
               Preferred Contact Method
               <select
                 value={preferredContact}
                 onChange={(e) => setPreferredContact(e.target.value as PreferredContact)}
-                className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-800 dark:ring-slate-700 dark:text-white"
               >
                 <option value="WhatsApp">WhatsApp</option>
                 <option value="Phone Call">Phone Call</option>
@@ -251,12 +251,12 @@ export function ConsultationForm({
               </select>
             </label>
 
-            <label className="grid gap-1 text-sm font-semibold text-slate-700">
+            <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
               Urgency
               <select
                 value={urgency}
                 onChange={(e) => setUrgency(e.target.value as any)}
-                className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-800 dark:ring-slate-700 dark:text-white"
               >
                 {urgencyOptions.map((u) => (
                   <option key={u} value={u}>
@@ -267,12 +267,12 @@ export function ConsultationForm({
             </label>
           </div>
 
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+          <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
             Budget Range
             <select
               value={budgetRange}
               onChange={(e) => setBudgetRange(e.target.value as any)}
-              className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-800 dark:ring-slate-700 dark:text-white"
             >
               {budgetOptions.map((b) => (
                 <option key={b} value={b}>
@@ -282,8 +282,8 @@ export function ConsultationForm({
             </select>
           </label>
 
-          <div className="rounded-2xl bg-emerald-50 p-4 ring-1 ring-emerald-100">
-            <label className="flex items-start gap-2 text-sm font-semibold text-slate-700">
+          <div className="rounded-2xl bg-blue-50/60 p-4 ring-1 ring-blue-100 dark:bg-blue-950/40 dark:ring-blue-900">
+            <label className="flex items-start gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
               <input
                 type="checkbox"
                 checked={wantsReminders}
@@ -294,13 +294,13 @@ export function ConsultationForm({
                     setSelectedReminderTopics([reminderTopics[0]]);
                   }
                 }}
-                className="mt-0.5 h-4 w-4 rounded border-emerald-300"
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
               />
               <span>
-                <span className="font-extrabold text-[color:var(--ablebiz-primary)]">
+                <span className="font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
                   Compliance reminders (optional)
                 </span>
-                <span className="mt-0.5 block text-xs font-medium text-slate-600">
+                <span className="mt-0.5 block text-xs font-medium text-slate-600 dark:text-slate-300">
                   After registration, we can remind you about annual returns, renewals and key compliance steps.
                 </span>
               </span>
@@ -308,52 +308,55 @@ export function ConsultationForm({
 
             {wantsReminders ? (
               <div className="mt-3 grid gap-2">
-                <div className="text-xs font-bold text-slate-700">What should we remind you about?</div>
+                <div className="text-xs font-bold text-slate-700 dark:text-slate-300">What should we remind you about?</div>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {reminderTopics.map((t) => (
                     <label
                       key={t}
-                      className="flex items-start gap-2 rounded-xl bg-white/70 px-3 py-2 text-xs font-semibold text-slate-700 ring-1 ring-emerald-100"
+                      className="flex items-start gap-2 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700"
                     >
                       <input
                         type="checkbox"
                         checked={selectedReminderTopics.includes(t)}
                         onChange={() => toggleReminderTopic(t)}
-                        className="mt-0.5 h-4 w-4 rounded border-emerald-300"
+                        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
                       />
                       <span>{t}</span>
                     </label>
                   ))}
                 </div>
-                <div className="text-[11px] text-slate-600">
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">
                   We’ll use your preferred contact method. You can opt out anytime.
                 </div>
               </div>
             ) : null}
           </div>
 
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+          <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
             Message (optional)
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              className="min-h-28 rounded-xl bg-white px-3 py-2 text-sm ring-1 ring-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              className="min-h-28 rounded-xl bg-white px-3 py-2 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-800 dark:ring-slate-700 dark:text-white"
               placeholder="Tell us what you want to register, any deadlines, and any questions you have."
             />
           </label>
 
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+          <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
             Referral Code (optional)
             <input
               value={referralCode}
               onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
-              className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-800 dark:ring-slate-700 dark:text-white"
               placeholder="If you were referred, enter the code here"
             />
           </label>
 
           <div className="flex flex-wrap items-center gap-3">
-            <Button type="submit">
+            <Button
+              type="submit"
+              className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold border-0 shadow-md"
+            >
               {preferredContact === "WhatsApp"
                 ? "Request via WhatsApp"
                 : preferredContact === "Email"
@@ -364,19 +367,19 @@ export function ConsultationForm({
             <button
               type="button"
               onClick={copySummary}
-              className="rounded-xl px-3 py-2 text-sm font-semibold text-[color:var(--ablebiz-accent)] underline"
+              className="rounded-xl px-3 py-2 text-sm font-semibold text-[color:var(--ablebiz-primary)] hover:underline dark:text-amber-400"
             >
               {copied ? "Copied" : "Copy request details"}
             </button>
           </div>
 
           {sent ? (
-            <div className="rounded-2xl bg-emerald-50 p-4 text-sm text-slate-700 ring-1 ring-emerald-100">
+            <div className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-900">
               Your request is ready. If the new tab didn’t open, you can copy the details and send them via WhatsApp or email.
             </div>
           ) : null}
 
-          <div className="rounded-2xl bg-white/70 p-4 text-xs text-slate-700 ring-1 ring-emerald-100">
+          <div className="rounded-2xl bg-slate-50 p-4 text-xs text-slate-600 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:ring-slate-700">
             Conversion boosters: Trusted CAC Agent • Fast & Transparent Process • Physical Office Available • Award-Winning Business.
           </div>
         </form>

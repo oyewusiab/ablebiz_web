@@ -18,7 +18,7 @@ export function RelatedPosts({
         {posts.map((p) => (
           <Card key={p.slug} className="overflow-hidden">
             <Link to={`/blog/${p.slug}`} className="no-underline">
-              <div className="aspect-[16/9] bg-emerald-100">
+              <div className="aspect-[16/9] bg-slate-100 dark:bg-slate-800">
                 <img
                   src={p.featuredImage}
                   alt={p.title}

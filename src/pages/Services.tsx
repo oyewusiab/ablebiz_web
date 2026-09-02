@@ -55,26 +55,26 @@ export function ServicesPage() {
                   <Card>
                     <CardBody>
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-                        <div className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-50 ring-1 ring-emerald-100">
+                        <div className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-50 ring-1 ring-blue-100 dark:bg-blue-950 dark:ring-blue-900">
                           <ServiceIcon
                             icon={s.icon}
-                            className="h-6 w-6 text-[color:var(--ablebiz-primary)]"
+                            className="h-6 w-6 text-[color:var(--ablebiz-cta)]"
                           />
                         </div>
                         <div className="flex-1">
-                          <div className="text-lg font-extrabold text-[color:var(--ablebiz-primary)]">
+                          <div className="text-lg font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
                             {s.title}
                           </div>
-                          <p className="mt-1 text-sm text-slate-700 sm:text-base">
+                          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 sm:text-base">
                             {s.description}
                           </p>
 
                           {s.bullets?.length ? (
-                            <ul className="mt-4 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
+                            <ul className="mt-4 grid gap-2 text-sm text-slate-700 dark:text-slate-300 sm:grid-cols-2">
                               {s.bullets.map((b) => (
                                 <li
                                   key={b}
-                                  className="rounded-xl bg-white/70 px-3 py-2 ring-1 ring-emerald-100"
+                                  className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700"
                                 >
                                   {b}
                                 </li>
@@ -83,7 +83,7 @@ export function ServicesPage() {
                           ) : null}
 
                           {s.timeline ? (
-                            <div className="mt-4 text-sm font-semibold text-[color:var(--ablebiz-accent)]">
+                            <div className="mt-4 text-sm font-semibold text-amber-700 dark:text-amber-400">
                               {s.timeline}
                             </div>
                           ) : null}
@@ -91,7 +91,7 @@ export function ServicesPage() {
                           <div className="mt-5 flex flex-wrap items-center gap-3">
                             <Link
                               to={`/services?service=${encodeURIComponent(s.id)}#consultation`}
-                              className="inline-flex h-11 items-center justify-center rounded-2xl bg-[color:var(--ablebiz-cta)] px-4 text-sm font-extrabold text-slate-900 shadow-sm ring-1 ring-emerald-200 hover:brightness-95"
+                              className="inline-flex h-11 items-center justify-center rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 px-5 text-sm font-bold text-slate-950 shadow-sm hover:from-amber-600 hover:to-amber-700"
                             >
                               Request Consultation
                             </Link>
@@ -99,19 +99,19 @@ export function ServicesPage() {
                             {hasChecklist ? (
                               <Link
                                 to="/services#checklists"
-                                className="text-sm font-semibold text-[color:var(--ablebiz-accent)] underline"
+                                className="text-sm font-semibold text-[color:var(--ablebiz-primary)] hover:underline dark:text-amber-400"
                               >
-                                Download checklist
+                                Download checklist →
                               </Link>
                             ) : null}
                           </div>
 
                           {s.faqs?.length ? (
                             <div className="mt-8">
-                              <div className="text-sm font-extrabold text-[color:var(--ablebiz-primary)]">
+                              <div className="text-sm font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
                                 FAQs for {s.title}
                               </div>
-                              <p className="mt-1 text-sm text-slate-700">
+                              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                                 Quick answers to the most common questions we get before payment.
                               </p>
                               <div className="mt-4">
@@ -134,14 +134,14 @@ export function ServicesPage() {
         <Container className="py-14">
           <div className="flex items-end justify-between gap-6">
             <div>
-              <h2 className="text-2xl font-extrabold text-[color:var(--ablebiz-primary)]">
+              <h2 className="text-2xl font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
                 Free Downloadable Checklists
               </h2>
-              <p className="mt-2 text-sm text-slate-700 sm:text-base">
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 sm:text-base">
                 Get the exact requirements before you start — these checklists help you prepare and avoid delays.
               </p>
             </div>
-            <div className="hidden text-xs font-semibold text-slate-600 md:block">
+            <div className="hidden text-xs font-semibold text-slate-500 dark:text-slate-400 md:block">
               Lead magnets • Professional PDFs
             </div>
           </div>
@@ -166,20 +166,20 @@ export function ServicesPage() {
 
             <Card>
               <CardBody>
-                <div className="text-sm font-extrabold text-[color:var(--ablebiz-primary)]">
+                <div className="text-sm font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
                   What happens next
                 </div>
-                <ul className="mt-4 grid gap-3 text-sm text-slate-700">
-                  <li className="rounded-xl bg-white/70 px-3 py-2 ring-1 ring-emerald-100">
+                <ul className="mt-4 grid gap-3 text-sm text-slate-700 dark:text-slate-300">
+                  <li className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
                     1) We confirm your requirements and eligibility.
                   </li>
-                  <li className="rounded-xl bg-white/70 px-3 py-2 ring-1 ring-emerald-100">
+                  <li className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
                     2) We send a clear quote (no hidden charges).
                   </li>
-                  <li className="rounded-xl bg-white/70 px-3 py-2 ring-1 ring-emerald-100">
+                  <li className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
                     3) You submit details/documents.
                   </li>
-                  <li className="rounded-xl bg-white/70 px-3 py-2 ring-1 ring-emerald-100">
+                  <li className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
                     4) We process and deliver your documents.
                   </li>
                 </ul>

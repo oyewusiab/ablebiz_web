@@ -16,8 +16,8 @@ export function CategoryPill({
       className={cn(
         "rounded-full px-3 py-1 text-xs font-semibold ring-1 transition",
         active
-          ? "bg-[var(--ablebiz-cta)] text-[color:var(--ablebiz-primary)] ring-emerald-200"
-          : "bg-white/70 text-slate-700 ring-emerald-100 hover:bg-white"
+          ? "bg-amber-500 text-slate-950 font-bold ring-amber-400 shadow-xs"
+          : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700"
       )}
     >
       {label}

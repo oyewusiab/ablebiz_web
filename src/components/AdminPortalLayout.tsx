@@ -91,13 +91,13 @@ export function AdminPortalLayout() {
     <>
       <div className={collapsed ? "flex h-16 items-center justify-center border-b border-[var(--admin-border)] px-4" : "flex h-16 items-center border-b border-[var(--admin-border)] px-5"}>
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-primary-600)] text-white">
-            <ShieldCheck className="h-5 w-5" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] bg-white/10 p-1 border border-white/15 shadow-xs">
+            <img src="/images/ablebiz-logo.png" alt="ABLEBIZ" className="h-full w-full object-contain" />
           </div>
           {!collapsed ? (
             <div className="space-y-0.5">
-              <p className="text-sm font-semibold text-white">ABLEBIZ</p>
-              <p className="text-xs text-[var(--color-neutral-400)]">Admin portal</p>
+              <p className="text-sm font-bold text-white tracking-wide">ABLEBIZ</p>
+              <p className="text-xs text-amber-400 font-semibold">Admin Portal</p>
             </div>
           ) : null}
         </div>
@@ -113,7 +113,7 @@ export function AdminPortalLayout() {
               onClick={() => setIsMobileOpen(false)}
               className={`flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm transition-colors ${
                 active
-                  ? "bg-[var(--color-primary-600)] text-white"
+                  ? "bg-amber-500/15 text-amber-400 font-semibold ring-1 ring-amber-500/30"
                   : "text-[var(--color-neutral-400)] hover:bg-white/5 hover:text-white"
               } ${collapsed ? "justify-center" : ""}`}
               title={collapsed ? item.name : undefined}
@@ -165,7 +165,7 @@ export function AdminPortalLayout() {
         <button
           type="button"
           onClick={() => setIsSidebarOpen((value) => !value)}
-          className="absolute -right-3 top-6 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[var(--sidebar-bg)] bg-[var(--color-primary-500)] text-[var(--color-neutral-900)] shadow-sm"
+          className="absolute -right-3 top-6 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[var(--sidebar-bg)] bg-amber-500 text-slate-950 shadow-sm transition hover:bg-amber-400"
         >
           {isSidebarOpen ? <ChevronLeft className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
         </button>
@@ -209,7 +209,7 @@ export function AdminPortalLayout() {
               >
                 <Bell className="h-4 w-4" />
                 {notifications.length > 0 ? (
-                  <span className="absolute right-2 top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--color-primary-500)] px-1 text-[10px] text-white">
+                  <span className="absolute right-2 top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-slate-950">
                     {notifications.length}
                   </span>
                 ) : null}
@@ -257,8 +257,8 @@ export function AdminPortalLayout() {
                 <p className="text-sm font-medium text-[var(--text-primary)]">{displayName}</p>
                 <p className="text-xs text-[var(--text-secondary)]">{user?.role || "admin"}</p>
               </div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--color-primary-50)] text-[var(--color-primary-700)]">
-                {user?.role === "superadmin" ? <ShieldCheck className="h-5 w-5" /> : <CircleUser className="h-5 w-5" />}
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-[var(--color-primary-600)] dark:bg-blue-950 dark:text-blue-300">
+                {user?.role === "superadmin" ? <ShieldCheck className="h-5 w-5 text-amber-500" /> : <CircleUser className="h-5 w-5" />}
               </div>
             </div>
           </div>
@@ -278,7 +278,7 @@ export function AdminPortalLayout() {
         dangerouslySetInnerHTML={{
           __html: `
             .admin-theme ::-webkit-scrollbar { width: 8px; height: 8px; }
-            .admin-theme ::-webkit-scrollbar-thumb { background: rgba(34, 197, 94, 0.24); border-radius: 999px; }
+            .admin-theme ::-webkit-scrollbar-thumb { background: rgba(217, 119, 6, 0.28); border-radius: 999px; }
             .admin-theme ::-webkit-scrollbar-track { background: transparent; }
           `,
         }}

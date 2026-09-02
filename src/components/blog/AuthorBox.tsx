@@ -19,12 +19,12 @@ export function AuthorBox({
             <div className="text-sm text-slate-700">{author.title}</div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-[color:var(--ablebiz-accent)] ring-1 ring-emerald-200">
-              <BadgeCheck className="h-4 w-4" />
+            <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-[color:var(--ablebiz-primary)] ring-1 ring-blue-200 dark:bg-blue-950/40 dark:text-blue-200 dark:ring-blue-800">
+              <BadgeCheck className="h-4 w-4 text-[color:var(--ablebiz-cta)]" />
               Trusted CAC Agent
             </div>
-            <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-[color:var(--ablebiz-accent)] ring-1 ring-emerald-200">
-              <Award className="h-4 w-4" />
+            <div className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-800">
+              <Award className="h-4 w-4 text-amber-600" />
               {site.awardBadge}
             </div>
           </div>

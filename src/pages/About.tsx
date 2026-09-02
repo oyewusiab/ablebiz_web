@@ -84,13 +84,13 @@ export function AboutPage() {
                   {["Integrity", "Excellence", "Reliability", "Customer-Centered Service"].map((v) => (
                     <div
                       key={v}
-                      className="rounded-2xl bg-emerald-50 p-4 ring-1 ring-emerald-100"
+                      className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:ring-slate-700"
                     >
-                      <div className="inline-flex items-center gap-2 text-sm font-extrabold text-[color:var(--ablebiz-primary)]">
-                        <HeartHandshake className="h-5 w-5" />
+                      <div className="inline-flex items-center gap-2 text-sm font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
+                        <HeartHandshake className="h-5 w-5 text-[color:var(--ablebiz-cta)]" />
                         {v}
                       </div>
-                      <p className="mt-2 text-sm text-slate-700">
+                      <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
                         We keep the process clear, honest, and professional — no stories.
                       </p>
                     </div>
@@ -104,11 +104,10 @@ export function AboutPage() {
                 Short Video
               </div>
               <VideoEmbed
-                url="https://www.youtube.com/embed/ysz5S6PUM-U"
+                url="https://www.youtube.com/embed/Q3mgyZsFhWM"
                 title="Meet ABLEBIZ"
               />
               <p className="text-xs text-slate-600">
-                Replace this with your own 30–60s intro video when ready.
               </p>
             </div>
           </div>
