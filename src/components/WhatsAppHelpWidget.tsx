@@ -46,8 +46,8 @@ const TOPICS = [
   },
   {
     id: "compliance",
-    label: "Compliance (SCUML / BPP / NSITF)",
-    starter: "I need help with compliance (SCUML/BPP/NSITF). Please guide me.",
+    label: "Compliance (Tax / Annual Returns / BPP)",
+    starter: "I need help with compliance (Tax/Annual Returns/BPP/NSITF). Please guide me.",
   },
 ] as const;
 

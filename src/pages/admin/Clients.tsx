@@ -489,14 +489,14 @@ export function AdminClients() {
                 </div>
 
                 {!editingClient || editingClient.source === "referral" ? (
-                  <AdminField label="Referral code" hint="Referral records use the ABZ-REF-XXXXXX pattern.">
+                  <AdminField label="Referral code" hint="Referral records use the ABZ-XXXXXX (6-digit) pattern.">
                     <div className="flex flex-col gap-3 sm:flex-row">
                       <AdminInput
                         value={formData.referralCode}
                         onChange={(event) =>
                           setFormData({ ...formData, referralCode: event.target.value.toUpperCase() })
                         }
-                        placeholder="ABZ-REF-XXXXXX"
+                        placeholder="ABZ-123456"
                       />
                       <button
                         type="button"

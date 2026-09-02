@@ -91,32 +91,32 @@ export const services: Service[] = [
   },
   {
     id: "compliance",
-    title: "Compliance Services",
-    short: "BPP, SCUML, NSITF, and other requirements made easy.",
+    title: "Compliance & Post-Incorporation Services",
+    short: "Tax Clearance (TCC), Annual Returns, BPP, NSITF, Trademark, and CAC filings made easy.",
     description:
-      "We support your business with compliance documentation and filings so you can focus on growth — not confusion.",
-    bullets: ["BPP", "SCUML", "NSITF", "Trademark support"],
+      "We support your business with post-incorporation compliance, annual returns, tax clearance documentation, and regulatory filings so your company remains in good standing and ready for contracts.",
+    bullets: ["Tax Clearance (TCC / TIN)", "Annual Returns Filing", "BPP & NSITF Registration", "Trademark & Brand Protection", "CAC Post-Incorporation Changes"],
     icon: "shield",
     faqs: [
       {
-        q: "What is SCUML and who needs it?",
-        a: "SCUML registration is required for many designated non-financial businesses and professions (DNFBPs). If you’re unsure whether it applies to your business, we’ll assess your business type and advise correctly.",
+        q: "Why is Annual Returns filing important for my registered business?",
+        a: "Annual returns keep your business status active with the CAC and prevent your company from being classified as inactive or struck off. It is required annually by law.",
+      },
+      {
+        q: "Can you help us get a Tax Clearance Certificate (TCC) and Company TIN?",
+        a: "Yes. We guide you through corporate tax regularization, TIN generation, and obtaining your Tax Clearance Certificate for banking and bidding eligibility.",
+      },
+      {
+        q: "What compliance documents do I need before bidding for government/corporate tenders?",
+        a: "Common requirements include CAC status reports, up-to-date Annual Returns, Tax Clearance Certificate (TCC), BPP Federal Contractor certificate, and NSITF compliance. We assess your target tenders and package all required documents.",
+      },
+      {
+        q: "Can you handle changes of directors, address, or share capital?",
+        a: "Yes. We process all CAC post-incorporation amendments including appointment/removal of directors, change of business address, share allotment, and changes of business name.",
       },
       {
         q: "How long do compliance filings take?",
-        a: "It depends on the specific agency and your document readiness. After reviewing your details, we’ll give you a realistic timeline and keep you updated throughout.",
-      },
-      {
-        q: "Do I need compliance before bidding for contracts?",
-        a: "For many tenders and procurement processes, compliance documents may be requested. We help you prepare what’s needed for your target opportunities and avoid unnecessary filings.",
-      },
-      {
-        q: "Can you handle multiple compliance requirements together?",
-        a: "Yes. We can bundle your compliance steps into one plan (e.g., SCUML + BPP + NSITF where applicable) to reduce delays and repeated paperwork.",
-      },
-      {
-        q: "What documents will you request from me?",
-        a: "Common items include CAC documents, IDs, business address, and operational details. The exact list depends on the specific service — we’ll send a checklist after a short review.",
+        a: "Timelines range from 2 to 7 working days depending on the specific regulatory agency and document availability. We provide clear upfront timelines and status updates throughout.",
       },
     ],
   },

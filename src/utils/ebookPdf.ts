@@ -35,7 +35,7 @@ export function downloadAblebizEbookPdf() {
     "Business Name vs Company: how to choose the right structure",
     "Common CAC requirements you should prepare ahead",
     "Typical timelines and how to avoid delays",
-    "Compliance add-ons (SCUML, NSITF, trademark) — when they apply",
+    "Compliance add-ons (Tax Clearance, Annual Returns, NSITF, Trademark) — when they apply",
     "A simple action plan to start today",
   ];
 

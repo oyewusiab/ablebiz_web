@@ -72,7 +72,7 @@ export async function rpcCreateConsultationRequest(input: {
   budget?: 'under_25k' | '25k_40k' | '50k_80k' | '100k_plus' | 'not_sure'
   message?: string
   remindersOptIn?: boolean
-  reminderTopics?: Array<'annual_returns' | 'scuml' | 'tax' | 'trademark' | 'ngo_returns' | 'general_compliance'>
+  reminderTopics?: Array<'annual_returns' | 'tax' | 'trademark' | 'bpp_nsitf' | 'ngo_returns' | 'general_compliance'>
   referredBy?: string
   consentMarketing?: boolean
   pagePath?: string

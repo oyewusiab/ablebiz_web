@@ -92,11 +92,16 @@ export function findClientByCode(code: string): ReferralClient | undefined {
     .trim()
     .toLowerCase()
     .replace(/^abz-ref-/, "")
+    .replace(/^abz-/, "")
     .replace(/^ref-/, "");
   const clients = getReferralClients();
   return clients.find((c) => {
     const target =
-      c.referralCode?.toLowerCase().replace(/^abz-ref-/, "").replace(/^ref-/, "") || "";
+      c.referralCode
+        ?.toLowerCase()
+        .replace(/^abz-ref-/, "")
+        .replace(/^abz-/, "")
+        .replace(/^ref-/, "") || "";
     return target === cleanCode;
   });
 }
@@ -111,16 +116,18 @@ export function findClientByPhoneOrEmail(phone: string, email: string) {
 }
 
 function generateCode(existing: ReferralClient[]): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  for (let i = 0; i < 20; i++) {
-    let rand = "";
-    for (let j = 0; j < 6; j += 1) {
-      rand += chars[secureRandomInt(chars.length)];
+  const digits = "0123456789";
+  for (let i = 0; i < 50; i++) {
+    // Generate an easy-to-remember 6-digit number
+    let rand = String(secureRandomInt(9) + 1); // 1-9
+    for (let j = 0; j < 5; j += 1) {
+      rand += digits[secureRandomInt(10)];
     }
-    const code = `ABZ-REF-${rand}`;
-    if (!existing.some((u) => u.referralCode === code)) return code;
+    const code = `ABZ-${rand}`;
+    if (!existing.some((u) => u.referralCode?.toUpperCase() === code)) return code;
   }
-  return `ABZ-REF-${Date.now().toString().slice(-6)}`;
+  const fallback = Math.floor(100000 + Math.random() * 900000);
+  return `ABZ-${fallback}`;
 }
 
 export function getOrCreateReferralClient(input: {

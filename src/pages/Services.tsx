@@ -33,7 +33,7 @@ export function ServicesPage() {
     <>
       <Seo
         title="Services"
-        description="CAC business registration, NGO & association registration, compliance services (BPP, SCUML, NSITF, trademark) and business support services in Nigeria."
+        description="CAC business registration, NGO & association registration, compliance services (Annual Returns, Tax Clearance, BPP, NSITF, Trademark) and business support services in Nigeria."
         path="/services"
       />
 

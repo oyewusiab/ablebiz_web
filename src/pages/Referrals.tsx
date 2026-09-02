@@ -268,7 +268,7 @@ export function ReferralsPage() {
                         value={dashCode}
                         onChange={(e) => setDashCode(e.target.value.toUpperCase())}
                         className="h-12 flex-1 rounded-xl bg-white px-4 text-sm font-bold tracking-wider ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 placeholder:font-normal placeholder:tracking-normal dark:bg-slate-900 dark:ring-slate-700 dark:text-white"
-                        placeholder="e.g. REF-ABC1234"
+                        placeholder="e.g. ABZ-749201"
                         required
                       />
                       <Button

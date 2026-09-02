@@ -32,7 +32,7 @@ const budgetOptions = [
 
 const reminderTopics = [
   "CAC annual returns / post-incorporation",
-  "SCUML / compliance follow-up",
+  "Tax clearance & TIN compliance",
   "Trademark / business name protection",
   "General compliance & renewals",
 ] as const;

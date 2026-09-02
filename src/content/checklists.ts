@@ -69,21 +69,22 @@ export const checklists: Checklist[] = [
     ],
   },
   {
-    id: "scuml-requirements",
-    title: "SCUML Requirements Checklist",
+    id: "tax-compliance-requirements",
+    title: "Tax & Compliance Checklist (TIN, TCC, BPP, NSITF)",
     description:
-      "For businesses that need SCUML certification — prepare the right documents and avoid delays.",
+      "Essential checklist for post-incorporation tax clearance, corporate compliance, and contractor registration.",
     relatedServiceIds: ["compliance"],
     bullets: [
-      "CAC registration documents (certificate, status report where applicable)",
-      "Valid ID of proprietors/directors",
-      "Business address verification (utility bill where applicable)",
-      "Tax identification details (where available)",
-      "Business profile / brief description of operations",
-      "Relevant regulatory or sector documents (if applicable)",
+      "CAC registration documents (Certificate & Status Report)",
+      "Company Tax Identification Number (TIN / JTB)",
+      "Valid government-issued IDs of all Directors/Proprietors",
+      "Recent business utility bill / address verification",
+      "Employee details & payroll structure (for NSITF/ITF compliance)",
+      "Financial statements or turnover summary (for Tax Clearance Certificate)",
+      "Relevant sector licenses or professional certifications (if applicable)",
     ],
     notes: [
-      "Requirements can differ by business type. ABLEBIZ will confirm the exact list based on your industry.",
+      "Tax and regulatory requirements vary by company age and structure. ABLEBIZ will confirm your exact obligations and handle filings smoothly.",
     ],
   },
 ];

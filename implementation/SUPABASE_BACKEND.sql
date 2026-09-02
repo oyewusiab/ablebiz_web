@@ -78,9 +78,9 @@ begin
   if not exists (select 1 from pg_type where typname = 'reminder_topic') then
     create type public.reminder_topic as enum (
       'annual_returns',
-      'scuml',
       'tax',
       'trademark',
+      'bpp_nsitf',
       'ngo_returns',
       'general_compliance'
     );
