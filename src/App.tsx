@@ -13,6 +13,7 @@ import { NotFoundPage } from "./pages/NotFound";
 import { ReferralsPage } from "./pages/Referrals";
 
 import { useReferralUrl } from "./referrals/useReferralUrl";
+import { Analytics } from "@vercel/analytics/react";
 
 import { AuthProvider } from "./auth/AuthContext";
 import { ThemeProvider } from "./auth/ThemeContext";
@@ -32,7 +33,8 @@ export default function App() {
     <AuthProvider>
       <ThemeProvider>
         <GamificationProvider>
-        <Routes>
+          <Analytics />
+          <Routes>
           <Route element={<Layout />}>
             <Route index element={<HomePage />} />
             <Route path="/about" element={<AboutPage />} />
