@@ -28,9 +28,23 @@ export function HomePage() {
   return (
     <>
       <Seo
-        title="Register and Grow Your Business with Confidence"
-        description="ABLEBIZ is an award-winning CAC compliance service helping Nigerians register and grow their businesses safely and professionally. Affordable CAC registration Nigeria with transparent pricing, fast turnaround, and a trusted CAC agent in Abeokuta."
+        title="Accredited CAC Agent in Abeokuta & Business Registration Nigeria"
+        description="Accredited CAC registration agent in Abeokuta, Ogun State. We handle fast Business Name registration, Limited Company (LLC) incorporation, NGO/Trustees, CAC Annual Returns, TIN, and SCUML across Nigeria."
         path="/"
+        keywords={[
+          "CAC agents in Abeokuta",
+          "CAC accredited agent Abeokuta",
+          "business name registration Abeokuta",
+          "company registration Nigeria",
+          "CAC registration agent near me",
+          "register business in Abeokuta Ogun State",
+          "CAC annual returns filing agent",
+          "SCUML certificate registration",
+          "TIN registration Abeokuta",
+          "NGO registration Nigeria",
+          "corporate affairs commission agent Abeokuta",
+          "business registration services Nigeria",
+        ]}
       />
 
       <PageHero

@@ -25,9 +25,18 @@ export function ContactPage() {
   return (
     <>
       <Seo
-        title="Contact"
-        description="Contact ABLEBIZ Business Services in Abeokuta, Ogun State. Call, WhatsApp, or send a message for CAC registration and compliance services."
+        title="Contact Accredited CAC Agent in Abeokuta, Ogun State"
+        description="Contact ABLEBIZ Business Services at Along M.K.O. Abiola Way, Leme, Abeokuta. Call or WhatsApp 0816 048 6023 for CAC business registration, company incorporation, NGO, TIN, and compliance support."
         path="/contact"
+        keywords={[
+          "contact CAC agent Abeokuta",
+          "CAC office Abeokuta",
+          "CAC registration agent contact number",
+          "business registration office Abeokuta",
+          "ABLEBIZ business services address",
+          "MKO Abiola Way business service Abeokuta",
+          "CAC agent Ogun State phone number",
+        ]}
       />
 
       <PageHero

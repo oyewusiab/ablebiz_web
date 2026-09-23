@@ -20,9 +20,17 @@ export function PricingPage() {
   return (
     <>
       <Seo
-        title="Pricing"
-        description="Transparent pricing for CAC registration and documentation. Starter, Standard and Premium packages. Contact ABLEBIZ for a custom quote."
+        title="CAC Registration Pricing & Packages | Affordable Agent Fees Nigeria"
+        description="Transparent CAC registration pricing in Abeokuta, Ogun State and Nigeria. Affordable packages for Business Name, Limited Liability Company (LLC), NGO, and Annual Returns with zero hidden fees."
         path="/pricing"
+        keywords={[
+          "CAC registration price Nigeria",
+          "cost of registering business name in Nigeria",
+          "cost of registering company with CAC",
+          "affordable CAC agent fees",
+          "CAC registration pricing Abeokuta",
+          "business registration packages Nigeria",
+        ]}
       />
 
       <PageHero

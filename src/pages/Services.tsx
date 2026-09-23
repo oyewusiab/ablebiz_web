@@ -32,9 +32,21 @@ export function ServicesPage() {
   return (
     <>
       <Seo
-        title="Services"
-        description="CAC business registration, NGO & association registration, compliance services (Annual Returns, Tax Clearance, BPP, NSITF, Trademark) and business support services in Nigeria."
+        title="CAC Business Registration, Company Incorporation & Compliance Services"
+        description="Professional CAC registration services in Nigeria and Abeokuta: Business Name, Limited Liability Company (LTD/LLC), Incorporated Trustees/NGOs, Annual Returns, TIN, SCUML, and Post-Incorporation changes."
         path="/services"
+        keywords={[
+          "CAC registration services",
+          "register company Nigeria",
+          "business name registration",
+          "CAC annual returns agent",
+          "NGO registration Nigeria",
+          "SCUML certificate application",
+          "TIN registration Nigeria",
+          "CAC accredited agent Abeokuta",
+          "post incorporation filings CAC",
+          "corporate affairs commission services",
+        ]}
       />
 
       <PageHero
