@@ -94,25 +94,33 @@
   --color-danger-100: #fee2e2;
   --color-danger-700: #b91c1c;
 
+  /* ABLEBIZ SUITE Enterprise Deep Green Identity */
+  --suite-green-primary: #043F2E;
+  --suite-green-dark: #02261B;
+  --suite-green-hover: #06553F;
+  --suite-green-accent: #10B981;
+  --suite-green-light: #ECFDF5;
+  --suite-green-border: rgba(4, 63, 46, 0.15);
+
   /* Theme Mapping */
   --ablebiz-primary: var(--color-primary-600);
   --ablebiz-cta: var(--color-gold-600);
-  --ablebiz-bg: var(--color-neutral-50);
+  --ablebiz-bg: #F8FAFC;
   --ablebiz-accent: var(--color-primary-700);
   --admin-border: var(--color-neutral-200);
   --admin-border-strong: var(--color-neutral-300);
   --card-bg: #ffffff;
   --admin-panel: #ffffff;
-  --admin-panel-muted: var(--color-neutral-50);
+  --admin-panel-muted: #F8FAFC;
   --admin-panel-strong: var(--color-neutral-100);
-  --sidebar-bg: #061738;
-  --text-primary: var(--color-neutral-900);
-  --text-secondary: var(--color-neutral-500);
-  --text-muted: var(--color-neutral-400);
+  --sidebar-bg: #043F2E;
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #94A3B8;
   --admin-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
-  --admin-shadow-md: 0 8px 24px rgba(10, 37, 88, 0.06);
-  --admin-shadow-lg: 0 20px 40px rgba(10, 37, 88, 0.09);
-  --admin-focus-ring: 0 0 0 3px rgba(10, 37, 88, 0.18);
+  --admin-shadow-md: 0 4px 12px rgba(4, 63, 46, 0.05), 0 1px 3px rgba(0, 0, 0, 0.05);
+  --admin-shadow-lg: 0 12px 28px rgba(4, 63, 46, 0.08);
+  --admin-focus-ring: 0 0 0 3px rgba(4, 63, 46, 0.18);
   --admin-success-bg: #f0fdf4;
   --admin-success-fg: #15803d;
   --admin-info-bg: var(--color-info-100);

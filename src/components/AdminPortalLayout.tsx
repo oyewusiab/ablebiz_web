@@ -1,292 +1,365 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
-  Bell,
-  ChevronLeft,
-  ChevronRight,
-  CircleUser,
-  History,
   LayoutDashboard,
+  Bell,
+  Users,
+  Briefcase,
+  FileCheck2,
+  FileSpreadsheet,
+  CheckSquare,
+  FolderOpen,
+  Receipt,
+  CreditCard,
+  Building2,
+  DollarSign,
+  TrendingUp,
+  MessageSquare,
+  BarChart3,
+  ShieldCheck,
+  Bot,
+  Settings,
   LogOut,
   Menu,
-  Moon,
-  Search,
-  ShieldCheck,
-  Sun,
-  Users,
-  BarChart3,
   X,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  Search,
+  Sparkles,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
-import { useTheme } from "../auth/ThemeContext";
-import { AdminBadge, AdminSurface } from "./admin/AdminPrimitives";
-import { useStorageData } from "../utils/useStorageData";
-import { getEnrichedRedemptions, getLeads, getUnifiedClients } from "../referrals/core";
+import { getRoleTitle, getRoleConfig } from "../auth/roleConfig";
 
-function getAdminNotifications() {
-  const leads = getLeads();
-  const redemptions = getEnrichedRedemptions();
-  const clients = getUnifiedClients().slice(0, 3);
+interface NavItem {
+  name: string;
+  path: string;
+  icon: any;
+  badge?: string | number;
+  module?: string;
+  action?: "view" | "create" | "edit";
+  superOnly?: boolean;
+}
 
-  const items = [
-    ...leads
-      .filter((lead) => lead.status === "pending")
-      .slice(0, 3)
-      .map((lead) => ({
-        id: `lead-${lead.id}`,
-        title: "Pending consultation lead",
-        description: `${lead.name} requested ${lead.serviceNeeded}`,
-      })),
-    ...redemptions
-      .filter((item) => item.status === "pending")
-      .slice(0, 3)
-      .map((item) => ({
-        id: `reward-${item.id}`,
-        title: "Reward awaiting fulfillment",
-        description: `${item.client?.name || item.clientCode} requested ${item.rewardTitle}`,
-      })),
-    ...clients.map((client) => ({
-      id: `client-${client.id}`,
-      title: "Recent client activity",
-      description: `${client.name} entered through ${client.sourceLabel}`,
-    })),
-  ];
-
-  return items.slice(0, 6);
+interface NavSection {
+  title: string;
+  items: NavItem[];
 }
 
 export function AdminPortalLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
-  const { user, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
-  const [notifications] = useStorageData(getAdminNotifications);
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+
+  const { user, profile, logout, hasPermission } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const displayName = user?.name || user?.email?.split("@")[0] || "Admin";
 
-  const navItems = useMemo(
-    () =>
-      [
-        user?.permissions.dashboard
-          ? { name: "Dashboard", path: "/admin/dashboard", icon: LayoutDashboard }
-          : null,
-        user?.permissions.referrals
-          ? { name: "Referrals", path: "/admin/referrals", icon: History }
-          : null,
-        user?.permissions.clients ? { name: "Clients", path: "/admin/clients", icon: Users } : null,
-        user?.permissions.reports ? { name: "Reports", path: "/admin/reports", icon: BarChart3 } : null,
-        user?.permissions.settings ? { name: "Settings", path: "/admin/settings", icon: ShieldCheck } : null,
-      ].filter(Boolean) as Array<{ name: string; path: string; icon: typeof LayoutDashboard }>,
-    [user]
-  );
+  const roleTitle = getRoleTitle(profile?.role);
+  const roleConfig = getRoleConfig(profile?.role);
+  const isSuper = profile?.role === "super_admin" || profile?.role === "admin";
 
   const handleLogout = async () => {
     await logout();
     navigate("/admin/login");
   };
 
+  const toggleSection = (title: string) => {
+    setCollapsedSections((prev) => ({ ...prev, [title]: !prev[title] }));
+  };
+
+  // Conceptual 10-section Navigation Hierarchy
+  const navigationSections: NavSection[] = [
+    {
+      title: "OVERVIEW",
+      items: [
+        { name: "Manager Workbench", path: "/admin/dashboard", icon: LayoutDashboard },
+        { name: "Notifications", path: "/admin/notifications", icon: Bell },
+      ],
+    },
+    {
+      title: "CRM",
+      items: [
+        { name: "Leads Pipeline", path: "/admin/leads", icon: Users, module: "crm" },
+        { name: "Clients 360°", path: "/admin/clients", icon: Users, module: "crm" },
+        { name: "Businesses", path: "/admin/businesses", icon: Building2, module: "crm" },
+        { name: "Follow-ups", path: "/admin/follow-ups", icon: CheckSquare, module: "crm" },
+      ],
+    },
+    {
+      title: "OPERATIONS",
+      items: [
+        { name: "Services Catalogue", path: "/admin/services-catalog", icon: Briefcase, module: "operations" },
+        { name: "Service Requests", path: "/admin/service-requests", icon: FileCheck2, module: "operations" },
+        { name: "CAC Operations", path: "/admin/cac-operations", icon: FileSpreadsheet, module: "operations" },
+        { name: "Tasks", path: "/admin/tasks", icon: CheckSquare, module: "operations" },
+        { name: "Documents", path: "/admin/documents", icon: FolderOpen, module: "operations" },
+      ],
+    },
+    {
+      title: "FINANCE",
+      items: [
+        { name: "Quotations", path: "/admin/quotations", icon: FileSpreadsheet, module: "finance" },
+        { name: "Invoices", path: "/admin/invoices", icon: Receipt, module: "finance" },
+        { name: "Payments", path: "/admin/payments", icon: CreditCard, module: "finance" },
+        { name: "Expenses", path: "/admin/expenses", icon: DollarSign, module: "finance" },
+        { name: "Vendors", path: "/admin/vendors", icon: Building2, module: "finance" },
+      ],
+    },
+    {
+      title: "COMMUNICATION",
+      items: [
+        { name: "Client Communications", path: "/admin/communications", icon: MessageSquare, module: "crm" },
+      ],
+    },
+    {
+      title: "GROWTH",
+      items: [
+        { name: "Referrals & Partners", path: "/admin/referrals", icon: TrendingUp },
+      ],
+    },
+    {
+      title: "REPORTING",
+      items: [
+        { name: "Executive Reports", path: "/admin/reports", icon: BarChart3, module: "reports" },
+      ],
+    },
+    {
+      title: "TEAM",
+      items: [
+        { name: "Staff & RBAC", path: "/admin/team", icon: ShieldCheck, superOnly: true },
+        { name: "Audit Trail", path: "/admin/audit-logs", icon: FileCheck2, superOnly: true },
+      ],
+    },
+    {
+      title: "AI ASSISTANT",
+      items: [
+        { name: "AI Secretary", path: "/admin/ai-secretary", icon: Bot },
+      ],
+    },
+    {
+      title: "SETTINGS",
+      items: [
+        { name: "System Settings", path: "/admin/settings", icon: Settings, superOnly: true },
+      ],
+    },
+  ];
+
+  // Filter sections and items based on staff permissions
+  const filteredSections = navigationSections
+    .map((section) => {
+      const allowedItems = section.items.filter((item) => {
+        if (item.superOnly && !isSuper) return false;
+        if (item.module && !isSuper) {
+          return hasPermission(item.module, item.action || "view");
+        }
+        return true;
+      });
+      return { ...section, items: allowedItems };
+    })
+    .filter((section) => section.items.length > 0);
+
   const SidebarContent = ({ collapsed }: { collapsed: boolean }) => (
-    <>
-      <div className={collapsed ? "flex h-16 items-center justify-center border-b border-[var(--admin-border)] px-4" : "flex h-16 items-center border-b border-[var(--admin-border)] px-5"}>
+    <div className="flex h-full flex-col bg-[#043F2E] text-white select-none">
+      {/* Brand Header */}
+      <div className={`flex h-16 shrink-0 items-center border-b border-emerald-900/60 px-4 ${collapsed ? "justify-center" : "justify-between"}`}>
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] bg-white/10 p-1 border border-white/15 shadow-xs">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 p-1.5 border border-white/20 shadow-inner">
             <img src="/images/ablebiz-logo.png" alt="ABLEBIZ" className="h-full w-full object-contain" />
           </div>
           {!collapsed ? (
-            <div className="space-y-0.5">
-              <p className="text-sm font-bold text-white tracking-wide">ABLEBIZ</p>
-              <p className="text-xs text-amber-400 font-semibold">Admin Portal</p>
+            <div className="overflow-hidden">
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold tracking-tight text-white text-base">ABLEBIZ</span>
+                <span className="rounded bg-emerald-500/20 px-1 py-0.2 text-[10px] font-semibold text-emerald-300 uppercase tracking-widest border border-emerald-500/30">
+                  SUITE
+                </span>
+              </div>
+              <p className="text-[11px] font-medium text-emerald-300/80 truncate">Operations Platform</p>
             </div>
           ) : null}
         </div>
       </div>
 
-      <nav className="flex-1 space-y-1 px-3 py-5">
-        {navItems.map((item) => {
-          const active = location.pathname === item.path;
+      {/* Navigation Tree */}
+      <div className="flex-1 overflow-y-auto px-2.5 py-4 space-y-5 scrollbar-thin scrollbar-thumb-emerald-800 scrollbar-track-transparent">
+        {filteredSections.map((section) => {
+          const isCollapsed = collapsedSections[section.title];
           return (
-            <Link
-              key={item.name}
-              to={item.path}
-              onClick={() => setIsMobileOpen(false)}
-              className={`flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm transition-colors ${
-                active
-                  ? "bg-amber-500/15 text-amber-400 font-semibold ring-1 ring-amber-500/30"
-                  : "text-[var(--color-neutral-400)] hover:bg-white/5 hover:text-white"
-              } ${collapsed ? "justify-center" : ""}`}
-              title={collapsed ? item.name : undefined}
-            >
-              <item.icon className="h-4 w-4 shrink-0" />
-              {!collapsed ? <span>{item.name}</span> : null}
-            </Link>
+            <div key={section.title} className="space-y-1">
+              {!collapsed ? (
+                <button
+                  type="button"
+                  onClick={() => toggleSection(section.title)}
+                  className="flex w-full items-center justify-between px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-300/60 hover:text-emerald-200 transition"
+                >
+                  <span>{section.title}</span>
+                  <ChevronDown className={`h-3 w-3 transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
+                </button>
+              ) : (
+                <div className="my-2 border-t border-emerald-900/40" />
+              )}
+
+              {!isCollapsed && (
+                <div className="space-y-0.5">
+                  {section.items.map((item) => {
+                    const isActive = location.pathname === item.path || (item.path !== "/admin/dashboard" && location.pathname.startsWith(item.path));
+                    return (
+                      <Link
+                        key={item.name}
+                        to={item.path}
+                        onClick={() => setIsMobileOpen(false)}
+                        className={`group flex items-center gap-3 rounded-lg px-2.5 py-2 text-xs font-medium transition-all ${
+                          isActive
+                            ? "bg-emerald-800/90 text-white font-semibold shadow-xs ring-1 ring-emerald-500/40"
+                            : "text-emerald-100/70 hover:bg-emerald-900/50 hover:text-white"
+                        } ${collapsed ? "justify-center" : ""}`}
+                        title={collapsed ? item.name : undefined}
+                      >
+                        <item.icon className={`h-4 w-4 shrink-0 transition ${isActive ? "text-emerald-300" : "text-emerald-400/80 group-hover:text-emerald-200"}`} />
+                        {!collapsed ? (
+                          <span className="truncate">{item.name}</span>
+                        ) : null}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           );
         })}
-      </nav>
+      </div>
 
-      <div className="border-t border-[var(--admin-border)] p-3">
+      {/* Operator Card & Sign Out */}
+      <div className="shrink-0 border-t border-emerald-900/60 p-3 bg-emerald-950/40">
+        {!collapsed ? (
+          <div className="flex items-center justify-between mb-3 px-1">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-white truncate">{profile?.full_name || user?.name || "Staff Member"}</p>
+              <p className="text-[11px] font-medium text-emerald-400 truncate">{roleTitle}</p>
+            </div>
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-800/60 border border-emerald-700/40 text-emerald-200">
+              <ShieldCheck className="h-4 w-4" />
+            </div>
+          </div>
+        ) : null}
+
         <button
           type="button"
           onClick={handleLogout}
-          className={`flex w-full items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-sm text-[var(--color-neutral-400)] transition-colors hover:bg-[var(--color-danger-700)]/10 hover:text-red-300 ${collapsed ? "justify-center" : ""}`}
-          title={collapsed ? "Sign out" : undefined}
+          className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-emerald-300/80 hover:bg-red-500/20 hover:text-red-200 transition ${
+            collapsed ? "justify-center" : ""
+          }`}
+          title="Sign out of ABLEBIZ SUITE"
         >
-          <LogOut className="h-4 w-4 shrink-0" />
+          <LogOut className="h-4 w-4 shrink-0 text-red-400" />
           {!collapsed ? <span>Sign out</span> : null}
         </button>
       </div>
-    </>
+    </div>
   );
 
   return (
-    <div className={`admin-theme ${theme} flex h-screen overflow-hidden bg-[var(--ablebiz-bg)] text-[var(--text-primary)]`}>
+    <div className="admin-theme flex h-screen overflow-hidden bg-[#F8FAFC] text-[#0F172A] font-sans antialiased">
+      {/* Mobile Backdrop */}
       {isMobileOpen ? (
-        <button
-          type="button"
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+        <div
+          className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-xs lg:hidden"
           onClick={() => setIsMobileOpen(false)}
-          aria-label="Close sidebar overlay"
         />
       ) : null}
 
-      <aside className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-[var(--sidebar-bg)] transition-transform lg:hidden ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
+      {/* Mobile Drawer */}
+      <aside className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col transition-transform duration-300 lg:hidden ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <button
           type="button"
           onClick={() => setIsMobileOpen(false)}
-          className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-[var(--radius-md)] bg-white/5 text-white/70"
+          className="absolute right-3 top-3.5 flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 text-white hover:bg-white/20 transition z-50"
         >
           <X className="h-4 w-4" />
         </button>
         <SidebarContent collapsed={false} />
       </aside>
 
-      <aside className={`relative z-20 hidden flex-col border-r border-[var(--admin-border)] bg-[var(--sidebar-bg)] transition-all lg:flex ${isSidebarOpen ? "w-64" : "w-20"}`}>
+      {/* Desktop Sidebar */}
+      <aside className={`relative z-20 hidden flex-col shadow-lg transition-all duration-300 lg:flex ${isSidebarOpen ? "w-64" : "w-20"}`}>
         <button
           type="button"
-          onClick={() => setIsSidebarOpen((value) => !value)}
-          className="absolute -right-3 top-6 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[var(--sidebar-bg)] bg-amber-500 text-slate-950 shadow-sm transition hover:bg-amber-400"
+          onClick={() => setIsSidebarOpen((v) => !v)}
+          className="absolute -right-3.5 top-6 z-30 flex h-7 w-7 items-center justify-center rounded-full border border-emerald-800 bg-[#043F2E] text-emerald-200 shadow-md hover:bg-emerald-800 transition"
+          title={isSidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
         >
-          {isSidebarOpen ? <ChevronLeft className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          {isSidebarOpen ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </button>
         <SidebarContent collapsed={!isSidebarOpen} />
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 items-center justify-between border-b border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 md:px-6">
+      {/* Main App Workspace */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {/* Top Header Bar */}
+        <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 lg:px-6 shadow-xs">
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => setIsMobileOpen(true)}
-              className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] border border-[var(--admin-border)] bg-[var(--admin-panel)] lg:hidden"
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 lg:hidden transition"
             >
               <Menu className="h-5 w-5" />
             </button>
-            <label className="hidden min-w-[280px] items-center gap-2 rounded-[var(--radius-md)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-3 md:flex">
-              <Search className="h-4 w-4 text-[var(--text-secondary)]" />
+
+            {/* Global Search Bar Placeholder */}
+            <div className="relative hidden sm:block w-72">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search"
-                className="h-10 w-full bg-transparent text-sm outline-none placeholder:text-[var(--text-muted)]"
+                placeholder="Search clients, requests, CAC filings..."
+                className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50/70 pl-9 pr-3 text-xs text-slate-800 placeholder:text-slate-400 focus:border-emerald-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600/10 transition"
               />
-            </label>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 md:gap-4">
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] border border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--text-secondary)]"
+          {/* Right Header Badges & User Status */}
+          <div className="flex items-center gap-3 md:gap-4">
+            <Link
+              to="/admin/ai-secretary"
+              className="hidden md:flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 transition shadow-2xs"
             >
-              {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-            </button>
+              <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
+              <span>AI Secretary</span>
+            </Link>
 
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setIsNotificationOpen((value) => !value)}
-                className="relative flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] border border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--text-secondary)]"
-              >
-                <Bell className="h-4 w-4" />
-                {notifications.length > 0 ? (
-                  <span className="absolute right-2 top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-slate-950">
-                    {notifications.length}
-                  </span>
-                ) : null}
-              </button>
+            <Link
+              to="/admin/notifications"
+              className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition"
+              title="Notifications"
+            >
+              <Bell className="h-4 w-4" />
+            </Link>
 
-              {isNotificationOpen ? (
-                <div className="absolute right-0 top-12 z-40 w-[320px]">
-                  <AdminSurface className="max-h-[420px] overflow-hidden">
-                    <div className="flex items-center justify-between border-b border-[var(--admin-border)] px-4 py-3">
-                      <div>
-                        <p className="admin-title-sm">Notifications</p>
-                        <p className="admin-meta">Operational updates from the portal</p>
-                      </div>
-                      <button
-                        type="button"
-                        className="admin-button-secondary px-3 py-1.5 text-xs"
-                        onClick={() => setIsNotificationOpen(false)}
-                      >
-                        Close
-                      </button>
-                    </div>
-                    <div className="max-h-[340px] overflow-y-auto p-2">
-                      {notifications.length === 0 ? (
-                        <div className="p-4 text-sm text-[var(--text-secondary)]">No notifications right now.</div>
-                      ) : (
-                        notifications.map((item) => (
-                          <button
-                            key={item.id}
-                            type="button"
-                            className="flex w-full flex-col items-start gap-1 rounded-[var(--radius-md)] px-3 py-3 text-left hover:bg-[var(--admin-panel-muted)]"
-                          >
-                            <span className="admin-title-sm">{item.title}</span>
-                            <span className="admin-meta">{item.description}</span>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  </AdminSurface>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="flex items-center gap-3 border-l border-[var(--admin-border)] pl-3">
-              <div className="hidden text-right sm:block">
-                <p className="text-sm font-medium text-[var(--text-primary)]">{displayName}</p>
-                <p className="text-xs text-[var(--text-secondary)] capitalize">{user?.role?.replace(/_/g, " ") || "Staff"}</p>
+            {/* Current Staff Identity Tag */}
+            <div className="flex items-center gap-3 border-l border-slate-200 pl-3">
+              <div className="text-right hidden sm:block">
+                <p className="text-xs font-bold text-slate-900 leading-tight">
+                  {profile?.full_name || user?.name || "Staff Member"}
+                </p>
+                <p className="text-[11px] font-medium text-emerald-700 leading-tight">
+                  {roleTitle}
+                </p>
               </div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-[var(--color-primary-600)] dark:bg-blue-950 dark:text-blue-300">
-                {user?.role === "super_admin" || (user?.role as string) === "managing_director" || (user?.role as string) === "superadmin" ? (
-                  <ShieldCheck className="h-5 w-5 text-amber-500" />
-                ) : (
-                  <CircleUser className="h-5 w-5" />
-                )}
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-800 text-white font-bold text-xs shadow-xs">
+                {(profile?.full_name?.[0] || user?.name?.[0] || "S").toUpperCase()}
               </div>
             </div>
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto px-4 pb-8 md:px-6">
+        {/* Dynamic Route Workspace */}
+        <main className="flex-1 overflow-y-auto bg-[#F8FAFC] p-4 lg:p-6">
           <div className="mx-auto max-w-[1600px]">
-            <div className="flex justify-end pt-4">
-              <AdminBadge tone="success">System online</AdminBadge>
-            </div>
             <Outlet />
           </div>
         </main>
       </div>
-
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `
-            .admin-theme ::-webkit-scrollbar { width: 8px; height: 8px; }
-            .admin-theme ::-webkit-scrollbar-thumb { background: rgba(217, 119, 6, 0.28); border-radius: 999px; }
-            .admin-theme ::-webkit-scrollbar-track { background: transparent; }
-          `,
-        }}
-      />
     </div>
   );
 }

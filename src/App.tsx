@@ -24,6 +24,8 @@ import { AdminReferrals } from "./pages/admin/Referrals";
 import { AdminClients } from "./pages/admin/Clients";
 import { AdminReports } from "./pages/admin/Reports";
 import { AdminSettings } from "./pages/admin/Settings";
+import { ServicesCatalogPage } from "./pages/admin/ServicesCatalog";
+import { ServiceRequestsPage } from "./pages/admin/ServiceRequests";
 
 export default function App() {
   useReferralUrl();
@@ -51,11 +53,13 @@ export default function App() {
           <Route path="/admin/login" element={<AdminLoginPage />} />
           <Route path="/admin" element={<ProtectedRoute><AdminPortalLayout /></ProtectedRoute>}>
             <Route index element={<Navigate to="/admin/dashboard" replace />} />
-            <Route path="dashboard" element={<ProtectedRoute requiredPermission="dashboard"><AdminDashboard /></ProtectedRoute>} />
-            <Route path="referrals" element={<ProtectedRoute requiredPermission="referrals"><AdminReferrals /></ProtectedRoute>} />
-            <Route path="clients" element={<ProtectedRoute requiredPermission="clients"><AdminClients /></ProtectedRoute>} />
-            <Route path="reports" element={<ProtectedRoute requiredPermission="reports"><AdminReports /></ProtectedRoute>} />
-            <Route path="settings" element={<ProtectedRoute requiredPermission="settings"><AdminSettings /></ProtectedRoute>} />
+            <Route path="dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+            <Route path="services-catalog" element={<ProtectedRoute requiredModule="operations"><ServicesCatalogPage /></ProtectedRoute>} />
+            <Route path="service-requests" element={<ProtectedRoute requiredModule="operations"><ServiceRequestsPage /></ProtectedRoute>} />
+            <Route path="referrals" element={<ProtectedRoute><AdminReferrals /></ProtectedRoute>} />
+            <Route path="clients" element={<ProtectedRoute requiredModule="crm"><AdminClients /></ProtectedRoute>} />
+            <Route path="reports" element={<ProtectedRoute requiredModule="reports"><AdminReports /></ProtectedRoute>} />
+            <Route path="settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
           </Route>
 
           {/* Legacy Redirects */}
