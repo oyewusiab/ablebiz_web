@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Copy, Share2, Sparkles, Trophy, Users } from "lucide-react";
+import { Copy, Gift, Share2, Sparkles, Trophy, Users } from "lucide-react";
 import { Seo } from "../components/Seo";
 import { PageHero } from "../components/PageHero";
 import { Container } from "../components/ui/Container";
@@ -114,6 +114,36 @@ export function ReferralsPage() {
 
       <section>
         <Container className="py-14 max-w-6xl">
+          {/* Refer & Earn Program Highlights */}
+          <div className="mb-10 rounded-3xl bg-blue-50/60 p-6 sm:p-7 ring-1 ring-blue-200/70 dark:bg-blue-950/40 dark:ring-blue-900">
+            <div className="flex items-center gap-3.5">
+              <div className="grid h-12 w-12 place-items-center rounded-2xl bg-white ring-1 ring-blue-200 dark:bg-slate-800 dark:ring-slate-700 shrink-0">
+                <Gift className="h-6 w-6 text-amber-500" />
+              </div>
+              <div>
+                <div className="text-xl font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
+                  Refer & Earn Program
+                </div>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                  Know someone who needs to register their business? Refer them to ABLEBIZ and earn!
+                </p>
+              </div>
+            </div>
+            
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700 shadow-xs">
+                <div className="text-sm font-extrabold text-amber-600 dark:text-amber-400">5 Referrals</div>
+                <div className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">Unlock a free consultation</div>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Reach 5 referrals in a month to unlock a free session with our experts.</p>
+              </div>
+              <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700 shadow-xs">
+                <div className="text-sm font-extrabold text-amber-600 dark:text-amber-400">10 Referrals</div>
+                <div className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">Discount or free service</div>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Reach 10 referrals to unlock a bigger discount or a free service add-on.</p>
+              </div>
+            </div>
+          </div>
+
           <div className="flex justify-center mb-8">
             <div className="inline-flex rounded-xl bg-slate-100 p-1 ring-1 ring-slate-200">
               <button

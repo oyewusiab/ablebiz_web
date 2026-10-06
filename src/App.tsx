@@ -4,7 +4,6 @@ import { GamificationProvider } from "./gamification/GamificationProvider";
 import { HomePage } from "./pages/Home";
 import { AboutPage } from "./pages/About";
 import { ServicesPage } from "./pages/Services";
-import { PricingPage } from "./pages/Pricing";
 import { TestimonialsPage } from "./pages/Testimonials";
 import { ContactPage } from "./pages/Contact";
 import { BlogIndexPage } from "./pages/BlogIndex";
@@ -39,7 +38,7 @@ export default function App() {
             <Route index element={<HomePage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/services" element={<ServicesPage />} />
-            <Route path="/pricing" element={<PricingPage />} />
+            <Route path="/pricing" element={<Navigate to="/services" replace />} />
             <Route path="/testimonials" element={<TestimonialsPage />} />
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/blog" element={<BlogIndexPage />} />

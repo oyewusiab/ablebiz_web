@@ -1,10 +1,13 @@
 import { useEffect, useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { Gift } from "lucide-react";
 import { Seo } from "../components/Seo";
 import { PageHero } from "../components/PageHero";
 import { Container } from "../components/ui/Container";
 import { Card, CardBody } from "../components/ui/Card";
+import { Button } from "../components/ui/Button";
 import { useSiteConfig } from "../referrals/siteConfig";
+import { useGamification } from "../gamification/GamificationProvider";
 import { ServiceIcon } from "../components/ServiceIcon";
 import { CtaSection } from "../components/CtaSection";
 import { ConsultationForm } from "../components/ConsultationForm";
@@ -14,8 +17,10 @@ import { FaqAccordion } from "../components/FaqAccordion";
 import { TrustVerificationSection } from "../components/TrustVerificationSection";
 
 export function ServicesPage() {
+  const { openSpin } = useGamification();
   const { services } = useSiteConfig();
   const { hash, search } = useLocation();
+
   const defaultServiceId = useMemo(() => {
     const sp = new URLSearchParams(search);
     return sp.get("service") ?? undefined;
@@ -51,11 +56,36 @@ export function ServicesPage() {
 
       <PageHero
         title="Services"
-        subtitle="Structured, clear, and professional support for CAC registration, compliance, and documentation — with real-time updates and transparent pricing."
+        subtitle="Structured, clear, and professional support for CAC registration, compliance, and documentation — with real-time updates and dedicated guidance."
         badge="Trusted CAC Agent • Abeokuta"
       />
 
       <TrustVerificationSection compact />
+
+      {/* Spin & Win Promo Banner */}
+      <section>
+        <Container className="pt-8">
+          <div className="rounded-3xl bg-gradient-to-r from-amber-500/10 via-blue-50/50 to-amber-500/10 p-6 ring-1 ring-amber-500/30 dark:from-amber-950/20 dark:via-blue-950/30 dark:to-amber-950/20">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="text-lg font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
+                  🎁 Spin & Win — Get an instant reward
+                </div>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                  Play our Spin & Win game to get a discount or free bonus on any registration service.
+                </p>
+              </div>
+              <Button
+                type="button"
+                onClick={() => openSpin("pricing_cta")}
+                className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold border-0 shadow-md shrink-0"
+              >
+                <Gift className="h-4 w-4 text-slate-950" /> Spin & Get Discount
+              </Button>
+            </div>
+          </div>
+        </Container>
+      </section>
 
       <section>
         <Container className="py-14">

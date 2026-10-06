@@ -37,9 +37,6 @@ export function Footer() {
               <Link className="text-slate-400 no-underline transition hover:text-amber-400" to="/services">
                 Services
               </Link>
-              <Link className="text-slate-400 no-underline transition hover:text-amber-400" to="/pricing">
-                Pricing
-              </Link>
               <Link className="text-slate-400 no-underline transition hover:text-amber-400" to="/blog">
                 Blog / Resources
               </Link>
