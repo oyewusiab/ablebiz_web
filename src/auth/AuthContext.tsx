@@ -1,295 +1,447 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import type { Session, User as SupabaseAuthUser } from "@supabase/supabase-js";
+import { supabase, supabaseEnabled } from "../lib/supabaseClient";
 
-export type Role = "admin" | "superadmin";
-export type AdminPermission = "dashboard" | "referrals" | "clients" | "reports" | "settings" | "users";
+export type StaffRole =
+  | "super_admin"
+  | "admin"
+  | "operations_manager"
+  | "registration_officer"
+  | "accounts_officer"
+  | "client_service_officer"
+  | "marketing_officer"
+  | "viewer"
+  // Aliases for compatibility
+  | "managing_director"
+  | "compliance_officer"
+  | "accountant"
+  | "legal_officer"
+  | "receptionist_support"
+  | "customer";
 
-type PermissionMap = Record<AdminPermission, boolean>;
-
-export interface User {
+export interface StaffProfile {
   id: string;
+  auth_uid: string;
+  email: string;
+  full_name: string;
+  role: StaffRole;
+  department: string;
+  phone?: string | null;
+  is_active: boolean;
+  avatar_url?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface RolePermissionRule {
+  id: string;
+  role: string;
+  module: string;
+  can_view: boolean;
+  can_create: boolean;
+  can_edit: boolean;
+  can_delete: boolean;
+  can_approve: boolean;
+  can_export: boolean;
+}
+
+export type PermissionAction = "view" | "create" | "edit" | "delete" | "approve" | "export";
+
+export interface SuiteUser {
+  id: string;
+  authUid: string;
   name: string;
   email: string;
-  role: Role;
-  permissions: PermissionMap;
+  role: StaffRole;
+  department: string;
+  phone?: string | null;
+  isActive: boolean;
+  avatarUrl?: string | null;
+  // Legacy compatibility helpers
+  permissions: {
+    dashboard: boolean;
+    referrals: boolean;
+    clients: boolean;
+    reports: boolean;
+    settings: boolean;
+    users: boolean;
+  };
 }
-
-type StoredUser = User & {
-  password: string;
-  active: boolean;
-  createdAt: string;
-};
 
 interface AuthContextType {
-  user: User | null;
-  users: StoredUser[];
-  login: (email: string, pass: string) => boolean;
-  logout: () => void;
+  user: SuiteUser | null;
+  profile: StaffProfile | null;
+  session: Session | null;
   isLoading: boolean;
-  addUser: (input: {
-    name: string;
-    email: string;
-    password: string;
-    role: Role;
-    permissions?: Partial<PermissionMap>;
-  }) => { ok: boolean; message: string };
-  updateUser: (
-    id: string,
-    updates: Partial<Pick<StoredUser, "name" | "email" | "role" | "active">> & {
-      permissions?: Partial<PermissionMap>;
-    }
-  ) => { ok: boolean; message: string };
-  removeUser: (id: string) => { ok: boolean; message: string };
-  updateUserPassword: (id: string, password: string) => { ok: boolean; message: string };
+  authError: string | null;
+  login: (email: string, pass: string) => Promise<{ ok: boolean; message?: string }>;
+  logout: () => Promise<void>;
+  hasPermission: (module: string, action?: PermissionAction) => boolean;
+  refreshProfile: () => Promise<void>;
 }
 
-const STORAGE_KEY = "ablebiz_auth_users";
-const SESSION_KEY = "ablebiz_auth_user";
-
-const defaultPermissionsByRole: Record<Role, PermissionMap> = {
+// Fallback baseline permission matrix aligned with DB roles_permissions
+const DEFAULT_ROLE_MODULES: Record<string, Record<string, string[]>> = {
+  super_admin: {
+    workbench: ["view", "create", "edit", "delete", "approve", "export"],
+    crm: ["view", "create", "edit", "delete", "approve", "export"],
+    operations: ["view", "create", "edit", "delete", "approve", "export"],
+    finance: ["view", "create", "edit", "delete", "approve", "export"],
+    team: ["view", "create", "edit", "delete", "approve", "export"],
+    settings: ["view", "create", "edit", "delete", "approve", "export"],
+    reports: ["view", "export"],
+  },
+  managing_director: {
+    workbench: ["view", "create", "edit", "delete", "approve", "export"],
+    crm: ["view", "create", "edit", "delete", "approve", "export"],
+    operations: ["view", "create", "edit", "delete", "approve", "export"],
+    finance: ["view", "create", "edit", "delete", "approve", "export"],
+    team: ["view", "create", "edit", "delete", "approve", "export"],
+    settings: ["view", "create", "edit", "delete", "approve", "export"],
+    reports: ["view", "export"],
+  },
   admin: {
-    dashboard: true,
-    referrals: true,
-    clients: true,
-    reports: true,
-    settings: false,
-    users: false,
+    workbench: ["view", "create", "edit", "approve", "export"],
+    crm: ["view", "create", "edit", "approve", "export"],
+    operations: ["view", "create", "edit", "approve", "export"],
+    finance: ["view", "create", "edit", "approve", "export"],
+    team: ["view", "export"],
+    settings: ["view", "edit"],
+    reports: ["view", "export"],
   },
-  superadmin: {
-    dashboard: true,
-    referrals: true,
-    clients: true,
-    reports: true,
-    settings: true,
-    users: true,
+  operations_manager: {
+    workbench: ["view", "create", "edit", "approve", "export"],
+    crm: ["view", "create", "edit"],
+    operations: ["view", "create", "edit", "approve", "export"],
+    finance: ["view"],
+    reports: ["view"],
   },
+  registration_officer: {
+    workbench: ["view", "edit"],
+    operations: ["view", "create", "edit"],
+  },
+  compliance_officer: {
+    workbench: ["view", "edit"],
+    operations: ["view", "create", "edit"],
+    crm: ["view"],
+  },
+  legal_officer: {
+    workbench: ["view", "edit"],
+    operations: ["view", "create", "edit"],
+    crm: ["view"],
+  },
+  accounts_officer: {
+    workbench: ["view", "edit", "export"],
+    finance: ["view", "create", "edit", "approve", "export"],
+    operations: ["view"],
+    reports: ["view", "export"],
+  },
+  accountant: {
+    workbench: ["view", "edit", "export"],
+    finance: ["view", "create", "edit", "approve", "export"],
+    operations: ["view"],
+    reports: ["view", "export"],
+  },
+  client_service_officer: {
+    workbench: ["view", "edit"],
+    crm: ["view", "create", "edit"],
+    operations: ["view", "create"],
+  },
+  receptionist_support: {
+    workbench: ["view", "edit"],
+    crm: ["view", "create", "edit"],
+    operations: ["view", "create"],
+  },
+  marketing_officer: {
+    workbench: ["view"],
+    crm: ["view", "create", "edit", "export"],
+  },
+  viewer: {
+    workbench: ["view"],
+    crm: ["view"],
+    operations: ["view"],
+    finance: ["view"],
+  },
+  customer: {},
 };
 
-function sanitizeUser(user: StoredUser): User {
-  const { password: _password, active: _active, createdAt: _createdAt, ...safeUser } = user;
-  return safeUser;
+function normalizeRole(role: string): StaffRole {
+  const r = role.toLowerCase().trim();
+  if (r === "managing_director" || r === "superadmin" || r === "super_admin") return "super_admin";
+  if (r === "compliance_officer") return "registration_officer";
+  if (r === "legal_officer") return "registration_officer";
+  if (r === "accountant") return "accounts_officer";
+  if (r === "receptionist_support") return "client_service_officer";
+  return (r as StaffRole) || "viewer";
 }
 
-function mergePermissions(role: Role, permissions?: Partial<PermissionMap>): PermissionMap {
-  return { ...defaultPermissionsByRole[role], ...(permissions || {}) };
-}
-
-function getDefaultUsers(): StoredUser[] {
-  return [
-    {
-      id: "admin-default",
-      name: "Admin User",
-      email: "admin@ablebiz.com",
-      password: "admin123",
-      role: "admin",
-      permissions: mergePermissions("admin"),
-      active: true,
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: "super-default",
-      name: "Super Admin",
-      email: "super@ablebiz.com",
-      password: "super123",
-      role: "superadmin",
-      permissions: mergePermissions("superadmin"),
-      active: true,
-      createdAt: new Date().toISOString(),
-    },
-  ];
-}
-
-function loadUsers(): StoredUser[] {
-  const fallback = getDefaultUsers();
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (!saved) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(fallback));
-    return fallback;
+function computeLegacyPermissions(role: StaffRole): SuiteUser["permissions"] {
+  const norm = normalizeRole(role);
+  if (norm === "super_admin" || norm === "managing_director") {
+    return { dashboard: true, referrals: true, clients: true, reports: true, settings: true, users: true };
   }
-
-  try {
-    const parsed = JSON.parse(saved) as StoredUser[];
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(fallback));
-      return fallback;
-    }
-
-    return parsed.map((user) => ({
-      ...user,
-      permissions: mergePermissions(user.role, user.permissions),
-    }));
-  } catch {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(fallback));
-    return fallback;
+  if (norm === "admin") {
+    return { dashboard: true, referrals: true, clients: true, reports: true, settings: true, users: false };
   }
-}
-
-function saveUsers(users: StoredUser[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
+  if (norm === "operations_manager") {
+    return { dashboard: true, referrals: true, clients: true, reports: true, settings: false, users: false };
+  }
+  if (norm === "accounts_officer") {
+    return { dashboard: true, referrals: false, clients: true, reports: true, settings: false, users: false };
+  }
+  if (norm === "client_service_officer" || norm === "marketing_officer") {
+    return { dashboard: true, referrals: true, clients: true, reports: false, settings: false, users: false };
+  }
+  return { dashboard: true, referrals: false, clients: false, reports: false, settings: false, users: false };
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [users, setUsers] = useState<StoredUser[]>([]);
+  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<StaffProfile | null>(null);
+  const [permissionsList, setPermissionsList] = useState<RolePermissionRule[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  // Fetch staff profile and role permissions from Supabase
+  const loadStaffProfile = async (authUser: SupabaseAuthUser): Promise<StaffProfile | null> => {
+    if (!supabase) return null;
+    try {
+      const { data, error } = await supabase
+        .from("staff_profiles")
+        .select("*")
+        .eq("auth_uid", authUser.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error("[Auth] Error fetching staff profile:", error.message);
+        return null;
+      }
+
+      if (!data) {
+        return null;
+      }
+
+      const prof = data as StaffProfile;
+
+      // Also attempt to load database permissions for this role
+      try {
+        const { data: permData } = await supabase
+          .from("roles_permissions")
+          .select("*")
+          .eq("role", prof.role);
+
+        if (permData && Array.isArray(permData)) {
+          setPermissionsList(permData as RolePermissionRule[]);
+        }
+      } catch (permErr) {
+        console.warn("[Auth] Could not load roles_permissions:", permErr);
+      }
+
+      return prof;
+    } catch (err) {
+      console.error("[Auth] Unexpected profile resolution error:", err);
+      return null;
+    }
+  };
 
   useEffect(() => {
-    const loadedUsers = loadUsers();
-    setUsers(loadedUsers);
-
-    const savedSession = sessionStorage.getItem(SESSION_KEY);
-    if (savedSession) {
-      try {
-        const parsed = JSON.parse(savedSession) as User;
-        const matched = loadedUsers.find((item) => item.id === parsed.id);
-        if (matched && matched.active) {
-          const nextUser = sanitizeUser(matched);
-          setUser(nextUser);
-          sessionStorage.setItem(SESSION_KEY, JSON.stringify(nextUser));
-        }
-      } catch {
-        sessionStorage.removeItem(SESSION_KEY);
-      }
+    // Clear any legacy mock credentials from browser storage
+    try {
+      localStorage.removeItem("ablebiz_auth_users");
+      sessionStorage.removeItem("ablebiz_auth_user");
+    } catch {
+      // Ignore storage errors
     }
 
-    setIsLoading(false);
+    if (!supabaseEnabled || !supabase) {
+      setIsLoading(false);
+      return;
+    }
+
+    let mounted = true;
+
+    // 1. Initial Session Check
+    supabase.auth.getSession().then(async ({ data: { session: initSession }, error }) => {
+      if (!mounted) return;
+      if (error) {
+        console.error("[Auth] Initial session error:", error.message);
+        setSession(null);
+        setProfile(null);
+        setIsLoading(false);
+        return;
+      }
+
+      if (initSession?.user) {
+        setSession(initSession);
+        const resolvedProfile = await loadStaffProfile(initSession.user);
+        if (mounted) {
+          setProfile(resolvedProfile);
+        }
+      } else {
+        setSession(null);
+        setProfile(null);
+      }
+      if (mounted) setIsLoading(false);
+    });
+
+    // 2. Auth State Change Listener
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+      if (!mounted) return;
+
+      if (event === "SIGNED_OUT" || !currentSession) {
+        setSession(null);
+        setProfile(null);
+        setPermissionsList([]);
+        setAuthError(null);
+        setIsLoading(false);
+        return;
+      }
+
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
+        setSession(currentSession);
+        if (currentSession.user) {
+          const resolvedProfile = await loadStaffProfile(currentSession.user);
+          if (mounted) {
+            setProfile(resolvedProfile);
+          }
+        }
+        if (mounted) setIsLoading(false);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const persistUsers = (nextUsers: StoredUser[]) => {
-    setUsers(nextUsers);
-    saveUsers(nextUsers);
+  const refreshProfile = async () => {
+    if (!supabase || !session?.user) return;
+    const prof = await loadStaffProfile(session.user);
+    setProfile(prof);
+  };
 
-    if (user) {
-      const matched = nextUsers.find((item) => item.id === user.id);
-      if (!matched || !matched.active) {
-        setUser(null);
-        sessionStorage.removeItem(SESSION_KEY);
-      } else {
-        const nextUser = sanitizeUser(matched);
-        setUser(nextUser);
-        sessionStorage.setItem(SESSION_KEY, JSON.stringify(nextUser));
+  const login = async (email: string, pass: string): Promise<{ ok: boolean; message?: string }> => {
+    if (!supabaseEnabled || !supabase) {
+      return { ok: false, message: "Authentication service is currently unavailable." };
+    }
+
+    setAuthError(null);
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password: pass,
+    });
+
+    if (error) {
+      const msg = error.message.includes("Invalid login credentials")
+        ? "Invalid email or password. Please verify your credentials."
+        : error.message;
+      setAuthError(msg);
+      return { ok: false, message: msg };
+    }
+
+    if (!data.session?.user) {
+      return { ok: false, message: "Authentication failed. No active session returned." };
+    }
+
+    // Verify staff profile
+    const prof = await loadStaffProfile(data.session.user);
+    if (!prof) {
+      await supabase.auth.signOut();
+      const msg = "Access Denied: Your account is not configured as an authorized ABLEBIZ SUITE staff profile.";
+      setAuthError(msg);
+      return { ok: false, message: msg };
+    }
+
+    if (!prof.is_active) {
+      await supabase.auth.signOut();
+      const msg = "Access Denied: Your staff profile has been deactivated. Please contact management.";
+      setAuthError(msg);
+      return { ok: false, message: msg };
+    }
+
+    if ((prof.role as string) === "customer") {
+      await supabase.auth.signOut();
+      const msg = "Access Denied: Customer accounts do not have access to the internal ABLEBIZ SUITE portal.";
+      setAuthError(msg);
+      return { ok: false, message: msg };
+    }
+
+    setSession(data.session);
+    setProfile(prof);
+    return { ok: true };
+  };
+
+  const logout = async () => {
+    setProfile(null);
+    setSession(null);
+    setPermissionsList([]);
+    setAuthError(null);
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
+  };
+
+  const hasPermission = (module: string, action: PermissionAction = "view"): boolean => {
+    if (!profile || !profile.is_active) return false;
+
+    const norm = normalizeRole(profile.role);
+    if (norm === "super_admin" || norm === "managing_director") return true;
+
+    // Check database permission rules first
+    if (permissionsList.length > 0) {
+      const rule = permissionsList.find((p) => p.module === module);
+      if (rule) {
+        if (action === "view") return rule.can_view;
+        if (action === "create") return rule.can_create;
+        if (action === "edit") return rule.can_edit;
+        if (action === "delete") return rule.can_delete;
+        if (action === "approve") return rule.can_approve;
+        if (action === "export") return rule.can_export;
       }
     }
+
+    // Fallback to role-module defaults
+    const roleRules = DEFAULT_ROLE_MODULES[norm] || DEFAULT_ROLE_MODULES[profile.role];
+    if (!roleRules) return false;
+    const actions = roleRules[module];
+    return actions ? actions.includes(action) : false;
   };
 
-  const login = (email: string, pass: string): boolean => {
-    const matched = users.find(
-      (item) =>
-        item.email.trim().toLowerCase() === email.trim().toLowerCase() &&
-        item.password === pass &&
-        item.active
-    );
-
-    if (!matched) return false;
-
-    const nextUser = sanitizeUser(matched);
-    setUser(nextUser);
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(nextUser));
-    return true;
-  };
-
-  const logout = () => {
-    setUser(null);
-    sessionStorage.removeItem(SESSION_KEY);
-  };
-
-  const addUser: AuthContextType["addUser"] = ({ name, email, password, role, permissions }) => {
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!name.trim() || !normalizedEmail || !password.trim()) {
-      return { ok: false, message: "Name, email, and password are required." };
-    }
-
-    if (users.some((item) => item.email.toLowerCase() === normalizedEmail)) {
-      return { ok: false, message: "A user with that email already exists." };
-    }
-
-    const nextUser: StoredUser = {
-      id: `user-${Date.now()}`,
-      name: name.trim(),
-      email: normalizedEmail,
-      password: password.trim(),
-      role,
-      permissions: mergePermissions(role, permissions),
-      active: true,
-      createdAt: new Date().toISOString(),
+  const suiteUser: SuiteUser | null = useMemo(() => {
+    if (!profile || !profile.is_active) return null;
+    return {
+      id: profile.id,
+      authUid: profile.auth_uid,
+      name: profile.full_name,
+      email: profile.email,
+      role: profile.role,
+      department: profile.department,
+      phone: profile.phone,
+      isActive: profile.is_active,
+      avatarUrl: profile.avatar_url,
+      permissions: computeLegacyPermissions(profile.role),
     };
-
-    persistUsers([nextUser, ...users]);
-    return { ok: true, message: "User added successfully." };
-  };
-
-  const updateUser: AuthContextType["updateUser"] = (id, updates) => {
-    const existing = users.find((item) => item.id === id);
-    if (!existing) return { ok: false, message: "User not found." };
-
-    const nextRole = updates.role || existing.role;
-    const nextUser: StoredUser = {
-      ...existing,
-      ...updates,
-      email: updates.email ? updates.email.trim().toLowerCase() : existing.email,
-      name: updates.name ? updates.name.trim() : existing.name,
-      role: nextRole,
-      permissions: mergePermissions(nextRole, {
-        ...(nextRole === existing.role ? existing.permissions : undefined),
-        ...(updates.permissions || {}),
-      }),
-    };
-
-    const duplicate = users.find(
-      (item) => item.id !== id && item.email.toLowerCase() === nextUser.email.toLowerCase()
-    );
-    if (duplicate) return { ok: false, message: "Another user already uses that email." };
-
-    persistUsers(users.map((item) => (item.id === id ? nextUser : item)));
-    return { ok: true, message: "User updated successfully." };
-  };
-
-  const removeUser: AuthContextType["removeUser"] = (id) => {
-    if (user?.id === id) return { ok: false, message: "You cannot remove your current session." };
-    const target = users.find((item) => item.id === id);
-    if (!target) return { ok: false, message: "User not found." };
-    if (target.role === "superadmin" && users.filter((item) => item.role === "superadmin").length === 1) {
-      return { ok: false, message: "At least one superadmin must remain." };
-    }
-
-    persistUsers(users.filter((item) => item.id !== id));
-    return { ok: true, message: "User removed successfully." };
-  };
-
-  const updateUserPassword: AuthContextType["updateUserPassword"] = (id, password) => {
-    if (!password.trim() || password.trim().length < 6) {
-      return { ok: false, message: "Password must be at least 6 characters." };
-    }
-    const target = users.find((item) => item.id === id);
-    if (!target) return { ok: false, message: "User not found." };
-
-    persistUsers(
-      users.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              password: password.trim(),
-            }
-          : item
-      )
-    );
-    return { ok: true, message: "Password updated successfully." };
-  };
+  }, [profile]);
 
   const value = useMemo(
     () => ({
-      user,
-      users,
+      user: suiteUser,
+      profile,
+      session,
+      isLoading,
+      authError,
       login,
       logout,
-      isLoading,
-      addUser,
-      updateUser,
-      removeUser,
-      updateUserPassword,
+      hasPermission,
+      refreshProfile,
     }),
-    [user, users, isLoading]
+    [suiteUser, profile, session, isLoading, authError]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

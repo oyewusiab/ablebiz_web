@@ -1,35 +1,109 @@
 import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { useAuth, type AdminPermission, type Role } from "./AuthContext";
+import { ShieldAlert, LogOut } from "lucide-react";
+import { useAuth, type StaffRole, type PermissionAction } from "./AuthContext";
 
 interface Props {
   children: ReactNode;
-  requiredRole?: Role;
-  requiredPermission?: AdminPermission;
+  requiredRole?: StaffRole | StaffRole[];
+  requiredModule?: string;
+  requiredAction?: PermissionAction;
+  // Legacy compatibility
+  requiredPermission?: "dashboard" | "referrals" | "clients" | "reports" | "settings" | "users";
 }
 
-export function ProtectedRoute({ children, requiredRole, requiredPermission }: Props) {
-  const { user, isLoading } = useAuth();
+export function ProtectedRoute({
+  children,
+  requiredRole,
+  requiredModule,
+  requiredAction = "view",
+  requiredPermission,
+}: Props) {
+  const { user, profile, isLoading, logout, hasPermission } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[color:var(--ablebiz-primary)] border-t-transparent" />
+      <div className="flex h-screen items-center justify-center bg-[#061738]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-amber-500 border-t-transparent" />
+          <p className="text-sm font-medium text-slate-300">Verifying ABLEBIZ session...</p>
+        </div>
       </div>
     );
   }
 
-  if (!user) {
+  // 1. Unauthenticated: Redirect to login
+  if (!user || !profile) {
     return <Navigate to="/admin/login" state={{ from: location }} replace />;
   }
 
-  if (requiredRole && user.role !== requiredRole && user.role !== "superadmin") {
-    return <Navigate to="/admin/dashboard" replace />;
+  // 2. Inactive account or customer
+  if (!profile.is_active || (profile.role as string) === "customer") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#061738] p-4 text-white">
+        <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-8 text-center backdrop-blur-md">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-red-500/20 text-red-400">
+            <ShieldAlert className="h-7 w-7" />
+          </div>
+          <h2 className="text-xl font-bold">Access Denied</h2>
+          <p className="mt-2 text-sm text-slate-300">
+            {!profile.is_active
+              ? "Your staff account has been deactivated. Please contact an administrator."
+              : "Customer accounts are not authorized to access internal ABLEBIZ SUITE operations."}
+          </p>
+          <div className="mt-6 flex justify-center">
+            <button
+              onClick={() => logout()}
+              className="flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2.5 text-sm font-semibold hover:bg-white/20"
+            >
+              <LogOut className="h-4 w-4" />
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
-  if (requiredPermission && user.role !== "superadmin" && !user.permissions[requiredPermission]) {
-    return <Navigate to="/admin/dashboard" replace />;
+  // 3. Role Check (if specified)
+  if (requiredRole) {
+    const rolesArray = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
+    const isSuper = profile.role === "super_admin" || (profile.role as string) === "managing_director";
+    if (!isSuper && !rolesArray.includes(profile.role)) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-[#061738] p-4 text-white">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-8 text-center backdrop-blur-md">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/20 text-amber-400">
+              <ShieldAlert className="h-7 w-7" />
+            </div>
+            <h2 className="text-xl font-bold">Restricted Module</h2>
+            <p className="mt-2 text-sm text-slate-300">
+              Your assigned role ({profile.role}) does not have permission to access this area.
+            </p>
+            <div className="mt-6 flex justify-center gap-3">
+              <Navigate to="/admin/dashboard" replace />
+            </div>
+          </div>
+        </div>
+      );
+    }
+  }
+
+  // 4. Module Permission Check (Modern)
+  if (requiredModule) {
+    const isSuper = profile.role === "super_admin" || (profile.role as string) === "managing_director";
+    if (!isSuper && !hasPermission(requiredModule, requiredAction)) {
+      return <Navigate to="/admin/dashboard" replace />;
+    }
+  }
+
+  // 5. Legacy Permission Check (Backward compatibility)
+  if (requiredPermission) {
+    const isSuper = profile.role === "super_admin" || (profile.role as string) === "managing_director";
+    if (!isSuper && !user.permissions[requiredPermission]) {
+      return <Navigate to="/admin/dashboard" replace />;
+    }
   }
 
   return <>{children}</>;

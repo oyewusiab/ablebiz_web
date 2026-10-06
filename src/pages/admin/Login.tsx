@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ArrowRight, Lock, Mail, ShieldAlert, ShieldCheck } from "lucide-react";
+import { ArrowRight, Lock, Mail, ShieldAlert } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext";
 
 export function AdminLoginPage() {
@@ -17,16 +17,21 @@ export function AdminLoginPage() {
     event.preventDefault();
     setError("");
     setIsSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    const ok = login(email, password);
 
-    if (ok) {
-      navigate(from, { replace: true });
-      return;
+    try {
+      const result = await login(email, password);
+
+      if (result.ok) {
+        navigate(from, { replace: true });
+        return;
+      }
+
+      setError(result.message || "Invalid credentials. Please verify and try again.");
+    } catch (err: any) {
+      setError(err?.message || "An unexpected error occurred during authentication.");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setError("Invalid credentials. Please try again.");
-    setIsSubmitting(false);
   };
 
   return (
@@ -38,24 +43,24 @@ export function AdminLoginPage() {
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 p-2 border border-white/20 shadow-2xl backdrop-blur-md">
             <img src="/images/ablebiz-logo.png" alt="ABLEBIZ" className="h-full w-full object-contain" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-white">Admin Portal</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-white">ABLEBIZ SUITE</h1>
           <p className="mt-2 text-sm text-slate-300">
-            Secure operations access for ABLEBIZ Business Services.
+            Internal Operations & Staff Management Portal
           </p>
         </div>
 
         <div className="rounded-2xl border border-white/15 bg-white/10 p-8 shadow-2xl backdrop-blur-xl">
           <form onSubmit={handleSubmit} className="space-y-4">
             {error ? (
-              <div className="flex items-center gap-3 rounded-xl border border-red-400/30 bg-red-500/20 px-4 py-3 text-sm text-red-200">
-                <ShieldAlert className="h-4 w-4 shrink-0" />
+              <div className="flex items-start gap-3 rounded-xl border border-red-400/30 bg-red-500/20 px-4 py-3 text-sm text-red-200">
+                <ShieldAlert className="h-5 w-5 shrink-0 mt-0.5" />
                 <span>{error}</span>
               </div>
             ) : null}
 
             <label className="block space-y-2">
               <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-                Email
+                Staff Email Address
               </span>
               <div className="relative">
                 <Mail className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -64,7 +69,8 @@ export function AdminLoginPage() {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   className="h-12 w-full rounded-xl border border-white/15 bg-black/20 pl-10 pr-4 text-sm text-white placeholder:text-slate-400 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20"
-                  placeholder="admin@ablebiz.com"
+                  placeholder="staff@ablebiz.com"
+                  autoComplete="email"
                   required
                 />
               </div>
@@ -81,7 +87,8 @@ export function AdminLoginPage() {
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   className="h-12 w-full rounded-xl border border-white/15 bg-black/20 pl-10 pr-4 text-sm text-white placeholder:text-slate-400 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20"
-                  placeholder="Enter password"
+                  placeholder="Enter your account password"
+                  autoComplete="current-password"
                   required
                 />
               </div>
@@ -96,7 +103,7 @@ export function AdminLoginPage() {
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
               ) : (
                 <>
-                  Access Portal
+                  Sign In to Suite
                   <ArrowRight className="h-4 w-4" />
                 </>
               )}
@@ -105,10 +112,10 @@ export function AdminLoginPage() {
 
           <div className="mt-6 border-t border-white/10 pt-4 text-center text-xs text-slate-400">
             <p>
-              Standard: <span className="font-semibold text-amber-300">admin@ablebiz.com</span> / admin123
+              Protected by Supabase Auth and Database RLS.
             </p>
-            <p className="mt-1">
-              Super: <span className="font-semibold text-amber-300">super@ablebiz.com</span> / super123
+            <p className="mt-1 text-[11px] text-slate-500">
+              Internal access only. Unauthorized attempts are logged.
             </p>
           </div>
         </div>

@@ -54,7 +54,7 @@ type TabId =
   | "accounts";
 
 export function AdminSettings() {
-  const { user, users, addUser, updateUser, removeUser, updateUserPassword } = useAuth();
+  const { user, profile } = useAuth();
   const {
     site,
     updateSite,
@@ -75,16 +75,6 @@ export function AdminSettings() {
 
   const [activeTab, setActiveTab] = useState<TabId>("general");
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [passwordMsg, setPasswordMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
-  const [newUser, setNewUser] = useState({
-    name: "",
-    email: "",
-    password: "",
-    role: "admin" as "admin" | "superadmin",
-  });
-  const [userMessage, setUserMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [notifPhone, setNotifPhone] = useState(() => localStorage.getItem("ablebiz_notif_phone") || "");
   const [notifEnabled, setNotifEnabled] = useState(
     () => localStorage.getItem("ablebiz_notif_enabled") !== "false"
@@ -95,7 +85,7 @@ export function AdminSettings() {
       "Thank you for reaching out to ABLEBIZ. We'll get back to you within 2 hours."
   );
 
-  const isSuper = user?.role === "superadmin";
+  const isSuper = user?.role === "super_admin" || (user?.role as string) === "managing_director" || (user?.role as string) === "superadmin";
 
   const triggerSave = (message = "Settings saved.") => {
     setSaveStatus(message);
@@ -107,30 +97,6 @@ export function AdminSettings() {
     localStorage.setItem("ablebiz_notif_enabled", String(notifEnabled));
     localStorage.setItem("ablebiz_notif_autoreply", autoReply);
     triggerSave("Notification settings saved.");
-  };
-
-  const handlePasswordChange = () => {
-    if (!user) return;
-    if (newPassword !== confirmPassword) {
-      setPasswordMsg({ type: "err", text: "Passwords do not match." });
-      return;
-    }
-    const result = updateUserPassword(user.id, newPassword);
-    setPasswordMsg({ type: result.ok ? "ok" : "err", text: result.message });
-    if (result.ok) {
-      setNewPassword("");
-      setConfirmPassword("");
-    }
-    setTimeout(() => setPasswordMsg(null), 3000);
-  };
-
-  const handleCreateUser = () => {
-    const result = addUser(newUser);
-    setUserMessage({ type: result.ok ? "ok" : "err", text: result.message });
-    if (result.ok) {
-      setNewUser({ name: "", email: "", password: "", role: "admin" });
-    }
-    setTimeout(() => setUserMessage(null), 3000);
   };
 
   const exportAllData = () => {
@@ -196,10 +162,10 @@ export function AdminSettings() {
       {saveStatus ? <AdminBadge tone="success">{saveStatus}</AdminBadge> : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <AdminStatCard label="Admin users" value={users.length} icon={UserCog} tone="info" />
+        <AdminStatCard label="Current Operator" value={user?.name || "Staff"} icon={UserCog} tone="info" />
         <AdminStatCard
-          label="Active users"
-          value={users.filter((item) => item.active).length}
+          label="Account Status"
+          value={profile?.is_active ? "Active" : "Disabled"}
           icon={ShieldCheck}
           tone="success"
         />
@@ -771,200 +737,46 @@ export function AdminSettings() {
 
       {activeTab === "accounts" ? (
         <div className="grid gap-6">
-          <AdminSection title="Current admin account" description="Your current profile and permission level.">
+          <AdminSection title="Active Staff Identity" description="Database-backed profile verified via Supabase Auth and Row-Level Security.">
             <div className="grid gap-4 md:grid-cols-3">
               {[
-                { label: "Full name", value: user?.name || "-" },
-                { label: "Email", value: user?.email || "-" },
-                { label: "Role", value: user?.role || "-" },
+                { label: "Full Name", value: profile?.full_name || user?.name || "-" },
+                { label: "Email Address", value: profile?.email || user?.email || "-" },
+                { label: "Assigned Role", value: profile?.role?.replace(/_/g, " ") || user?.role?.replace(/_/g, " ") || "-" },
+                { label: "Department", value: profile?.department || user?.department || "-" },
+                { label: "Phone", value: profile?.phone || "Not set" },
+                { label: "Status", value: profile?.is_active ? "Active" : "Inactive" },
               ].map((item) => (
                 <AdminSurface key={item.label} className="p-4">
                   <p className="admin-kicker">{item.label}</p>
-                  <p className="admin-title-sm mt-2">{item.value}</p>
+                  <p className="admin-title-sm mt-2 capitalize">{item.value}</p>
                 </AdminSurface>
               ))}
             </div>
           </AdminSection>
 
-          <AdminSection title="Change password" description="Basic local password management for the portal.">
-            <div className="space-y-4">
-              {passwordMsg ? (
-                <AdminBadge tone={passwordMsg.type === "ok" ? "success" : "danger"}>{passwordMsg.text}</AdminBadge>
-              ) : null}
-              <div className="grid gap-4 md:grid-cols-2">
-                <AdminField label="New password" icon={Lock}>
-                  <AdminInput
-                    type="password"
-                    value={newPassword}
-                    onChange={(event) => setNewPassword(event.target.value)}
-                    placeholder="Minimum 6 characters"
-                  />
-                </AdminField>
-                <AdminField label="Confirm password" icon={Lock}>
-                  <AdminInput
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(event) => setConfirmPassword(event.target.value)}
-                    placeholder="Confirm password"
-                  />
-                </AdminField>
-              </div>
-              <Button onClick={handlePasswordChange}>Update password</Button>
-            </div>
-          </AdminSection>
-
-          <AdminSection title="User management" description="Create, remove, and manage admin access rights.">
-            <div className="space-y-6">
-              {userMessage ? (
-                <AdminBadge tone={userMessage.type === "ok" ? "success" : "danger"}>{userMessage.text}</AdminBadge>
-              ) : null}
-
-              <div className="grid gap-4 md:grid-cols-3">
-                <AdminSurface className="p-4">
-                  <p className="admin-kicker">Total users</p>
-                  <p className="admin-title-sm mt-2">{users.length}</p>
-                </AdminSurface>
-                <AdminSurface className="p-4">
-                  <p className="admin-kicker">Super admins</p>
-                  <p className="admin-title-sm mt-2">{users.filter((item) => item.role === "superadmin").length}</p>
-                </AdminSurface>
-                <AdminSurface className="p-4">
-                  <p className="admin-kicker">Disabled accounts</p>
-                  <p className="admin-title-sm mt-2">{users.filter((item) => !item.active).length}</p>
-                </AdminSurface>
-              </div>
-
-              <AdminSurface className="p-4">
-                <div className="grid gap-4 md:grid-cols-4">
-                  <AdminField label="Full name">
-                    <AdminInput
-                      value={newUser.name}
-                      onChange={(event) => setNewUser({ ...newUser, name: event.target.value })}
-                    />
-                  </AdminField>
-                  <AdminField label="Email">
-                    <AdminInput
-                      value={newUser.email}
-                      onChange={(event) => setNewUser({ ...newUser, email: event.target.value })}
-                    />
-                  </AdminField>
-                  <AdminField label="Temporary password">
-                    <AdminInput
-                      value={newUser.password}
-                      onChange={(event) => setNewUser({ ...newUser, password: event.target.value })}
-                    />
-                  </AdminField>
-                  <AdminField label="Role">
-                    <AdminSelect
-                      value={newUser.role}
-                      onChange={(event) =>
-                        setNewUser({ ...newUser, role: event.target.value as "admin" | "superadmin" })
-                      }
-                    >
-                      <option value="admin">Admin</option>
-                      <option value="superadmin">Superadmin</option>
-                    </AdminSelect>
-                  </AdminField>
-                </div>
-                <div className="mt-4">
-                  <Button onClick={handleCreateUser}>Add user</Button>
-                </div>
-              </AdminSurface>
-
+          <AdminSection title="Role-Based Access Control (RBAC)" description="Security controls are enforced directly by PostgreSQL database Row-Level Security (RLS).">
+            <AdminSurface className="p-5">
               <div className="space-y-4">
-                {users.map((managedUser) => (
-                  <AdminSurface key={managedUser.id} className="p-4">
-                    <div className="space-y-4">
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="grid flex-1 gap-4 md:grid-cols-3">
-                          <AdminField label="Name">
-                            <AdminInput
-                              value={managedUser.name}
-                              onChange={(event) =>
-                                updateUser(managedUser.id, { name: event.target.value })
-                              }
-                            />
-                          </AdminField>
-                          <AdminField label="Email">
-                            <AdminInput
-                              value={managedUser.email}
-                              onChange={(event) =>
-                                updateUser(managedUser.id, { email: event.target.value })
-                              }
-                            />
-                          </AdminField>
-                          <AdminField label="Role">
-                            <AdminSelect
-                              value={managedUser.role}
-                              onChange={(event) =>
-                                updateUser(managedUser.id, {
-                                  role: event.target.value as "admin" | "superadmin",
-                                })
-                              }
-                            >
-                              <option value="admin">Admin</option>
-                              <option value="superadmin">Superadmin</option>
-                            </AdminSelect>
-                          </AdminField>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <AdminBadge tone={managedUser.active ? "success" : "warning"}>
-                            {managedUser.active ? "Active" : "Disabled"}
-                          </AdminBadge>
-                          <button
-                            type="button"
-                            className="admin-button-secondary"
-                            onClick={() =>
-                              updateUser(managedUser.id, { active: !managedUser.active })
-                            }
-                          >
-                            {managedUser.active ? "Disable" : "Enable"}
-                          </button>
-                          {managedUser.id !== user?.id ? (
-                            <button
-                              type="button"
-                              className="admin-button-secondary text-[var(--admin-danger-fg)]"
-                              onClick={() => {
-                                const result = removeUser(managedUser.id);
-                                setUserMessage({ type: result.ok ? "ok" : "err", text: result.message });
-                                setTimeout(() => setUserMessage(null), 3000);
-                              }}
-                            >
-                              Remove
-                            </button>
-                          ) : (
-                            <AdminBadge>You</AdminBadge>
-                          )}
-                        </div>
-                      </div>
-
-                      <div>
-                        <p className="admin-kicker mb-3">Access rights</p>
-                        <div className="grid gap-3 md:grid-cols-3">
-                          {Object.entries(managedUser.permissions).map(([permission, enabled]) => (
-                            <label
-                              key={permission}
-                              className="flex items-center justify-between rounded-[var(--radius-md)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-3 py-3"
-                            >
-                              <span className="admin-meta capitalize">{permission}</span>
-                              <input
-                                type="checkbox"
-                                checked={enabled}
-                                onChange={(event) =>
-                                  updateUser(managedUser.id, {
-                                    permissions: { [permission]: event.target.checked } as any,
-                                  })
-                                }
-                              />
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </AdminSurface>
-                ))}
+                <div className="flex items-center gap-3">
+                  <ShieldCheck className="h-6 w-6 text-emerald-500 shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-[var(--text-primary)]">Enterprise Access Control Active</p>
+                    <p className="text-xs text-[var(--text-secondary)]">
+                      User roles and operational permissions are managed through the database <code className="font-mono text-amber-500">public.staff_profiles</code> and <code className="font-mono text-amber-500">public.roles_permissions</code> tables.
+                    </p>
+                  </div>
+                </div>
+                <div className="rounded-xl border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] p-4 text-xs text-[var(--text-secondary)] space-y-2">
+                  <p>
+                    <strong>Security Policy:</strong> Passwords and staff authentication are cryptographically handled by Supabase Auth (`auth.users`).
+                  </p>
+                  <p>
+                    Staff invitations, role promotions, and privilege elevation can only be executed by administrators with direct database or managerial access. Client-side role spoofing is strictly prevented by Supabase RLS.
+                  </p>
+                </div>
               </div>
-            </div>
+            </AdminSurface>
           </AdminSection>
         </div>
       ) : null}

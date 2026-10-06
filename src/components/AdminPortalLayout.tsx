@@ -82,8 +82,8 @@ export function AdminPortalLayout() {
     [user]
   );
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate("/admin/login");
   };
 
@@ -255,10 +255,14 @@ export function AdminPortalLayout() {
             <div className="flex items-center gap-3 border-l border-[var(--admin-border)] pl-3">
               <div className="hidden text-right sm:block">
                 <p className="text-sm font-medium text-[var(--text-primary)]">{displayName}</p>
-                <p className="text-xs text-[var(--text-secondary)]">{user?.role || "admin"}</p>
+                <p className="text-xs text-[var(--text-secondary)] capitalize">{user?.role?.replace(/_/g, " ") || "Staff"}</p>
               </div>
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-[var(--color-primary-600)] dark:bg-blue-950 dark:text-blue-300">
-                {user?.role === "superadmin" ? <ShieldCheck className="h-5 w-5 text-amber-500" /> : <CircleUser className="h-5 w-5" />}
+                {user?.role === "super_admin" || (user?.role as string) === "managing_director" || (user?.role as string) === "superadmin" ? (
+                  <ShieldCheck className="h-5 w-5 text-amber-500" />
+                ) : (
+                  <CircleUser className="h-5 w-5" />
+                )}
               </div>
             </div>
           </div>
