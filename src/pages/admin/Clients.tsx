@@ -1,697 +1,659 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  CheckCircle2,
-  Clock,
-  Edit2,
-  Gamepad2,
-  History,
-  Mail,
-  MessageSquare,
-  Phone,
-  Printer,
-  RefreshCw,
-  Search,
-  Trash2,
-  UserPlus,
   Users,
-  X,
+  Search,
+  Filter,
+  Plus,
+  Phone,
+  Mail,
+  MapPin,
+  Building2,
+  FileCheck2,
+  Clock,
+  Calendar,
+  AlertCircle,
+  CheckCircle2,
+  ArrowRight,
+  ExternalLink,
+  ChevronRight,
+  History,
+  FileText,
+  DollarSign,
+  ShieldAlert,
 } from "lucide-react";
-import {
-  createOrUpdateClient,
-  deleteLead,
-  deleteReferralClient,
-  generateUniqueCode,
-  getUnifiedClients,
-  LeadStatus,
-  updateLeadStatus,
-  updateUnifiedClientGroup,
-  updateUnifiedClientRecord,
-  USER_GROUPS,
-  UserGroup,
-} from "../../referrals/core";
+import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
-import { useStorageData } from "../../utils/useStorageData";
-import {
-  AdminBadge,
-  AdminEmptyState,
-  AdminField,
-  AdminInput,
-  AdminPage,
-  AdminSection,
-  AdminSelect,
-  AdminSurface,
-  AdminTabs,
-  AdminTextarea,
-} from "../../components/admin/AdminPrimitives";
-import { Button } from "../../components/ui/Button";
 
-type UnifiedSource = "referral" | "consultation" | "spin";
-
-type ClientForm = {
-  name: string;
-  email: string;
+export interface ClientRecord {
+  id: string;
+  full_name: string;
+  email?: string | null;
   phone: string;
-  referralCode: string;
-  group: UserGroup;
-  serviceNeeded: string;
-  message: string;
-  status: LeadStatus;
-};
+  alt_phone?: string | null;
+  state?: string | null;
+  address?: string | null;
+  acquisition_source?: string | null;
+  referral_code?: string | null;
+  referred_by_code?: string | null;
+  is_active: boolean;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
 
-const defaultForm: ClientForm = {
-  name: "",
-  email: "",
-  phone: "",
-  referralCode: "",
-  group: "prospect",
-  serviceNeeded: "",
-  message: "",
-  status: "pending",
-};
-
-function openJourneyPrint(client: any) {
-  const printWindow = window.open("", "_blank", "width=1000,height=800");
-  if (!printWindow) return;
-
-  const details = [
-    ["Full name", client.name || "-"],
-    ["Email", client.email || "-"],
-    ["Phone", client.phone || "-"],
-    ["Source", client.sourceLabel || client.source || "-"],
-    ["Category", client.group || "-"],
-    ["Status", client.status || "-"],
-    ["Created", new Date(client.createdAt).toLocaleString()],
-    ["Referral code", client.referralCode || client.registeredWithCode || "-"],
-    ["Service", client.serviceNeeded || client.service || "-"],
-  ]
-    .map(([label, value]) => `<tr><th>${label}</th><td>${value}</td></tr>`)
-    .join("");
-
-  printWindow.document.write(`
-    <html>
-      <head>
-        <title>Client Journey - ${client.name || "Client"}</title>
-        <style>
-          body { font-family: Arial, sans-serif; padding: 32px; color: #0f172a; }
-          h1 { margin: 0 0 8px; font-size: 28px; }
-          h2 { margin: 24px 0 12px; font-size: 18px; }
-          p { margin: 0 0 8px; line-height: 1.5; }
-          table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-          th, td { border: 1px solid #dbe4dd; padding: 10px; text-align: left; vertical-align: top; }
-          th { width: 180px; background: #f8fafc; }
-          .panel { border: 1px solid #dbe4dd; border-radius: 12px; padding: 16px; margin-top: 16px; }
-        </style>
-      </head>
-      <body>
-        <h1>Client Journey</h1>
-        <p>ABLEBIZ admin record generated on ${new Date().toLocaleString()}</p>
-        <table>${details}</table>
-        <div class="panel">
-          <h2>Captured message</h2>
-          <p>${client.message || client.serviceNeeded || "No message captured."}</p>
-        </div>
-        <div class="panel">
-          <h2>Operational note</h2>
-          <p>This record originated from ${client.sourceLabel || client.source}. Use this printout for follow-up, review, or offline record keeping.</p>
-        </div>
-      </body>
-    </html>
-  `);
-  printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
+export interface ClientDetailData extends ClientRecord {
+  businesses: any[];
+  service_requests: any[];
+  follow_ups: any[];
+  communications: any[];
+  activity_timeline: any[];
+  invoices?: any[];
 }
 
 export function AdminClients() {
-  const { user: authUser } = useAuth();
-  const [search, setSearch] = useState("");
-  const [sourceFilter, setSourceFilter] = useState<"all" | UnifiedSource>("all");
-  const [groupFilter, setGroupFilter] = useState<"all" | UserGroup>("all");
-  const [clients, refreshClients] = useStorageData(getUnifiedClients);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingClient, setEditingClient] = useState<any>(null);
-  const [journeyClient, setJourneyClient] = useState<any>(null);
-  const [formData, setFormData] = useState<ClientForm>(defaultForm);
+  const { user, profile, hasPermission } = useAuth();
+  const [clients, setClients] = useState<ClientRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sourceFilter, setSourceFilter] = useState("all");
 
-  const filteredClients = useMemo(() => {
-    return clients.filter((client) => {
-      const matchesSearch =
-        (client.name || "").toLowerCase().includes(search.toLowerCase()) ||
-        (client.email || "").toLowerCase().includes(search.toLowerCase()) ||
-        (client.phone || "").toLowerCase().includes(search.toLowerCase());
-      const matchesSource = sourceFilter === "all" || client.source === sourceFilter;
-      const matchesGroup = groupFilter === "all" || client.group === groupFilter;
-      return matchesSearch && matchesSource && matchesGroup;
-    });
-  }, [clients, groupFilter, search, sourceFilter]);
+  // Selection & 360° View
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [clientDetail, setClientDetail] = useState<ClientDetailData | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [active360Tab, setActive360Tab] = useState<"overview" | "businesses" | "requests" | "followups" | "timeline">("overview");
 
-  const handleGroupChange = (id: string, source: UnifiedSource, group: UserGroup) => {
-    updateUnifiedClientGroup(id, source, group);
-    refreshClients();
-  };
+  // Create Client Modal State
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    full_name: "",
+    email: "",
+    phone: "",
+    alt_phone: "",
+    address: "",
+    state: "Ogun",
+    acquisition_source: "direct",
+    notes: "",
+  });
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState("");
 
-  const handleStatusChange = (id: string, source: UnifiedSource, status: LeadStatus) => {
-    if (source === "consultation") {
-      updateLeadStatus(id, status);
-      refreshClients();
+  const canCreate = hasPermission("crm", "create");
+  const canEdit = hasPermission("crm", "edit");
+  const canViewFinance = hasPermission("finance", "view");
+
+  const fetchClients = async () => {
+    if (!supabase) return;
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("clients")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("[Clients] Fetch error:", error.message);
+      } else if (data) {
+        setClients(data as ClientRecord[]);
+        if (!selectedClientId && data.length > 0) {
+          setSelectedClientId(data[0].id);
+        }
+      }
+    } catch (err) {
+      console.error("[Clients] Error:", err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleDelete = (id: string, source: UnifiedSource) => {
-    if (!confirm("Are you sure you want to delete this record?")) return;
-    if (source === "consultation") deleteLead(id);
-    if (source === "referral") deleteReferralClient(id);
-    refreshClients();
+  const fetchClient360 = async (clientId: string) => {
+    if (!supabase) return;
+    setLoadingDetail(true);
+    try {
+      const [
+        clientRes,
+        bizRes,
+        srRes,
+        fuRes,
+        commRes,
+        actRes,
+        invRes,
+      ] = await Promise.all([
+        supabase.from("clients").select("*").eq("id", clientId).single(),
+        supabase.from("businesses").select("*").eq("client_id", clientId),
+        supabase.from("service_requests").select("*, service:services_catalog(name)").eq("client_id", clientId),
+        supabase.from("follow_ups").select("*").eq("client_id", clientId).order("scheduled_at", { ascending: false }),
+        supabase.from("communications").select("*").eq("client_id", clientId).order("created_at", { ascending: false }),
+        supabase.from("activity_timeline").select("*").eq("entity_id", clientId).order("created_at", { ascending: false }),
+        canViewFinance ? supabase.from("invoices").select("*").eq("client_id", clientId) : Promise.resolve({ data: [] }),
+      ]);
+
+      if (clientRes.data) {
+        setClientDetail({
+          ...clientRes.data,
+          businesses: bizRes.data || [],
+          service_requests: srRes.data || [],
+          follow_ups: fuRes.data || [],
+          communications: commRes.data || [],
+          activity_timeline: actRes.data || [],
+          invoices: invRes.data || [],
+        });
+      }
+    } catch (err) {
+      console.error("[Client 360] Detail fetch error:", err);
+    } finally {
+      setLoadingDetail(false);
+    }
   };
 
-  const openModal = (client: any = null) => {
-    if (client) {
-      setEditingClient(client);
-      setFormData({
-        name: client.name || "",
-        email: client.email || "",
-        phone: client.phone || "",
-        referralCode: client.referralCode || "",
-        group: client.group || "prospect",
-        serviceNeeded: client.serviceNeeded || client.service || "",
-        message: client.message || "",
-        status: client.status || "pending",
-      });
+  useEffect(() => {
+    fetchClients();
+  }, []);
+
+  useEffect(() => {
+    if (selectedClientId) {
+      fetchClient360(selectedClientId);
+    }
+  }, [selectedClientId]);
+
+  // Duplicate Check
+  const checkDuplicates = (email: string, phone: string) => {
+    const cleanPhone = phone.trim().replace(/\D/g, "");
+    const cleanEmail = email.trim().toLowerCase();
+
+    const matched = clients.find(
+      (c) =>
+        (cleanEmail && c.email?.toLowerCase() === cleanEmail) ||
+        (cleanPhone && c.phone.replace(/\D/g, "") === cleanPhone)
+    );
+
+    if (matched) {
+      setDuplicateWarning(`Potential duplicate detected: ${matched.full_name} (${matched.phone}) is already in the database.`);
     } else {
-      setEditingClient(null);
-      setFormData(defaultForm);
+      setDuplicateWarning(null);
     }
-    setIsModalOpen(true);
   };
 
-  const handleSaveClient = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (editingClient) {
-      updateUnifiedClientRecord({
-        id: editingClient.id,
-        source: editingClient.source,
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        referralCode: formData.referralCode,
-        group: formData.group,
-        serviceNeeded: formData.serviceNeeded,
-        message: formData.message,
-        status: formData.status,
-      });
-    } else {
-      createOrUpdateClient({
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        referralCode: formData.referralCode,
-        group: formData.group,
-      });
+  const handleCreateClient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supabase || !canCreate) return;
+    setFormError("");
+    setIsSubmitting(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("clients")
+        .insert({
+          full_name: formData.full_name.trim(),
+          email: formData.email.trim() || null,
+          phone: formData.phone.trim(),
+          alt_phone: formData.alt_phone.trim() || null,
+          address: formData.address.trim() || null,
+          state: formData.state.trim() || "Ogun",
+          acquisition_source: formData.acquisition_source,
+          notes: formData.notes.trim() || null,
+          is_active: true,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        setFormError(error.message);
+      } else if (data) {
+        // Also log to Activity Timeline
+        await supabase.from("activity_timeline").insert({
+          entity_type: "client",
+          entity_id: data.id,
+          actor_type: "staff",
+          actor_id: profile?.id,
+          event_type: "client_created",
+          event_title: `Client created: ${data.full_name}`,
+        });
+
+        setIsCreateOpen(false);
+        setFormData({
+          full_name: "",
+          email: "",
+          phone: "",
+          alt_phone: "",
+          address: "",
+          state: "Ogun",
+          acquisition_source: "direct",
+          notes: "",
+        });
+        setDuplicateWarning(null);
+        await fetchClients();
+        setSelectedClientId(data.id);
+      }
+    } catch (err: any) {
+      setFormError(err?.message || "Failed to create client record.");
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsModalOpen(false);
-    refreshClients();
   };
 
-  const statusTone = (status: string) => {
-    switch (status) {
-      case "completed":
-        return "success" as const;
-      case "in-progress":
-        return "info" as const;
-      case "reversed":
-        return "danger" as const;
-      default:
-        return "warning" as const;
-    }
-  };
+  const filteredClients = clients.filter((c) => {
+    const matchesSearch =
+      c.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.phone.includes(searchTerm) ||
+      (c.email && c.email.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesSource = sourceFilter === "all" || c.acquisition_source === sourceFilter;
+    return matchesSearch && matchesSource;
+  });
 
   return (
-    <AdminPage
-      eyebrow="CRM"
-      title="Clients"
-      description="Manage leads, referrals, and lifecycle stages without leaving the admin workspace."
-      actions={
-        <>
-          <Button variant="secondary" size="sm" onClick={refreshClients}>
-            <RefreshCw className="h-3.5 w-3.5" />
-            Refresh
-          </Button>
-          <Button size="sm" onClick={() => openModal()}>
-            <UserPlus className="h-3.5 w-3.5" />
-            New client
-          </Button>
-        </>
-      }
-    >
-      <AdminSection title="Filters" description="Use source and lifecycle filters to narrow the list.">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div className="w-full max-w-md">
-            <AdminField label="Search">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-secondary)]" />
-                <AdminInput
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  className="pl-10"
-                  placeholder="Search by name, email, or phone"
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-slate-200 bg-white p-5 lg:p-6 shadow-xs">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Clients 360°</h1>
+            <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">
+              CRM Engine
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            Consolidated client profiles linking legal entities, statutory filings, documents, and communications.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {canCreate && (
+            <button
+              onClick={() => setIsCreateOpen(true)}
+              className="flex items-center gap-2 rounded-xl bg-[#043F2E] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#06553F] shadow-xs transition"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Create Client</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Main Split Layout: Directory on Left, 360° Profile on Right */}
+      <div className="grid gap-6 lg:grid-cols-12 items-start">
+        {/* Left Column: Client List (5 cols) */}
+        <div className="lg:col-span-5 space-y-3">
+          {/* Search & Filter */}
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search clients by name, phone, email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-8 pr-3 text-xs text-slate-800 placeholder:text-slate-400 focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600 transition"
+              />
+            </div>
+            <select
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value)}
+              className="h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-xs text-slate-700 outline-none"
+            >
+              <option value="all">All Sources</option>
+              <option value="direct">Direct</option>
+              <option value="referral">Referral</option>
+              <option value="consultation">Consultation</option>
+              <option value="spin_win">Spin & Win</option>
+            </select>
+          </div>
+
+          {/* List Cards */}
+          <div className="space-y-2 max-h-[750px] overflow-y-auto pr-1">
+            {loading ? (
+              <div className="py-12 text-center text-xs text-slate-400">Loading clients...</div>
+            ) : filteredClients.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-white p-8 text-center text-xs text-slate-500">
+                No client records found.
+              </div>
+            ) : (
+              filteredClients.map((c) => {
+                const isSelected = selectedClientId === c.id;
+                return (
+                  <div
+                    key={c.id}
+                    onClick={() => setSelectedClientId(c.id)}
+                    className={`cursor-pointer rounded-xl border p-3.5 transition ${
+                      isSelected
+                        ? "border-emerald-700 bg-emerald-50/70 shadow-xs ring-1 ring-emerald-700/30"
+                        : "border-slate-200 bg-white hover:border-emerald-400"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-900">{c.full_name}</h4>
+                        <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-500">
+                          <Phone className="h-3 w-3 text-emerald-600" />
+                          <span>{c.phone}</span>
+                        </div>
+                      </div>
+                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 uppercase">
+                        {c.acquisition_source || "direct"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Right Column: Client 360° Workspace (7 cols) */}
+        <div className="lg:col-span-7">
+          {loadingDetail || !clientDetail ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-16 text-center text-xs text-slate-400">
+              Select a client to inspect complete 360° profile.
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
+              {/* Profile Card Header */}
+              <div className="border-b border-slate-200 bg-slate-50/70 p-5">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#043F2E] text-white font-bold text-base shadow-xs">
+                      {clientDetail.full_name[0]?.toUpperCase()}
+                    </div>
+                    <div>
+                      <h2 className="text-base font-bold text-slate-900">{clientDetail.full_name}</h2>
+                      <div className="flex items-center gap-3 text-xs text-slate-500 mt-0.5">
+                        <span className="flex items-center gap-1">
+                          <Phone className="h-3 w-3 text-emerald-600" /> {clientDetail.phone}
+                        </span>
+                        {clientDetail.email && (
+                          <span className="flex items-center gap-1">
+                            <Mail className="h-3 w-3 text-emerald-600" /> {clientDetail.email}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                    clientDetail.is_active ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
+                  }`}>
+                    {clientDetail.is_active ? "Active Client" : "Archived"}
+                  </span>
+                </div>
+
+                {/* 360° Navigation Tabs */}
+                <div className="mt-4 flex gap-1 border-t border-slate-200 pt-3 overflow-x-auto">
+                  {[
+                    { id: "overview", label: "Overview", count: null },
+                    { id: "businesses", label: "Businesses", count: clientDetail.businesses.length },
+                    { id: "requests", label: "Service Requests", count: clientDetail.service_requests.length },
+                    { id: "followups", label: "Follow-ups", count: clientDetail.follow_ups.length },
+                    { id: "timeline", label: "Timeline", count: clientDetail.activity_timeline.length },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActive360Tab(tab.id as any)}
+                      className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
+                        active360Tab === tab.id
+                          ? "bg-[#043F2E] text-white"
+                          : "text-slate-600 hover:bg-slate-200/60"
+                      }`}
+                    >
+                      <span>{tab.label}</span>
+                      {tab.count !== null && (
+                        <span className={`rounded-full px-1.5 py-0.2 text-[10px] ${
+                          active360Tab === tab.id ? "bg-emerald-800 text-emerald-100" : "bg-slate-200 text-slate-700"
+                        }`}>
+                          {tab.count}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tab Contents */}
+              <div className="p-5">
+                {active360Tab === "overview" && (
+                  <div className="space-y-4 text-xs">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                        <span className="text-[10px] font-semibold text-slate-400 uppercase">State & Address</span>
+                        <p className="mt-1 font-medium text-slate-900">{clientDetail.state || "Ogun"}, Nigeria</p>
+                        <p className="text-slate-500 mt-0.5">{clientDetail.address || "No address on file"}</p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                        <span className="text-[10px] font-semibold text-slate-400 uppercase">Acquisition & Referral</span>
+                        <p className="mt-1 font-medium text-slate-900 capitalize">{clientDetail.acquisition_source || "Direct"}</p>
+                        <p className="text-slate-500 mt-0.5">Ref Code: {clientDetail.referral_code || "None"}</p>
+                      </div>
+                    </div>
+
+                    {clientDetail.notes && (
+                      <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                        <span className="text-[10px] font-semibold text-slate-400 uppercase">Internal Notes</span>
+                        <p className="mt-1 text-slate-700 whitespace-pre-wrap">{clientDetail.notes}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {active360Tab === "businesses" && (
+                  <div className="space-y-3">
+                    {clientDetail.businesses.length === 0 ? (
+                      <p className="text-xs text-slate-400 text-center py-6">No businesses currently linked to this client.</p>
+                    ) : (
+                      clientDetail.businesses.map((biz) => (
+                        <div key={biz.id} className="rounded-xl border border-slate-200 p-3.5 hover:border-emerald-500 transition">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Building2 className="h-4 w-4 text-emerald-700" />
+                              <h4 className="text-xs font-bold text-slate-900">{biz.name}</h4>
+                            </div>
+                            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 uppercase">
+                              {biz.entity_type}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-1">RC / Reg No: {biz.registration_number || "Pending Registration"}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+
+                {active360Tab === "requests" && (
+                  <div className="space-y-3">
+                    {clientDetail.service_requests.length === 0 ? (
+                      <p className="text-xs text-slate-400 text-center py-6">No service requests for this client yet.</p>
+                    ) : (
+                      clientDetail.service_requests.map((sr) => (
+                        <div key={sr.id} className="rounded-xl border border-slate-200 p-3.5 hover:border-emerald-500 transition">
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono text-[10px] font-bold text-slate-500">{sr.tracking_id}</span>
+                            <span className="rounded bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.2 text-[10px] font-semibold capitalize">
+                              {sr.status.replace(/_/g, " ")}
+                            </span>
+                          </div>
+                          <p className="text-xs font-bold text-slate-900 mt-1">{sr.title}</p>
+                          <p className="text-[11px] text-slate-500">{sr.service?.name}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+
+                {active360Tab === "followups" && (
+                  <div className="space-y-3">
+                    {clientDetail.follow_ups.length === 0 ? (
+                      <p className="text-xs text-slate-400 text-center py-6">No follow-ups recorded for this client.</p>
+                    ) : (
+                      clientDetail.follow_ups.map((fu) => (
+                        <div key={fu.id} className="rounded-xl border border-slate-200 p-3 text-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-slate-900">{fu.type.replace(/_/g, " ")}</span>
+                            <span className={`text-[10px] font-bold uppercase ${fu.status === "completed" ? "text-emerald-700" : "text-amber-700"}`}>
+                              {fu.status}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-0.5">Scheduled: {new Date(fu.scheduled_at).toLocaleDateString()}</p>
+                          {fu.outcome_notes && <p className="text-slate-600 mt-1 italic">"{fu.outcome_notes}"</p>}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+
+                {active360Tab === "timeline" && (
+                  <div className="space-y-3">
+                    {clientDetail.activity_timeline.length === 0 ? (
+                      <p className="text-xs text-slate-400 text-center py-6">No chronological events logged yet.</p>
+                    ) : (
+                      <div className="relative pl-4 border-l border-slate-200 space-y-4">
+                        {clientDetail.activity_timeline.map((act) => (
+                          <div key={act.id} className="relative text-xs">
+                            <div className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-emerald-600" />
+                            <p className="font-semibold text-slate-900">{act.event_title}</p>
+                            <span className="text-[10px] text-slate-400">{new Date(act.created_at).toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Create Client Modal with Duplicate Detection */}
+      {isCreateOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-bold text-slate-900">Register New Client</h2>
+              <button onClick={() => setIsCreateOpen(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+
+            {duplicateWarning && (
+              <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+                <ShieldAlert className="h-4 w-4 shrink-0 text-amber-700 mt-0.5" />
+                <span>{duplicateWarning}</span>
+              </div>
+            )}
+
+            {formError && (
+              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+                {formError}
+              </div>
+            )}
+
+            <form onSubmit={handleCreateClient} className="space-y-3 text-xs">
+              <div>
+                <label className="font-semibold text-slate-700">Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={formData.full_name}
+                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                  placeholder="e.g. Adebayo Olumide"
+                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600"
                 />
               </div>
-            </AdminField>
-          </div>
 
-          <div className="flex flex-col gap-3 xl:items-end">
-            <AdminTabs
-              value={sourceFilter}
-              onChange={setSourceFilter}
-              items={[
-                { value: "all", label: "All" },
-                { value: "referral", label: "Referrals" },
-                { value: "consultation", label: "Leads" },
-                { value: "spin", label: "Game" },
-              ]}
-            />
-
-            <AdminTabs
-              value={groupFilter}
-              onChange={setGroupFilter}
-              items={[
-                { value: "all", label: "All tiers" },
-                ...USER_GROUPS.map((group) => ({ value: group.id, label: group.label })),
-              ]}
-            />
-          </div>
-        </div>
-      </AdminSection>
-
-      <AdminSection
-        title="Client records"
-        description="Current unified list of referrals, leads, and game participants."
-        actions={<AdminBadge>{filteredClients.length} records</AdminBadge>}
-      >
-        {filteredClients.length === 0 ? (
-          <AdminEmptyState
-            icon={Users}
-            title="No matching clients"
-            description="Try broadening the filters or clearing the search to see more records."
-          />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Name / contact</th>
-                  <th>Source</th>
-                  <th>Category</th>
-                  <th>Status</th>
-                  <th className="text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredClients.map((client) => (
-                  <tr key={`${client.source}-${client.id}`}>
-                    <td>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <p className="admin-title-sm">{client.name}</p>
-                          {client.group === "prospect" &&
-                          Date.now() - new Date(client.createdAt).getTime() > 14 * 24 * 60 * 60 * 1000 ? (
-                            <AdminBadge tone="danger">Churn risk</AdminBadge>
-                          ) : null}
-                        </div>
-                        <p className="admin-meta">{client.email || "-"}</p>
-                        <p className="admin-meta">{client.phone || "-"}</p>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-2">
-                        <div className="admin-icon-chip">
-                          {client.source === "referral" ? <History className="h-4 w-4" /> : null}
-                          {client.source === "consultation" ? <MessageSquare className="h-4 w-4" /> : null}
-                          {client.source === "spin" ? <Gamepad2 className="h-4 w-4" /> : null}
-                        </div>
-                        <div className="space-y-1">
-                          <p className="admin-title-sm">{client.sourceLabel}</p>
-                          {client.referralCode ? (
-                            <p className="admin-meta">Code: {client.referralCode}</p>
-                          ) : client.serviceNeeded || client.service ? (
-                            <p className="admin-meta">Focus: {client.serviceNeeded || client.service}</p>
-                          ) : null}
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <AdminSelect
-                        value={client.group || "prospect"}
-                        onChange={(event) =>
-                          handleGroupChange(client.id, client.source as UnifiedSource, event.target.value as UserGroup)
-                        }
-                      >
-                        {USER_GROUPS.map((group) => (
-                          <option key={group.id} value={group.id}>
-                            {group.label}
-                          </option>
-                        ))}
-                      </AdminSelect>
-                    </td>
-                    <td>
-                      {client.source === "consultation" ? (
-                        <AdminSelect
-                          value={client.status || "pending"}
-                          onChange={(event) =>
-                            handleStatusChange(
-                              client.id,
-                              client.source as UnifiedSource,
-                              event.target.value as LeadStatus
-                            )
-                          }
-                        >
-                          <option value="pending">Pending</option>
-                          <option value="in-progress">Follow-up</option>
-                          <option value="completed">Converted</option>
-                          <option value="reversed">Lost</option>
-                        </AdminSelect>
-                      ) : (
-                        <AdminBadge tone={statusTone(client.status || "completed")}>
-                          {client.status === "completed" ? (
-                            <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
-                          ) : (
-                            <Clock className="mr-1 h-3.5 w-3.5" />
-                          )}
-                          {client.status || "ready"}
-                        </AdminBadge>
-                      )}
-                    </td>
-                    <td>
-                      <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setJourneyClient(client)}
-                          className="admin-button-secondary"
-                        >
-                          <MessageSquare className="h-4 w-4" />
-                          Journey
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openModal(client)}
-                          className="admin-button-secondary"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                          Edit
-                        </button>
-                        {authUser?.role === "superadmin" && client.source !== "spin" ? (
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(client.id, client.source as UnifiedSource)}
-                            className="admin-button-secondary text-[var(--admin-danger-fg)]"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            Delete
-                          </button>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </AdminSection>
-
-      {isModalOpen ? (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-3xl">
-            <AdminSurface className="overflow-hidden">
-              <div className="flex items-center justify-between border-b border-[var(--admin-border)] px-6 py-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <h2 className="admin-section-title">{editingClient ? "Edit client record" : "Add new client"}</h2>
-                  <p className="admin-section-description">
-                    {editingClient
-                      ? `Update ${editingClient.sourceLabel} data without changing the original source.`
-                      : "Create a new referral-program client record."}
-                  </p>
+                  <label className="font-semibold text-slate-700">Phone Number *</label>
+                  <input
+                    type="tel"
+                    required
+                    value={formData.phone}
+                    onChange={(e) => {
+                      setFormData({ ...formData, phone: e.target.value });
+                      checkDuplicates(formData.email, e.target.value);
+                    }}
+                    placeholder="08012345678"
+                    className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600"
+                  />
                 </div>
-                <button type="button" onClick={() => setIsModalOpen(false)} className="admin-button-secondary">
-                  <X className="h-4 w-4" />
+                <div>
+                  <label className="font-semibold text-slate-700">Email Address</label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => {
+                      setFormData({ ...formData, email: e.target.value });
+                      checkDuplicates(e.target.value, formData.phone);
+                    }}
+                    placeholder="client@gmail.com"
+                    className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-slate-700">State</label>
+                  <input
+                    type="text"
+                    value={formData.state}
+                    onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                    className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-slate-700">Acquisition Source</label>
+                  <select
+                    value={formData.acquisition_source}
+                    onChange={(e) => setFormData({ ...formData, acquisition_source: e.target.value })}
+                    className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-2.5 outline-none focus:border-emerald-600"
+                  >
+                    <option value="direct">Direct Walk-in / Inbound</option>
+                    <option value="referral">Client Referral</option>
+                    <option value="consultation">Website Consultation</option>
+                    <option value="spin_win">Spin & Win Lead</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700">Office / Physical Address</label>
+                <input
+                  type="text"
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  placeholder="Abeokuta, Ogun State"
+                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700">Internal Notes</label>
+                <textarea
+                  rows={2}
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  placeholder="Client requirements, business context..."
+                  className="mt-1 w-full rounded-xl border border-slate-200 p-2 outline-none focus:border-emerald-600"
+                />
+              </div>
+
+              <div className="mt-4 flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateOpen(false)}
+                  className="rounded-xl border border-slate-200 px-3.5 py-2 text-slate-600 hover:bg-slate-50 font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="rounded-xl bg-[#043F2E] px-4 py-2 font-bold text-white hover:bg-[#06553F] transition disabled:opacity-50"
+                >
+                  {isSubmitting ? "Creating..." : "Save Client"}
                 </button>
               </div>
-
-              <form onSubmit={handleSaveClient} className="space-y-5 p-6">
-                {editingClient ? (
-                  <div className="flex flex-wrap gap-2">
-                    <AdminBadge tone="info">{editingClient.sourceLabel}</AdminBadge>
-                    <AdminBadge>{editingClient.group || "prospect"}</AdminBadge>
-                  </div>
-                ) : null}
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <AdminField label="Full name">
-                    <AdminInput
-                      required
-                      value={formData.name}
-                      onChange={(event) => setFormData({ ...formData, name: event.target.value })}
-                      placeholder="Client name"
-                    />
-                  </AdminField>
-                  <AdminField label="Phone number">
-                    <AdminInput
-                      required
-                      value={formData.phone}
-                      onChange={(event) => setFormData({ ...formData, phone: event.target.value })}
-                      placeholder="Phone number"
-                    />
-                  </AdminField>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <AdminField label="Email address">
-                    <AdminInput
-                      required
-                      type="email"
-                      value={formData.email}
-                      onChange={(event) => setFormData({ ...formData, email: event.target.value })}
-                      placeholder="name@example.com"
-                    />
-                  </AdminField>
-                  <AdminField label="Client category">
-                    <AdminSelect
-                      value={formData.group}
-                      onChange={(event) => setFormData({ ...formData, group: event.target.value as UserGroup })}
-                    >
-                      {USER_GROUPS.map((group) => (
-                        <option key={group.id} value={group.id}>
-                          {group.label}
-                        </option>
-                      ))}
-                    </AdminSelect>
-                  </AdminField>
-                </div>
-
-                {!editingClient || editingClient.source === "referral" ? (
-                  <AdminField label="Referral code" hint="Referral records use the ABZ-XXXXXX (6-digit) pattern.">
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                      <AdminInput
-                        value={formData.referralCode}
-                        onChange={(event) =>
-                          setFormData({ ...formData, referralCode: event.target.value.toUpperCase() })
-                        }
-                        placeholder="ABZ-123456"
-                      />
-                      <button
-                        type="button"
-                        className="admin-button-secondary"
-                        onClick={() => setFormData({ ...formData, referralCode: generateUniqueCode() })}
-                      >
-                        Generate code
-                      </button>
-                    </div>
-                  </AdminField>
-                ) : null}
-
-                {editingClient?.source === "consultation" ? (
-                  <>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <AdminField label="Requested service">
-                        <AdminInput
-                          value={formData.serviceNeeded}
-                          onChange={(event) =>
-                            setFormData({ ...formData, serviceNeeded: event.target.value })
-                          }
-                          placeholder="Requested service"
-                        />
-                      </AdminField>
-                      <AdminField label="Lead status">
-                        <AdminSelect
-                          value={formData.status}
-                          onChange={(event) =>
-                            setFormData({ ...formData, status: event.target.value as LeadStatus })
-                          }
-                        >
-                          <option value="pending">Pending</option>
-                          <option value="in-progress">Follow-up</option>
-                          <option value="completed">Converted</option>
-                          <option value="reversed">Lost</option>
-                        </AdminSelect>
-                      </AdminField>
-                    </div>
-                    <AdminField label="Message">
-                      <AdminTextarea
-                        value={formData.message}
-                        onChange={(event) => setFormData({ ...formData, message: event.target.value })}
-                        placeholder="Consultation notes or captured message"
-                      />
-                    </AdminField>
-                  </>
-                ) : null}
-
-                <div className="flex justify-end gap-3">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="admin-button-secondary">
-                    Cancel
-                  </button>
-                  <Button type="submit">{editingClient ? "Save changes" : "Add client"}</Button>
-                </div>
-              </form>
-            </AdminSurface>
+            </form>
           </div>
         </div>
-      ) : null}
-
-      {journeyClient ? (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-6xl">
-            <AdminSurface className="overflow-hidden">
-              <div className="flex items-center justify-between border-b border-[var(--admin-border)] px-6 py-4">
-                <div>
-                  <h2 className="admin-section-title">{journeyClient.name}</h2>
-                  <p className="admin-section-description">
-                    Comprehensive client record, acquisition path, and printable follow-up summary.
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => openJourneyPrint(journeyClient)}
-                    className="admin-button-secondary"
-                  >
-                    <Printer className="h-4 w-4" />
-                    Print
-                  </button>
-                  <button type="button" onClick={() => setJourneyClient(null)} className="admin-button-secondary">
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid gap-0 xl:grid-cols-[320px_1fr]">
-                <div className="border-r border-[var(--admin-border)] bg-[var(--admin-panel-muted)] p-6">
-                  <p className="admin-eyebrow">Journey map</p>
-                  <div className="mt-5 space-y-5">
-                    <div className="space-y-1">
-                      <p className="admin-title-sm">Lead acquired</p>
-                      <p className="admin-meta">Via {journeyClient.sourceLabel}</p>
-                      <p className="admin-meta">{new Date(journeyClient.createdAt).toLocaleString()}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="admin-title-sm">Lifecycle state</p>
-                      <p className="admin-meta">Category: {journeyClient.group || "prospect"}</p>
-                      <p className="admin-meta">Status: {journeyClient.status || "ready"}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="admin-title-sm">Source details</p>
-                      <p className="admin-meta">Type: {journeyClient.source}</p>
-                      <p className="admin-meta">
-                        Referral code: {journeyClient.referralCode || journeyClient.registeredWithCode || "-"}
-                      </p>
-                      <p className="admin-meta">
-                        Service: {journeyClient.serviceNeeded || journeyClient.service || "-"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-6">
-                  <div className="mb-5 flex flex-wrap gap-2">
-                    <AdminBadge tone="success">{journeyClient.sourceLabel}</AdminBadge>
-                    <AdminBadge>{journeyClient.group || "prospect"}</AdminBadge>
-                    <AdminBadge tone={statusTone(journeyClient.status || "completed")}>
-                      {journeyClient.status || "ready"}
-                    </AdminBadge>
-                  </div>
-
-                  <div className="grid gap-4 lg:grid-cols-2">
-                    <AdminSurface className="p-4">
-                      <p className="admin-title-sm">Client details</p>
-                      <div className="mt-4 space-y-3">
-                        <div className="flex items-center gap-3">
-                          <Mail className="h-4 w-4 text-[var(--text-secondary)]" />
-                          <div>
-                            <p className="admin-kicker">Email</p>
-                            <p className="admin-meta">{journeyClient.email || "-"}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <Phone className="h-4 w-4 text-[var(--text-secondary)]" />
-                          <div>
-                            <p className="admin-kicker">Phone</p>
-                            <p className="admin-meta">{journeyClient.phone || "-"}</p>
-                          </div>
-                        </div>
-                        <div>
-                          <p className="admin-kicker">Created</p>
-                          <p className="admin-meta">{new Date(journeyClient.createdAt).toLocaleString()}</p>
-                        </div>
-                      </div>
-                    </AdminSurface>
-
-                    <AdminSurface className="p-4">
-                      <p className="admin-title-sm">Commercial context</p>
-                      <div className="mt-4 space-y-3">
-                        <div>
-                          <p className="admin-kicker">Requested service</p>
-                          <p className="admin-meta">{journeyClient.serviceNeeded || journeyClient.service || "-"}</p>
-                        </div>
-                        <div>
-                          <p className="admin-kicker">Referral / acquisition code</p>
-                          <p className="admin-meta">
-                            {journeyClient.referralCode || journeyClient.registeredWithCode || "-"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="admin-kicker">Source label</p>
-                          <p className="admin-meta">{journeyClient.sourceLabel}</p>
-                        </div>
-                      </div>
-                    </AdminSurface>
-                  </div>
-
-                  <div className="mt-4 grid gap-4">
-                    <AdminSurface className="bg-[var(--admin-panel-muted)] p-4">
-                      <p className="admin-title-sm">Captured message</p>
-                      <p className="admin-page-description mt-2 max-w-none">
-                        {journeyClient.message
-                          ? journeyClient.message
-                          : journeyClient.source === "consultation"
-                            ? `I am interested in ${
-                                journeyClient.serviceNeeded || journeyClient.service || "consultation"
-                              }. Please contact me.`
-                            : `Registered through ${journeyClient.sourceLabel}.`}
-                      </p>
-                    </AdminSurface>
-
-                    <AdminSurface className="bg-[var(--color-primary-50)] p-4">
-                      <p className="admin-title-sm">Follow-up guidance</p>
-                      <p className="admin-page-description mt-2 max-w-none">
-                        Use this record to confirm contact details, continue the onboarding conversation, and document the next action before closing the lead.
-                      </p>
-                    </AdminSurface>
-                  </div>
-                </div>
-              </div>
-            </AdminSurface>
-          </div>
-        </div>
-      ) : null}
-    </AdminPage>
+      )}
+    </div>
   );
 }

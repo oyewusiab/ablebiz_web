@@ -26,6 +26,9 @@ import { AdminReports } from "./pages/admin/Reports";
 import { AdminSettings } from "./pages/admin/Settings";
 import { ServicesCatalogPage } from "./pages/admin/ServicesCatalog";
 import { ServiceRequestsPage } from "./pages/admin/ServiceRequests";
+import { BusinessesPage } from "./pages/admin/Businesses";
+import { LeadsPipelinePage } from "./pages/admin/Leads";
+import { FollowUpsPage } from "./pages/admin/FollowUps";
 
 export default function App() {
   useReferralUrl();
@@ -54,10 +57,13 @@ export default function App() {
           <Route path="/admin" element={<ProtectedRoute><AdminPortalLayout /></ProtectedRoute>}>
             <Route index element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+            <Route path="leads" element={<ProtectedRoute requiredModule="crm"><LeadsPipelinePage /></ProtectedRoute>} />
+            <Route path="clients" element={<ProtectedRoute requiredModule="crm"><AdminClients /></ProtectedRoute>} />
+            <Route path="businesses" element={<ProtectedRoute requiredModule="crm"><BusinessesPage /></ProtectedRoute>} />
+            <Route path="follow-ups" element={<ProtectedRoute requiredModule="crm"><FollowUpsPage /></ProtectedRoute>} />
             <Route path="services-catalog" element={<ProtectedRoute requiredModule="operations"><ServicesCatalogPage /></ProtectedRoute>} />
             <Route path="service-requests" element={<ProtectedRoute requiredModule="operations"><ServiceRequestsPage /></ProtectedRoute>} />
             <Route path="referrals" element={<ProtectedRoute><AdminReferrals /></ProtectedRoute>} />
-            <Route path="clients" element={<ProtectedRoute requiredModule="crm"><AdminClients /></ProtectedRoute>} />
             <Route path="reports" element={<ProtectedRoute requiredModule="reports"><AdminReports /></ProtectedRoute>} />
             <Route path="settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
           </Route>
