@@ -41,6 +41,8 @@ import { VendorsPage } from "./pages/admin/Vendors";
 import { AuditLogsPage } from "./pages/admin/AuditLogs";
 import { AiSecretaryPage } from "./pages/admin/AiSecretary";
 import { NotificationsPage } from "./pages/admin/Notifications";
+import { ClientCommunicationsPage } from "./pages/admin/Communications";
+import { StaffRbacPage } from "./pages/admin/Team";
 
 export default function App() {
   useReferralUrl();
@@ -89,6 +91,11 @@ export default function App() {
             <Route path="audit" element={<Navigate to="/admin/audit-logs" replace />} />
             <Route path="ai-secretary" element={<ProtectedRoute><AiSecretaryPage /></ProtectedRoute>} />
             <Route path="notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
+            {/* Communications */}
+            <Route path="communications" element={<ProtectedRoute requiredModule="crm"><ClientCommunicationsPage /></ProtectedRoute>} />
+            {/* Team / Staff & RBAC */}
+            <Route path="team" element={<ProtectedRoute requiredRole={["super_admin", "admin"]}><StaffRbacPage /></ProtectedRoute>} />
+            {/* Referrals & Reports */}
             <Route path="referrals" element={<ProtectedRoute><AdminReferrals /></ProtectedRoute>} />
             <Route path="reports" element={<ProtectedRoute requiredModule="reports"><AdminReports /></ProtectedRoute>} />
             <Route path="settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
