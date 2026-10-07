@@ -87,10 +87,10 @@ export function AdminDashboard() {
       ] = await Promise.all([
         supabase.from("clients").select("id", { count: "exact", head: true }).eq("is_active", true),
         supabase.from("businesses").select("id", { count: "exact", head: true }),
-        supabase.from("service_requests").select("id, title, status, priority, created_at").neq("status", "completed"),
-        supabase.from("cac_applications").select("id, proposed_name_1, status, stage, created_at").neq("stage", "completed"),
+        supabase.from("service_requests").select("id, tracking_code, status, priority, created_at").neq("status", "completed"),
+        supabase.from("cac_applications").select("id, proposed_name_1, current_stage, created_at").not("current_stage", "in", '("completed","cancelled")'),
         supabase.from("tasks").select("id, title, status, priority, due_date").neq("status", "completed"),
-        supabase.from("invoices").select("id, invoice_number, total_amount, balance_due, status").neq("status", "paid"),
+        supabase.from("invoices").select("id, invoice_number, total_amount, balance_due, due_date, status").neq("status", "paid"),
         canViewFinance ? supabase.from("payments").select("amount") : Promise.resolve({ data: [] }),
         canViewFinance ? supabase.from("expenses").select("amount") : Promise.resolve({ data: [] }),
         supabase.from("activity_timeline").select("id, event_title, entity_type, created_at").order("created_at", { ascending: false }).limit(6),
@@ -117,47 +117,66 @@ export function AdminDashboard() {
         totalExpensesNgn: expTotal,
       });
 
-      // 2. Synthesize Actionable Attention Items
+      // 2. Synthesize Actionable Attention Items in Strict Priority Order
       const attention: AttentionItem[] = [];
+      const now = new Date();
 
-      // Check overdue or urgent tasks
+      // Priority 1: Critical or Rejected CAC Work
+      if (cacRes.data) {
+        const criticalCac = cacRes.data.filter((c: any) => c.current_stage === "rejected" || c.current_stage === "under_cac_review");
+        criticalCac.slice(0, 2).forEach((cac: any) => {
+          attention.push({
+            id: `cac-${cac.id}`,
+            type: "cac_application",
+            title: `CAC Filing: ${cac.proposed_name_1 || "Corporate Filing"}`,
+            subtitle: `Stage: ${cac.current_stage.replace(/_/g, " ")} (Requires review)`,
+            priority: cac.current_stage === "rejected" ? "urgent" : "high",
+            link: "/admin/cac-operations",
+          });
+        });
+      }
+
+      // Priority 2: Overdue Tasks
       if (tasksRes.data) {
-        tasksRes.data.slice(0, 3).forEach((t: any) => {
+        const overdueTasks = tasksRes.data.filter((t: any) => t.due_date && new Date(t.due_date) < now);
+        overdueTasks.slice(0, 3).forEach((t: any) => {
           attention.push({
             id: `task-${t.id}`,
             type: "task",
-            title: `Task: ${t.title}`,
-            subtitle: t.due_date ? `Due ${new Date(t.due_date).toLocaleDateString()}` : "Priority Action Required",
-            priority: t.priority === "urgent" ? "urgent" : "high",
+            title: `Task Overdue: ${t.title}`,
+            subtitle: `Deadline passed: ${new Date(t.due_date).toLocaleDateString()}`,
+            priority: "urgent",
             link: "/admin/tasks",
           });
         });
       }
 
-      // Check pending service requests
-      if (srRes.data) {
-        srRes.data.slice(0, 3).forEach((sr: any) => {
+      // Priority 3: Overdue Invoices
+      if (invRes.data && canViewFinance) {
+        const overdueInvoices = invRes.data.filter((i: any) => i.due_date && new Date(i.due_date) < now && Number(i.balance_due) > 0);
+        overdueInvoices.slice(0, 2).forEach((i: any) => {
           attention.push({
-            id: `sr-${sr.id}`,
-            type: "service_request",
-            title: `Request: ${sr.title}`,
-            subtitle: `Status: ${sr.status.replace(/_/g, " ")}`,
-            priority: "normal",
-            link: "/admin/service-requests",
+            id: `inv-${i.id}`,
+            type: "invoice",
+            title: `Overdue Invoice: ${i.invoice_number}`,
+            subtitle: `Balance Due: ₦${Number(i.balance_due).toLocaleString()} (Due ${new Date(i.due_date).toLocaleDateString()})`,
+            priority: "high",
+            link: "/admin/invoices",
           });
         });
       }
 
-      // Check pending CAC applications
-      if (cacRes.data) {
-        cacRes.data.slice(0, 2).forEach((cac: any) => {
+      // Priority 4: Open Service Requests
+      if (srRes.data && attention.length < 5) {
+        const pendingRequests = srRes.data.filter((sr: any) => sr.status === "pending_review");
+        pendingRequests.slice(0, 2).forEach((sr: any) => {
           attention.push({
-            id: `cac-${cac.id}`,
-            type: "cac_application",
-            title: `CAC Filing: ${cac.proposed_name_1}`,
-            subtitle: `Stage: ${cac.stage.replace(/_/g, " ")}`,
-            priority: "high",
-            link: "/admin/cac-operations",
+            id: `sr-${sr.id}`,
+            type: "service_request",
+            title: `New Request: ${sr.tracking_code}`,
+            subtitle: `Status: Pending Review`,
+            priority: "normal",
+            link: "/admin/service-requests",
           });
         });
       }

@@ -520,7 +520,7 @@ export function AdminClients() {
 
                 {active360Tab === "finance" && (
                   <div className="space-y-3">
-                    {clientDetail.invoices.length === 0 ? (
+                    {!clientDetail.invoices || clientDetail.invoices.length === 0 ? (
                       <p className="text-xs text-slate-400 text-center py-6">No invoices or billing history for this client yet.</p>
                     ) : (
                       <div className="space-y-2">

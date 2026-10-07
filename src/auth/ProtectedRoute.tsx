@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { ShieldAlert, LogOut } from "lucide-react";
 import { useAuth, type StaffRole, type PermissionAction } from "./AuthContext";
@@ -19,15 +19,48 @@ export function ProtectedRoute({
   requiredAction = "view",
   requiredPermission,
 }: Props) {
-  const { user, profile, isLoading, logout, hasPermission } = useAuth();
+  const { user, profile, isLoading, logout, hasPermission, refreshProfile, authError } = useAuth();
   const location = useLocation();
+  const [showSlowWarning, setShowSlowWarning] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setShowSlowWarning(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setShowSlowWarning(true);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [isLoading]);
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#061738]">
-        <div className="flex flex-col items-center gap-3">
+      <div className="flex h-screen items-center justify-center bg-[#061738] p-4 text-white">
+        <div className="flex flex-col items-center gap-3 text-center max-w-sm">
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-amber-500 border-t-transparent" />
           <p className="text-sm font-medium text-slate-300">Verifying ABLEBIZ session...</p>
+          {showSlowWarning && (
+            <div className="mt-2 space-y-3 rounded-xl border border-white/10 bg-white/5 p-4 text-xs text-slate-300 backdrop-blur-md">
+              <p>Session verification is taking longer than expected.</p>
+              <div className="flex justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => refreshProfile()}
+                  className="rounded-lg bg-amber-500 px-3 py-1.5 font-bold text-slate-950 hover:bg-amber-400 transition"
+                >
+                  Retry
+                </button>
+                <button
+                  type="button"
+                  onClick={() => logout()}
+                  className="rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 font-semibold text-white hover:bg-white/20 transition"
+                >
+                  Return to Sign In
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -35,7 +68,7 @@ export function ProtectedRoute({
 
   // 1. Unauthenticated: Redirect to login
   if (!user || !profile) {
-    return <Navigate to="/admin/login" state={{ from: location }} replace />;
+    return <Navigate to="/admin/login" state={{ from: location, error: authError || undefined }} replace />;
   }
 
   // 2. Inactive account or customer

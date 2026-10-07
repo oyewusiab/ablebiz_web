@@ -462,7 +462,7 @@ export function AdminReferrals() {
                       </td>
                       <td className="text-right">
                         {redemption.status === "pending" ? (
-                          authUser?.role === "superadmin" ? (
+                          authUser?.role === "super_admin" || (authUser?.role as string) === "managing_director" ? (
                             <button
                               type="button"
                               onClick={() => {

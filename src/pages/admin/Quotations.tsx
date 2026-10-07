@@ -121,6 +121,8 @@ export function QuotationsPage() {
   const fetchQuotations = async () => {
     try {
       setLoading(true);
+
+      // 1. Primary query using explicit verified foreign key relationship constraint
       const { data, error } = await supabase
         .from("quotations")
         .select(`
@@ -128,12 +130,35 @@ export function QuotationsPage() {
           client:clients(full_name, phone, email),
           business:businesses(name),
           service_request:service_requests(tracking_code),
-          creator:staff_profiles(full_name)
+          creator:staff_profiles!quotations_created_by_fkey(full_name)
         `)
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
-      setQuotations(data || []);
+      if (!error && data) {
+        setQuotations(data);
+        return;
+      }
+
+      // 2. Resilient fallback: If creator relation fails for any reason, fetch base quotations so records are NEVER hidden
+      if (error) {
+        console.warn("[Quotations] Primary query failed, attempting base fallback:", error.message);
+        const { data: fallbackData, error: fallbackErr } = await supabase
+          .from("quotations")
+          .select(`
+            *,
+            client:clients(full_name, phone, email),
+            business:businesses(name),
+            service_request:service_requests(tracking_code)
+          `)
+          .order("created_at", { ascending: false });
+
+        if (fallbackErr) {
+          console.error("[Quotations] Fallback query error:", fallbackErr.message);
+        } else {
+          setQuotations(fallbackData || []);
+          return;
+        }
+      }
     } catch (err) {
       console.error("[Quotations] Load error:", err);
     } finally {
@@ -503,10 +528,12 @@ export function QuotationsPage() {
 
   // Filtered Quotations
   const filteredQuotations = quotations.filter((q) => {
+    const query = searchQuery.trim().toLowerCase();
     const matchesSearch =
-      q.quotation_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      q.client?.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      q.business?.name?.toLowerCase().includes(searchQuery.toLowerCase());
+      !query ||
+      q.quotation_number.toLowerCase().includes(query) ||
+      Boolean(q.client?.full_name && q.client.full_name.toLowerCase().includes(query)) ||
+      Boolean(q.business?.name && q.business.name.toLowerCase().includes(query));
 
     const matchesStatus = statusFilter === "all" || q.status === statusFilter;
     return matchesSearch && matchesStatus;
@@ -639,6 +666,11 @@ export function QuotationsPage() {
                         {q.service_request && (
                           <span className="block text-[10px] font-normal text-slate-400">
                             SR: {q.service_request.tracking_code}
+                          </span>
+                        )}
+                        {q.creator?.full_name && (
+                          <span className="block text-[10px] font-normal text-slate-400">
+                            By: {q.creator.full_name}
                           </span>
                         )}
                       </td>

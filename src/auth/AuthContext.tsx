@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Session, User as SupabaseAuthUser } from "@supabase/supabase-js";
 import { supabase, supabaseEnabled } from "../lib/supabaseClient";
 
@@ -204,45 +204,72 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // Fetch staff profile and role permissions from Supabase
-  const loadStaffProfile = async (authUser: SupabaseAuthUser): Promise<StaffProfile | null> => {
-    if (!supabase) return null;
+  // Keep track of resolved user ID to prevent redundant resolution calls and avoid races
+  const resolvedUidRef = useRef<string | null>(null);
+
+  // Fetch staff profile and role permissions from Supabase with timeout protection (6s)
+  const loadStaffProfile = async (
+    authUser: SupabaseAuthUser
+  ): Promise<{ profile: StaffProfile | null; permissions: RolePermissionRule[]; error?: string }> => {
+    if (!supabase) return { profile: null, permissions: [] };
+
     try {
-      const { data, error } = await supabase
-        .from("staff_profiles")
-        .select("*")
-        .eq("auth_uid", authUser.id)
-        .maybeSingle();
+      let timeoutId: any;
+      const timeoutPromise = new Promise<{
+        profile: StaffProfile | null;
+        permissions: RolePermissionRule[];
+        error?: string;
+      }>((resolve) => {
+        timeoutId = setTimeout(() => {
+          resolve({
+            profile: null,
+            permissions: [],
+            error: "Session verification timed out. Please check your network connection and try again.",
+          });
+        }, 6000);
+      });
 
-      if (error) {
-        console.error("[Auth] Error fetching staff profile:", error.message);
-        return null;
-      }
-
-      if (!data) {
-        return null;
-      }
-
-      const prof = data as StaffProfile;
-
-      // Also attempt to load database permissions for this role
-      try {
-        const { data: permData } = await supabase
-          .from("roles_permissions")
+      const fetchPromise = (async () => {
+        const { data, error } = await supabase
+          .from("staff_profiles")
           .select("*")
-          .eq("role", prof.role);
+          .eq("auth_uid", authUser.id)
+          .maybeSingle();
 
-        if (permData && Array.isArray(permData)) {
-          setPermissionsList(permData as RolePermissionRule[]);
+        if (error) {
+          console.error("[Auth] Error fetching staff profile:", error.message);
+          return { profile: null, permissions: [], error: error.message };
         }
-      } catch (permErr) {
-        console.warn("[Auth] Could not load roles_permissions:", permErr);
-      }
 
-      return prof;
-    } catch (err) {
+        if (!data) {
+          return { profile: null, permissions: [] };
+        }
+
+        const prof = data as StaffProfile;
+        let perms: RolePermissionRule[] = [];
+
+        try {
+          const { data: permData } = await supabase
+            .from("roles_permissions")
+            .select("*")
+            .eq("role", prof.role);
+
+          if (permData && Array.isArray(permData)) {
+            perms = permData as RolePermissionRule[];
+          }
+        } catch (permErr) {
+          console.warn("[Auth] Could not load roles_permissions:", permErr);
+        }
+
+        return { profile: prof, permissions: perms };
+      })();
+
+      const result = await Promise.race([fetchPromise, timeoutPromise]);
+      clearTimeout(timeoutId);
+      return result;
+    } catch (err: any) {
       console.error("[Auth] Unexpected profile resolution error:", err);
-      return null;
+      return { profile: null, permissions: [], error: err?.message || "Unexpected authentication error." };
     }
   };
 
@@ -262,37 +289,92 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let mounted = true;
 
-    // 1. Initial Session Check
-    supabase.auth.getSession().then(async ({ data: { session: initSession }, error }) => {
+    // Helper to resolve session and profile cleanly outside of any auth locks
+    const syncSession = async (sess: Session | null) => {
       if (!mounted) return;
-      if (error) {
-        console.error("[Auth] Initial session error:", error.message);
+
+      if (!sess?.user) {
+        resolvedUidRef.current = null;
         setSession(null);
         setProfile(null);
+        setPermissionsList([]);
         setIsLoading(false);
         return;
       }
 
-      if (initSession?.user) {
-        setSession(initSession);
-        const resolvedProfile = await loadStaffProfile(initSession.user);
-        if (mounted) {
-          setProfile(resolvedProfile);
-        }
-      } else {
-        setSession(null);
-        setProfile(null);
+      // If already resolved for this user, do not redundantly re-query
+      if (resolvedUidRef.current === sess.user.id && profile) {
+        setSession(sess);
+        setIsLoading(false);
+        return;
       }
-      if (mounted) setIsLoading(false);
-    });
 
-    // 2. Auth State Change Listener
+      setSession(sess);
+
+      try {
+        const { profile: prof, permissions: perms, error: profErr } = await loadStaffProfile(sess.user);
+        if (!mounted) return;
+
+        if (profErr) {
+          console.warn("[Auth] Staff profile resolution error:", profErr);
+          setAuthError(profErr);
+          setProfile(null);
+          setPermissionsList([]);
+        } else if (prof) {
+          resolvedUidRef.current = sess.user.id;
+          setProfile(prof);
+          setPermissionsList(perms);
+          setAuthError(null);
+        } else {
+          resolvedUidRef.current = null;
+          setProfile(null);
+          setPermissionsList([]);
+        }
+      } catch (err) {
+        console.error("[Auth] Unexpected syncSession error:", err);
+        if (mounted) {
+          setProfile(null);
+          setPermissionsList([]);
+        }
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    // 1. Initial Session Check on mount/reload
+    supabase.auth
+      .getSession()
+      .then(({ data: { session: initSession }, error }) => {
+        if (!mounted) return;
+        if (error) {
+          console.error("[Auth] Initial session error:", error.message);
+          setSession(null);
+          setProfile(null);
+          setIsLoading(false);
+          return;
+        }
+        syncSession(initSession);
+      })
+      .catch((err) => {
+        console.error("[Auth] Unexpected getSession rejection:", err);
+        if (mounted) {
+          setSession(null);
+          setProfile(null);
+          setIsLoading(false);
+        }
+      });
+
+    // 2. Auth State Change Listener (STRICTLY SYNCHRONOUS AND LIGHTWEIGHT)
+    // Never run async PostgREST queries directly inside the callback!
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+    } = supabase.auth.onAuthStateChange((event, currentSession) => {
       if (!mounted) return;
 
       if (event === "SIGNED_OUT" || !currentSession) {
+        resolvedUidRef.current = null;
         setSession(null);
         setProfile(null);
         setPermissionsList([]);
@@ -301,28 +383,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
-        setSession(currentSession);
-        if (currentSession.user) {
-          const resolvedProfile = await loadStaffProfile(currentSession.user);
+      setSession(currentSession);
+
+      // Defer profile sync outside the auth callback execution stack
+      // so the auth lock is released immediately.
+      if (event === "SIGNED_IN" || event === "USER_UPDATED") {
+        setTimeout(() => {
           if (mounted) {
-            setProfile(resolvedProfile);
+            syncSession(currentSession);
           }
-        }
-        if (mounted) setIsLoading(false);
+        }, 0);
       }
     });
 
+    // 3. Absolute safety net timer (7 seconds): loading must NEVER be true forever under any circumstance
+    const safetyTimer = setTimeout(() => {
+      if (mounted && isLoading) {
+        console.warn("[Auth] Safety timer triggered: concluding session verification");
+        setIsLoading(false);
+      }
+    }, 7000);
+
     return () => {
       mounted = false;
+      clearTimeout(safetyTimer);
       subscription.unsubscribe();
     };
   }, []);
 
   const refreshProfile = async () => {
-    if (!supabase || !session?.user) return;
-    const prof = await loadStaffProfile(session.user);
-    setProfile(prof);
+    if (!supabase) return;
+    setIsLoading(true);
+    try {
+      const {
+        data: { session: curSession },
+      } = await supabase.auth.getSession();
+      if (curSession?.user) {
+        setSession(curSession);
+        const { profile: prof, permissions: perms, error } = await loadStaffProfile(curSession.user);
+        if (prof) {
+          resolvedUidRef.current = curSession.user.id;
+          setProfile(prof);
+          setPermissionsList(perms);
+          setAuthError(null);
+        } else {
+          resolvedUidRef.current = null;
+          setProfile(null);
+          setPermissionsList([]);
+          if (error) setAuthError(error);
+        }
+      } else {
+        resolvedUidRef.current = null;
+        setSession(null);
+        setProfile(null);
+        setPermissionsList([]);
+      }
+    } catch (err: any) {
+      console.error("[Auth] refreshProfile error:", err);
+      setAuthError(err?.message || "Failed to refresh profile.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const login = async (email: string, pass: string): Promise<{ ok: boolean; message?: string }> => {
@@ -349,10 +470,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { ok: false, message: "Authentication failed. No active session returned." };
     }
 
-    // Verify staff profile
-    const prof = await loadStaffProfile(data.session.user);
+    // Resolve staff profile and permissions directly outside of onAuthStateChange
+    const { profile: prof, permissions: perms, error: profErr } = await loadStaffProfile(data.session.user);
+
+    if (profErr) {
+      await supabase.auth.signOut();
+      setIsLoading(false);
+      setAuthError(profErr);
+      return { ok: false, message: profErr };
+    }
+
     if (!prof) {
       await supabase.auth.signOut();
+      setIsLoading(false);
       const msg = "Access Denied: Your account is not configured as an authorized ABLEBIZ SUITE staff profile.";
       setAuthError(msg);
       return { ok: false, message: msg };
@@ -360,6 +490,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!prof.is_active) {
       await supabase.auth.signOut();
+      setIsLoading(false);
       const msg = "Access Denied: Your staff profile has been deactivated. Please contact management.";
       setAuthError(msg);
       return { ok: false, message: msg };
@@ -367,23 +498,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if ((prof.role as string) === "customer") {
       await supabase.auth.signOut();
+      setIsLoading(false);
       const msg = "Access Denied: Customer accounts do not have access to the internal ABLEBIZ SUITE portal.";
       setAuthError(msg);
       return { ok: false, message: msg };
     }
 
+    resolvedUidRef.current = data.session.user.id;
     setSession(data.session);
     setProfile(prof);
+    setPermissionsList(perms);
+    setAuthError(null);
+    setIsLoading(false);
     return { ok: true };
   };
 
   const logout = async () => {
+    resolvedUidRef.current = null;
     setProfile(null);
     setSession(null);
     setPermissionsList([]);
     setAuthError(null);
+    setIsLoading(false);
     if (supabase) {
-      await supabase.auth.signOut();
+      try {
+        await supabase.auth.signOut();
+      } catch (err) {
+        console.warn("[Auth] signOut error:", err);
+      }
     }
   };
 

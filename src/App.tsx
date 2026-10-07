@@ -38,6 +38,9 @@ import { InvoicesPage } from "./pages/admin/Invoices";
 import { PaymentsPage } from "./pages/admin/Payments";
 import { ExpensesPage } from "./pages/admin/Expenses";
 import { VendorsPage } from "./pages/admin/Vendors";
+import { AuditLogsPage } from "./pages/admin/AuditLogs";
+import { AiSecretaryPage } from "./pages/admin/AiSecretary";
+import { NotificationsPage } from "./pages/admin/Notifications";
 
 export default function App() {
   useReferralUrl();
@@ -82,6 +85,10 @@ export default function App() {
             <Route path="payments" element={<ProtectedRoute requiredModule="finance"><PaymentsPage /></ProtectedRoute>} />
             <Route path="expenses" element={<ProtectedRoute requiredModule="finance"><ExpensesPage /></ProtectedRoute>} />
             <Route path="vendors" element={<ProtectedRoute requiredModule="finance"><VendorsPage /></ProtectedRoute>} />
+            <Route path="audit-logs" element={<ProtectedRoute requiredRole={["super_admin", "admin"]}><AuditLogsPage /></ProtectedRoute>} />
+            <Route path="audit" element={<Navigate to="/admin/audit-logs" replace />} />
+            <Route path="ai-secretary" element={<ProtectedRoute><AiSecretaryPage /></ProtectedRoute>} />
+            <Route path="notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
             <Route path="referrals" element={<ProtectedRoute><AdminReferrals /></ProtectedRoute>} />
             <Route path="reports" element={<ProtectedRoute requiredModule="reports"><AdminReports /></ProtectedRoute>} />
             <Route path="settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />

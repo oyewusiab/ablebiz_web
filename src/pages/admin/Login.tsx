@@ -5,9 +5,13 @@ import { useAuth } from "../../auth/AuthContext";
 import { supabase, supabaseEnabled } from "../../lib/supabaseClient";
 
 export function AdminLoginPage() {
+  const location = useLocation();
+  const from = location.state?.from?.pathname || "/admin/dashboard";
+  const incomingMessage = location.state?.message;
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(location.state?.error || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Forgot password flow
@@ -19,9 +23,6 @@ export function AdminLoginPage() {
 
   const { login } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-  const from = location.state?.from?.pathname || "/admin/dashboard";
-  const incomingMessage = location.state?.message;
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
