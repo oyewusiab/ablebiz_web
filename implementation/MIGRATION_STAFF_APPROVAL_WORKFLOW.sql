@@ -2,6 +2,8 @@
 -- ABLEBIZ SUITE — STAFF MANAGEMENT & SUPER ADMIN APPROVAL WORKFLOW MIGRATION
 -- File: implementation/MIGRATION_STAFF_APPROVAL_WORKFLOW.sql
 -- Idempotent, safe, and non-destructive.
+-- NOTE: "current_role" is a standard SQL reserved keyword / system function
+-- (returns the current database user). It is quoted as "current_role" in DDL/DML.
 -- ==============================================================================
 
 begin;
@@ -33,12 +35,13 @@ end $$;
 
 -- 2. Create staff_change_requests table
 -- Rule: requested_by uses ON DELETE RESTRICT to preserve historical governance records.
+-- Rule: "current_role" is quoted to avoid collision with PostgreSQL reserved function.
 create table if not exists public.staff_change_requests (
   id uuid primary key default gen_random_uuid(),
   request_type public.staff_change_request_type not null,
   requested_by uuid not null references public.staff_profiles(id) on delete restrict,
   target_staff_profile_id uuid references public.staff_profiles(id) on delete set null,
-  current_role public.staff_role,
+  "current_role" public.staff_role,
   requested_role public.staff_role,
   requested_changes jsonb default '{}'::jsonb,
   reason text not null,
@@ -126,13 +129,7 @@ to authenticated
 using (public.current_staff_role() = 'super_admin')
 with check (public.current_staff_role() = 'super_admin');
 
--- Delete policy:
--- Delete is disallowed to ensure immutable audit and compliance history
-drop policy if exists "Disallow deletion of change requests" on public.staff_change_requests;
--- (No delete policy granted = denied by default)
-
 -- Grant usage to authenticated users
-grant select, insert on public.staff_change_requests to authenticated;
-grant update on public.staff_change_requests to authenticated;
+grant select, insert, update on public.staff_change_requests to authenticated;
 
 commit;
