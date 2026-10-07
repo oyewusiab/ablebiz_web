@@ -22,10 +22,10 @@ export interface ServiceRequest {
   business_id?: string;
   service_id: string;
   assigned_staff_id?: string;
-  title: string;
+  title?: string;
   status: string;
   priority: string;
-  intake_notes?: string;
+  notes?: string;
   created_at: string;
   // Joins
   client?: { full_name: string; phone: string; email: string };
@@ -50,15 +50,14 @@ export function ServiceRequestsPage() {
         .from("service_requests")
         .select(`
           id,
-          tracking_id,
+          tracking_id:tracking_code,
           client_id,
           business_id,
           service_id,
           assigned_staff_id,
-          title,
           status,
           priority,
-          intake_notes,
+          notes,
           created_at,
           client:clients(full_name, phone, email),
           business:businesses(name),
@@ -83,9 +82,10 @@ export function ServiceRequestsPage() {
   }, []);
 
   const filteredRequests = requests.filter((r) => {
+    const title = r.service?.name || r.notes || "";
     const matchesSearch =
-      r.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.tracking_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      r.tracking_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       r.client?.full_name?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "all" || r.status === statusFilter;
     return matchesSearch && matchesStatus;
@@ -189,8 +189,8 @@ export function ServiceRequestsPage() {
                       {req.tracking_id}
                     </td>
                     <td className="px-4 py-3.5">
-                      <p className="font-semibold text-slate-900">{req.title}</p>
-                      <p className="text-[11px] text-slate-500">{req.service?.name || "General Engagement"}</p>
+                      <p className="font-semibold text-slate-900">{req.service?.name || "Service Engagement"}</p>
+                      <p className="text-[11px] text-slate-500">{req.notes || req.service?.category?.replace(/_/g, " ") || "General Engagement"}</p>
                     </td>
                     <td className="px-4 py-3.5">
                       <p className="font-medium text-slate-900">{req.client?.full_name || "Unassigned Client"}</p>

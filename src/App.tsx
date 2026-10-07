@@ -33,6 +33,11 @@ import { DocumentsPage } from "./pages/admin/Documents";
 import { BusinessesPage } from "./pages/admin/Businesses";
 import { LeadsPipelinePage } from "./pages/admin/Leads";
 import { FollowUpsPage } from "./pages/admin/FollowUps";
+import { QuotationsPage } from "./pages/admin/Quotations";
+import { InvoicesPage } from "./pages/admin/Invoices";
+import { PaymentsPage } from "./pages/admin/Payments";
+import { ExpensesPage } from "./pages/admin/Expenses";
+import { VendorsPage } from "./pages/admin/Vendors";
 
 export default function App() {
   useReferralUrl();
@@ -71,6 +76,12 @@ export default function App() {
             <Route path="cac-operations" element={<ProtectedRoute requiredModule="operations"><CacOperationsPage /></ProtectedRoute>} />
             <Route path="tasks" element={<ProtectedRoute requiredModule="operations"><TasksPage /></ProtectedRoute>} />
             <Route path="documents" element={<ProtectedRoute requiredModule="operations"><DocumentsPage /></ProtectedRoute>} />
+            {/* Finance Routes */}
+            <Route path="quotations" element={<ProtectedRoute requiredModule="finance"><QuotationsPage /></ProtectedRoute>} />
+            <Route path="invoices" element={<ProtectedRoute requiredModule="finance"><InvoicesPage /></ProtectedRoute>} />
+            <Route path="payments" element={<ProtectedRoute requiredModule="finance"><PaymentsPage /></ProtectedRoute>} />
+            <Route path="expenses" element={<ProtectedRoute requiredModule="finance"><ExpensesPage /></ProtectedRoute>} />
+            <Route path="vendors" element={<ProtectedRoute requiredModule="finance"><VendorsPage /></ProtectedRoute>} />
             <Route path="referrals" element={<ProtectedRoute><AdminReferrals /></ProtectedRoute>} />
             <Route path="reports" element={<ProtectedRoute requiredModule="reports"><AdminReports /></ProtectedRoute>} />
             <Route path="settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />

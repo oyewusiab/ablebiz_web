@@ -44,7 +44,7 @@ export interface CacApplicationRecord {
   // Joins
   client?: { full_name: string; phone: string; email: string };
   business?: { name: string };
-  service_request?: { tracking_id: string; title: string; priority: string };
+  service_request?: { tracking_code: string; priority: string };
   assigned_officer?: { full_name: string; email: string };
 }
 
@@ -93,7 +93,7 @@ export function CacOperationsPage() {
           *,
           client:clients(full_name, phone, email),
           business:businesses(name),
-          service_request:service_requests(tracking_id, title, priority),
+          service_request:service_requests(tracking_code, priority),
           assigned_officer:staff_profiles!cac_applications_assigned_officer_id_fkey(full_name, email)
         `)
         .order("created_at", { ascending: false });
@@ -183,7 +183,7 @@ export function CacOperationsPage() {
       (app.proposed_name_1 && app.proposed_name_1.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (app.approved_name && app.approved_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
       app.client?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      app.service_request?.tracking_id?.toLowerCase().includes(searchTerm.toLowerCase());
+      app.service_request?.tracking_code?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStage = stageFilter === "all" || app.current_stage === stageFilter;
     return matchesSearch && matchesStage;
   });
@@ -266,7 +266,7 @@ export function CacOperationsPage() {
                     <div className="flex items-start justify-between">
                       <div>
                         <span className="font-mono text-[10px] font-bold text-slate-400">
-                          {app.service_request?.tracking_id}
+                          {app.service_request?.tracking_code}
                         </span>
                         <h4 className="text-xs font-bold text-slate-900 mt-0.5">
                           {app.approved_name || app.proposed_name_1 || "Unnamed CAC Request"}
@@ -309,7 +309,7 @@ export function CacOperationsPage() {
                       {selectedApp.approved_name || selectedApp.proposed_name_1 || "CAC Filing Engagement"}
                     </h2>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Client: {selectedApp.client?.full_name} • Ref: {selectedApp.service_request?.tracking_id}
+                      Client: {selectedApp.client?.full_name} • Ref: {selectedApp.service_request?.tracking_code}
                     </p>
                   </div>
 

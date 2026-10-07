@@ -90,20 +90,20 @@ export function AdminDashboard() {
         supabase.from("service_requests").select("id, title, status, priority, created_at").neq("status", "completed"),
         supabase.from("cac_applications").select("id, proposed_name_1, status, stage, created_at").neq("stage", "completed"),
         supabase.from("tasks").select("id, title, status, priority, due_date").neq("status", "completed"),
-        supabase.from("invoices").select("id, invoice_number, total_amount_ngn, balance_due_ngn, payment_status").neq("payment_status", "paid"),
-        canViewFinance ? supabase.from("payments").select("amount_ngn") : Promise.resolve({ data: [] }),
-        canViewFinance ? supabase.from("expenses").select("amount_ngn") : Promise.resolve({ data: [] }),
-        supabase.from("activity_timeline").select("id, action, entity_type, created_at").order("created_at", { ascending: false }).limit(6),
+        supabase.from("invoices").select("id, invoice_number, total_amount, balance_due, status").neq("status", "paid"),
+        canViewFinance ? supabase.from("payments").select("amount") : Promise.resolve({ data: [] }),
+        canViewFinance ? supabase.from("expenses").select("amount") : Promise.resolve({ data: [] }),
+        supabase.from("activity_timeline").select("id, event_title, entity_type, created_at").order("created_at", { ascending: false }).limit(6),
       ]);
 
       // Calculate Finance Totals if allowed
       let revTotal = 0;
       if (paymentsRes.data && Array.isArray(paymentsRes.data)) {
-        revTotal = paymentsRes.data.reduce((acc, p: any) => acc + (Number(p.amount_ngn) || 0), 0);
+        revTotal = paymentsRes.data.reduce((acc, p: any) => acc + (Number(p.amount) || 0), 0);
       }
       let expTotal = 0;
       if (expensesRes.data && Array.isArray(expensesRes.data)) {
-        expTotal = expensesRes.data.reduce((acc, e: any) => acc + (Number(e.amount_ngn) || 0), 0);
+        expTotal = expensesRes.data.reduce((acc, e: any) => acc + (Number(e.amount) || 0), 0);
       }
 
       setMetrics({
@@ -168,7 +168,7 @@ export function AdminDashboard() {
         setRecentActivities(
           activityRes.data.map((item: any) => ({
             id: item.id,
-            action: item.action,
+            action: item.event_title || item.action || "Operational Activity",
             entityType: item.entity_type,
             createdAt: item.created_at,
           }))

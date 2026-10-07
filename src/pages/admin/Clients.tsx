@@ -61,7 +61,7 @@ export function AdminClients() {
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [clientDetail, setClientDetail] = useState<ClientDetailData | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
-  const [active360Tab, setActive360Tab] = useState<"overview" | "businesses" | "requests" | "followups" | "timeline">("overview");
+  const [active360Tab, setActive360Tab] = useState<"overview" | "businesses" | "requests" | "followups" | "timeline" | "finance">("overview");
 
   // Create Client Modal State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -384,6 +384,7 @@ export function AdminClients() {
                     { id: "requests", label: "Service Requests", count: clientDetail.service_requests.length },
                     { id: "followups", label: "Follow-ups", count: clientDetail.follow_ups.length },
                     { id: "timeline", label: "Timeline", count: clientDetail.activity_timeline.length },
+                    ...(canViewFinance ? [{ id: "finance", label: "Finance & Invoices", count: clientDetail.invoices?.length || 0 }] : []),
                   ].map((tab) => (
                     <button
                       key={tab.id}
@@ -465,13 +466,13 @@ export function AdminClients() {
                       clientDetail.service_requests.map((sr) => (
                         <div key={sr.id} className="rounded-xl border border-slate-200 p-3.5 hover:border-emerald-500 transition">
                           <div className="flex items-center justify-between">
-                            <span className="font-mono text-[10px] font-bold text-slate-500">{sr.tracking_id}</span>
+                            <span className="font-mono text-[10px] font-bold text-slate-500">{sr.tracking_code || sr.tracking_id}</span>
                             <span className="rounded bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.2 text-[10px] font-semibold capitalize">
                               {sr.status.replace(/_/g, " ")}
                             </span>
                           </div>
-                          <p className="text-xs font-bold text-slate-900 mt-1">{sr.title}</p>
-                          <p className="text-[11px] text-slate-500">{sr.service?.name}</p>
+                          <p className="text-xs font-bold text-slate-900 mt-1">{sr.service?.name || "Service Request"}</p>
+                          <p className="text-[11px] text-slate-500">{sr.notes || sr.service?.name}</p>
                         </div>
                       ))
                     )}
@@ -510,6 +511,34 @@ export function AdminClients() {
                             <div className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-emerald-600" />
                             <p className="font-semibold text-slate-900">{act.event_title}</p>
                             <span className="text-[10px] text-slate-400">{new Date(act.created_at).toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {active360Tab === "finance" && (
+                  <div className="space-y-3">
+                    {clientDetail.invoices.length === 0 ? (
+                      <p className="text-xs text-slate-400 text-center py-6">No invoices or billing history for this client yet.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {clientDetail.invoices.map((inv: any) => (
+                          <div key={inv.id} className="rounded-xl border border-slate-200 p-3 hover:border-emerald-500 transition text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="font-mono font-bold text-slate-900">{inv.invoice_number}</span>
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                                inv.status === "paid" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+                              }`}>
+                                {inv.status}
+                              </span>
+                            </div>
+                            <div className="mt-2 flex items-center justify-between text-[11px] text-slate-600">
+                              <span>Total: ₦{Number(inv.total_amount).toLocaleString()}</span>
+                              <span className="font-semibold text-emerald-700">Paid: ₦{Number(inv.amount_paid).toLocaleString()}</span>
+                              <span className="font-bold text-amber-700">Due: ₦{Number(inv.balance_due).toLocaleString()}</span>
+                            </div>
                           </div>
                         ))}
                       </div>
