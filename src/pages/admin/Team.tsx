@@ -28,7 +28,8 @@ import {
   Copy,
   KeyRound,
 } from "lucide-react";
-import { supabase, createIsolatedSupabaseClient } from "../../lib/supabaseClient";
+import { supabase } from "../../lib/supabaseClient";
+import { invokeStaffProvision } from "../../lib/staffProvisioning";
 import { useAuth, type StaffRole, type RolePermissionRule } from "../../auth/AuthContext";
 import {
   ROLE_DEFINITIONS,
@@ -37,38 +38,6 @@ import {
   getRoleConfig,
   type CanonicalStaffRole,
 } from "../../auth/roleConfig";
-
-/**
- * Generate a cryptographically secure, high-entropy unique temporary password
- * for initial staff onboarding. Contains uppercase, lowercase, numbers, and symbols.
- * Never uses predictable or shared values like "Welcome1".
- */
-function generateSecureTempPassword(): string {
-  const lowercase = "abcdefghjkmnpqrstuvwxyz";
-  const uppercase = "ABCDEFGHJKMNPQRSTUVWXYZ";
-  const numbers = "23456789";
-  const symbols = "!@#$%&*";
-  const allChars = lowercase + uppercase + numbers + symbols;
-
-  const array = new Uint8Array(14);
-  crypto.getRandomValues(array);
-
-  const chars = [
-    lowercase[array[0] % lowercase.length],
-    uppercase[array[1] % uppercase.length],
-    numbers[array[2] % numbers.length],
-    symbols[array[3] % symbols.length],
-  ];
-  for (let i = 4; i < 14; i++) {
-    chars.push(allChars[array[i] % allChars.length]);
-  }
-  for (let i = chars.length - 1; i > 0; i--) {
-    const j = array[i] % (i + 1);
-    [chars[i], chars[j]] = [chars[j], chars[i]];
-  }
-  return chars.join("");
-}
-
 
 export interface StaffProfileRecord {
   id: string;
@@ -82,7 +51,10 @@ export interface StaffProfileRecord {
   avatar_url?: string | null;
   created_at: string;
   updated_at: string;
+  auth_status?: string | null;
+  must_change_password?: boolean;
 }
+
 
 export type StaffChangeRequestType =
   | "create_staff"
@@ -198,6 +170,9 @@ export function StaffRbacPage() {
     loginUrl: string;
   } | null>(null);
   const [credentialCopied, setCredentialCopied] = useState(false);
+
+  // Reconciliation Modal (for existing orphaned staff accounts)
+  const [reconcileStaffTarget, setReconcileStaffTarget] = useState<StaffProfileRecord | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionError, setActionError] = useState("");
@@ -336,77 +311,27 @@ export function StaffRbacPage() {
 
     try {
       if (isSuperAdmin) {
-        // Direct Provisioning by Super Admin
-        const tempPassword = generateSecureTempPassword();
-        let authUid = crypto.randomUUID();
+        // Direct Provisioning by Super Admin via authoritative Edge Function
+        const res = await invokeStaffProvision({
+          action: "create_staff",
+          email: newStaffForm.email.trim().toLowerCase(),
+          fullName: newStaffForm.fullName.trim(),
+          role: newStaffForm.role,
+          department: newStaffForm.department.trim() || "Operations",
+          phone: newStaffForm.phone.trim() || null,
+        });
 
-        // 1. Attempt to create Auth account using isolated client (preserves Super Admin session)
-        try {
-          const isolatedClient = createIsolatedSupabaseClient();
-          const { data: signUpData, error: signUpErr } = await isolatedClient.auth.signUp({
-            email: newStaffForm.email.trim().toLowerCase(),
-            password: tempPassword,
-            options: {
-              data: {
-                full_name: newStaffForm.fullName.trim(),
-              },
-            },
-          });
-
-          if (signUpData?.user?.id) {
-            authUid = signUpData.user.id;
-          } else if (signUpErr) {
-            console.warn("[SuperAdmin] Auth account initialization notice:", signUpErr.message);
-          }
-        } catch (authErr) {
-          console.warn("[SuperAdmin] Isolated auth client error:", authErr);
-        }
-
-        // 2. Create staff_profiles record with must_change_password = true
-        const { data: createdStaff, error: dbErr } = await supabase
-          .from("staff_profiles")
-          .insert({
-            auth_uid: authUid,
-            email: newStaffForm.email.trim().toLowerCase(),
-            full_name: newStaffForm.fullName.trim(),
-            role: newStaffForm.role,
-            department: newStaffForm.department.trim() || "Operations",
-            phone: newStaffForm.phone.trim() || null,
-            is_active: true,
-            must_change_password: true,
-          })
-          .select()
-          .single();
-
-        if (dbErr) {
-          throw new Error(`Database error: ${dbErr.message}`);
-        }
-
-        // 3. Log audit event (never log passwords!)
-        await logAuditEvent(
-          "staff_create_executed",
-          createdStaff.id,
-          null,
-          {
-            email: newStaffForm.email,
-            role: newStaffForm.role,
-            department: newStaffForm.department,
-            must_change_password: true,
-          },
-          `Staff user directly created: ${newStaffForm.fullName} (${getRoleTitle(newStaffForm.role)}) with mandatory first-login password change`
-        );
-
-        // 4. Prepare portal login URL and open one-time credential modal
+        // Prepare portal login URL and open one-time credential modal
         const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
         const loginUrl = isLocal
           ? `${window.location.origin}/admin/login`
           : "https://www.ablebiz.com.ng/admin/login";
 
         setCredentialModalInfo({
-          fullName: newStaffForm.fullName.trim(),
-          email: newStaffForm.email.trim().toLowerCase(),
-          role: newStaffForm.role,
-          tempPassword,
+          fullName: res.staff.full_name,
+          email: res.staff.email,
+          role: res.staff.role as StaffRole,
+          tempPassword: res.tempPassword || "",
           loginUrl,
         });
         setCredentialCopied(false);
@@ -786,69 +711,30 @@ export function StaffRbacPage() {
         let execErrorMsg = "";
 
         if (req.request_type === "create_staff") {
-          // Provision new staff profile
-          const changes = req.requested_changes || {};
-          const targetEmail = (changes.email || "").trim().toLowerCase();
-          const targetFullName = (changes.full_name || "").trim();
-          const targetRole = req.requested_role || "viewer";
-          const targetDept = (changes.department || "").trim() || "Operations";
-          const targetPhone = (changes.phone || "").trim() || null;
-
-          const tempPassword = generateSecureTempPassword();
-          let authUid = crypto.randomUUID();
-
-          // 1. Attempt to create Auth account using isolated client (preserves Super Admin session)
+          // Provision new staff profile via authoritative Edge Function
           try {
-            const isolatedClient = createIsolatedSupabaseClient();
-            const { data: signUpData, error: signUpErr } = await isolatedClient.auth.signUp({
-              email: targetEmail,
-              password: tempPassword,
-              options: {
-                data: {
-                  full_name: targetFullName,
-                },
-              },
+            const res = await invokeStaffProvision({
+              action: "approve_request",
+              requestId: req.id,
             });
 
-            if (signUpData?.user?.id) {
-              authUid = signUpData.user.id;
-            } else if (signUpErr) {
-              console.warn("[SuperAdmin Approval] Auth initialization notice:", signUpErr.message);
-            }
-          } catch (authErr) {
-            console.warn("[SuperAdmin Approval] Isolated auth client error:", authErr);
-          }
-
-          // 2. Insert into staff_profiles with must_change_password = true
-          const { error: insertErr } = await supabase.from("staff_profiles").insert({
-            auth_uid: authUid,
-            email: targetEmail,
-            full_name: targetFullName,
-            role: targetRole,
-            department: targetDept,
-            phone: targetPhone,
-            is_active: true,
-            must_change_password: true,
-          });
-
-          if (insertErr) {
-            executionSuccess = false;
-            execErrorMsg = insertErr.message;
-          } else {
-            // 3. Prepare login URL and show One-Time Credential Modal
+            // Prepare login URL and show One-Time Credential Modal
             const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
             const loginUrl = isLocal
               ? `${window.location.origin}/admin/login`
               : "https://www.ablebiz.com.ng/admin/login";
 
             setCredentialModalInfo({
-              fullName: targetFullName,
-              email: targetEmail,
-              role: targetRole,
-              tempPassword,
+              fullName: res.staff.full_name,
+              email: res.staff.email,
+              role: res.staff.role as StaffRole,
+              tempPassword: res.tempPassword || "",
               loginUrl,
             });
             setCredentialCopied(false);
+          } catch (err: any) {
+            executionSuccess = false;
+            execErrorMsg = err?.message || "Failed to provision staff via Edge Function.";
           }
         } else if (req.target_staff_profile_id) {
           const target = staffList.find((s) => s.id === req.target_staff_profile_id);
@@ -930,6 +816,82 @@ export function StaffRbacPage() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // ------------------------------------------------------------------------
+  // 5. RECONCILE ORPHANED STAFF ACCOUNT (SUPER ADMIN VIA EDGE FUNCTION)
+  // ------------------------------------------------------------------------
+  const handleExecuteReconciliation = async () => {
+    if (!reconcileStaffTarget || !isSuperAdmin) return;
+    setIsSubmitting(true);
+    setActionError("");
+
+    try {
+      const res = await invokeStaffProvision({
+        action: "reconcile_staff",
+        targetProfileId: reconcileStaffTarget.id,
+        email: reconcileStaffTarget.email,
+      });
+
+      const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+      const loginUrl = isLocal
+        ? `${window.location.origin}/admin/login`
+        : "https://www.ablebiz.com.ng/admin/login";
+
+      setCredentialModalInfo({
+        fullName: res.staff.full_name,
+        email: res.staff.email,
+        role: res.staff.role as StaffRole,
+        tempPassword: res.tempPassword || "",
+        loginUrl,
+      });
+      setCredentialCopied(false);
+      setReconcileStaffTarget(null);
+      await fetchData();
+    } catch (err: any) {
+      setActionError(err?.message || "Failed to reconcile staff auth account.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Explicit Auth Status Indicator
+  const getAuthStatusBadge = (staff: StaffProfileRecord) => {
+    const pendingReq = getPendingRequestForTarget(staff.id);
+
+    if (!staff.is_active) {
+      return (
+        <span className="rounded-full bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 text-[10px] font-bold inline-flex items-center gap-1">
+          <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+          Inactive
+        </span>
+      );
+    }
+
+    if (pendingReq && pendingReq.request_type === "create_staff") {
+      return (
+        <span className="rounded-full bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 text-[10px] font-bold inline-flex items-center gap-1">
+          <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+          Pending Provisioning
+        </span>
+      );
+    }
+
+    if (staff.auth_status === "provisioned" || (staff.auth_uid && !staff.auth_status)) {
+      return (
+        <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold inline-flex items-center gap-1">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+          Provisioned
+        </span>
+      );
+    }
+
+    return (
+      <span className="rounded-full bg-amber-50 text-amber-800 border border-amber-300 px-2 py-0.5 text-[10px] font-bold inline-flex items-center gap-1 shadow-2xs">
+        <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+        ⚠ Not Provisioned
+      </span>
+    );
   };
 
   // ------------------------------------------------------------------------
@@ -1154,6 +1116,7 @@ export function StaffRbacPage() {
                     <th className="px-4 py-3.5">Department</th>
                     <th className="px-4 py-3.5">Contact</th>
                     <th className="px-4 py-3.5">Status</th>
+                    <th className="px-4 py-3.5">Auth Status</th>
                     <th className="px-4 py-3.5 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -1210,8 +1173,25 @@ export function StaffRbacPage() {
                             )}
                           </div>
                         </td>
+                        <td className="px-4 py-3.5">
+                          {getAuthStatusBadge(st)}
+                        </td>
                         <td className="px-4 py-3.5 text-right">
                           <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                            {/* Provision Auth Button for Super Admin if Not Provisioned */}
+                            {isSuperAdmin && st.is_active && st.auth_status !== "provisioned" && (
+                              <button
+                                onClick={() => {
+                                  setReconcileStaffTarget(st);
+                                  setActionError("");
+                                }}
+                                className="rounded-lg bg-amber-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-amber-700 transition shadow-xs"
+                                title="Provision Supabase Auth identity for orphaned staff profile"
+                              >
+                                Provision Auth
+                              </button>
+                            )}
+
                             {/* Role Modification Button */}
                             <button
                               onClick={() => handleOpenRoleModal(st)}
@@ -2083,6 +2063,99 @@ export function StaffRbacPage() {
                   className="rounded-xl bg-[#043F2E] px-5 py-2 font-bold text-white hover:bg-[#06553F] transition shadow-xs"
                 >
                   Done / Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* MODAL 6: RECONCILE ORPHANED STAFF ACCOUNT MODAL */}
+      {/* ------------------------------------------------------------------ */}
+      {reconcileStaffTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600 border border-amber-200">
+                  <ShieldCheck className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-slate-900">
+                    Provision Auth Identity
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Reconcile orphaned staff profile with Supabase Authentication
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setReconcileStaffTarget(null)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                title="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <p className="text-slate-600">
+                This staff profile currently has no valid Supabase Authentication identity. This action will create a confirmed user in Supabase Auth, link their IDs, generate a one-time temporary password, and require a password change on first login.
+              </p>
+
+              {/* Staff Target Details */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 space-y-2">
+                <div className="flex justify-between items-center py-0.5 border-b border-slate-200/60">
+                  <span className="text-slate-500 font-medium">Full Name:</span>
+                  <span className="font-bold text-slate-800">{reconcileStaffTarget.full_name}</span>
+                </div>
+                <div className="flex justify-between items-center py-0.5 border-b border-slate-200/60">
+                  <span className="text-slate-500 font-medium">Email Address:</span>
+                  <span className="font-bold text-slate-800 font-mono">{reconcileStaffTarget.email}</span>
+                </div>
+                <div className="flex justify-between items-center py-0.5">
+                  <span className="text-slate-500 font-medium">Assigned Role:</span>
+                  <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
+                    {getRoleTitle(reconcileStaffTarget.role)}
+                  </span>
+                </div>
+              </div>
+
+              {actionError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-700 flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>{actionError}</span>
+                </div>
+              )}
+
+              {/* Buttons */}
+              <div className="mt-5 flex justify-end items-center gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setReconcileStaffTarget(null)}
+                  disabled={isSubmitting}
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-slate-700 hover:bg-slate-50 font-semibold disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteReconciliation}
+                  disabled={isSubmitting}
+                  className="flex items-center gap-2 rounded-xl bg-amber-600 px-5 py-2 font-bold text-white hover:bg-amber-700 transition shadow-xs disabled:opacity-50"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span>Provisioning Auth...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="h-4 w-4" />
+                      <span>Confirm & Provision Auth</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
