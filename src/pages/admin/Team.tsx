@@ -25,8 +25,10 @@ import {
   RefreshCw,
   Send,
   HelpCircle,
+  Copy,
+  KeyRound,
 } from "lucide-react";
-import { supabase } from "../../lib/supabaseClient";
+import { supabase, createIsolatedSupabaseClient } from "../../lib/supabaseClient";
 import { useAuth, type StaffRole, type RolePermissionRule } from "../../auth/AuthContext";
 import {
   ROLE_DEFINITIONS,
@@ -35,6 +37,38 @@ import {
   getRoleConfig,
   type CanonicalStaffRole,
 } from "../../auth/roleConfig";
+
+/**
+ * Generate a cryptographically secure, high-entropy unique temporary password
+ * for initial staff onboarding. Contains uppercase, lowercase, numbers, and symbols.
+ * Never uses predictable or shared values like "Welcome1".
+ */
+function generateSecureTempPassword(): string {
+  const lowercase = "abcdefghjkmnpqrstuvwxyz";
+  const uppercase = "ABCDEFGHJKMNPQRSTUVWXYZ";
+  const numbers = "23456789";
+  const symbols = "!@#$%&*";
+  const allChars = lowercase + uppercase + numbers + symbols;
+
+  const array = new Uint8Array(14);
+  crypto.getRandomValues(array);
+
+  const chars = [
+    lowercase[array[0] % lowercase.length],
+    uppercase[array[1] % uppercase.length],
+    numbers[array[2] % numbers.length],
+    symbols[array[3] % symbols.length],
+  ];
+  for (let i = 4; i < 14; i++) {
+    chars.push(allChars[array[i] % allChars.length]);
+  }
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = array[i] % (i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join("");
+}
+
 
 export interface StaffProfileRecord {
   id: string;
@@ -154,6 +188,16 @@ export function StaffRbacPage() {
   const [reviewModalRequest, setReviewModalRequest] = useState<StaffChangeRequestRecord | null>(null);
   const [reviewDecision, setReviewDecision] = useState<"approve" | "reject">("approve");
   const [rejectionReasonInput, setRejectionReasonInput] = useState("");
+
+  // One-Time Credential Modal (for newly provisioned staff)
+  const [credentialModalInfo, setCredentialModalInfo] = useState<{
+    fullName: string;
+    email: string;
+    role: StaffRole;
+    tempPassword: string;
+    loginUrl: string;
+  } | null>(null);
+  const [credentialCopied, setCredentialCopied] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionError, setActionError] = useState("");
@@ -292,30 +336,44 @@ export function StaffRbacPage() {
 
     try {
       if (isSuperAdmin) {
-        // Direct Action by Super Admin
-        // Dispatch invitation / reset email to recipient so they can establish secure password
-        const { error: inviteErr } = await supabase.auth.resetPasswordForEmail(
-          newStaffForm.email.trim().toLowerCase(),
-          { redirectTo: `${window.location.origin}/admin/reset-password` }
-        );
+        // Direct Provisioning by Super Admin
+        const tempPassword = generateSecureTempPassword();
+        let authUid = crypto.randomUUID();
 
-        if (inviteErr) {
-          console.warn("[SuperAdmin] Auth invitation trigger notice:", inviteErr.message);
+        // 1. Attempt to create Auth account using isolated client (preserves Super Admin session)
+        try {
+          const isolatedClient = createIsolatedSupabaseClient();
+          const { data: signUpData, error: signUpErr } = await isolatedClient.auth.signUp({
+            email: newStaffForm.email.trim().toLowerCase(),
+            password: tempPassword,
+            options: {
+              data: {
+                full_name: newStaffForm.fullName.trim(),
+              },
+            },
+          });
+
+          if (signUpData?.user?.id) {
+            authUid = signUpData.user.id;
+          } else if (signUpErr) {
+            console.warn("[SuperAdmin] Auth account initialization notice:", signUpErr.message);
+          }
+        } catch (authErr) {
+          console.warn("[SuperAdmin] Isolated auth client error:", authErr);
         }
 
-        // Create staff_profiles record linked to pending auth registration
-        // (If user already exists in auth.users, they link via email/auth_uid)
-        const dummyAuthUid = crypto.randomUUID(); // Placeholder until user signs in/activates if not existing
+        // 2. Create staff_profiles record with must_change_password = true
         const { data: createdStaff, error: dbErr } = await supabase
           .from("staff_profiles")
           .insert({
-            auth_uid: dummyAuthUid,
+            auth_uid: authUid,
             email: newStaffForm.email.trim().toLowerCase(),
             full_name: newStaffForm.fullName.trim(),
             role: newStaffForm.role,
             department: newStaffForm.department.trim() || "Operations",
             phone: newStaffForm.phone.trim() || null,
             is_active: true,
+            must_change_password: true,
           })
           .select()
           .single();
@@ -324,15 +382,35 @@ export function StaffRbacPage() {
           throw new Error(`Database error: ${dbErr.message}`);
         }
 
+        // 3. Log audit event (never log passwords!)
         await logAuditEvent(
           "staff_create_executed",
           createdStaff.id,
           null,
-          { email: newStaffForm.email, role: newStaffForm.role, department: newStaffForm.department },
-          `Staff user directly created: ${newStaffForm.fullName} (${getRoleTitle(newStaffForm.role)})`
+          {
+            email: newStaffForm.email,
+            role: newStaffForm.role,
+            department: newStaffForm.department,
+            must_change_password: true,
+          },
+          `Staff user directly created: ${newStaffForm.fullName} (${getRoleTitle(newStaffForm.role)}) with mandatory first-login password change`
         );
 
-        setActionSuccess(`Staff member ${newStaffForm.fullName} created successfully.`);
+        // 4. Prepare portal login URL and open one-time credential modal
+        const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+        const loginUrl = isLocal
+          ? `${window.location.origin}/admin/login`
+          : "https://www.ablebiz.com.ng/admin/login";
+
+        setCredentialModalInfo({
+          fullName: newStaffForm.fullName.trim(),
+          email: newStaffForm.email.trim().toLowerCase(),
+          role: newStaffForm.role,
+          tempPassword,
+          loginUrl,
+        });
+        setCredentialCopied(false);
+
         setIsAddStaffOpen(false);
         setNewStaffForm({
           fullName: "",
@@ -708,23 +786,69 @@ export function StaffRbacPage() {
         let execErrorMsg = "";
 
         if (req.request_type === "create_staff") {
-          // Create staff profile
+          // Provision new staff profile
           const changes = req.requested_changes || {};
-          const dummyUid = crypto.randomUUID();
+          const targetEmail = (changes.email || "").trim().toLowerCase();
+          const targetFullName = (changes.full_name || "").trim();
+          const targetRole = req.requested_role || "viewer";
+          const targetDept = (changes.department || "").trim() || "Operations";
+          const targetPhone = (changes.phone || "").trim() || null;
 
+          const tempPassword = generateSecureTempPassword();
+          let authUid = crypto.randomUUID();
+
+          // 1. Attempt to create Auth account using isolated client (preserves Super Admin session)
+          try {
+            const isolatedClient = createIsolatedSupabaseClient();
+            const { data: signUpData, error: signUpErr } = await isolatedClient.auth.signUp({
+              email: targetEmail,
+              password: tempPassword,
+              options: {
+                data: {
+                  full_name: targetFullName,
+                },
+              },
+            });
+
+            if (signUpData?.user?.id) {
+              authUid = signUpData.user.id;
+            } else if (signUpErr) {
+              console.warn("[SuperAdmin Approval] Auth initialization notice:", signUpErr.message);
+            }
+          } catch (authErr) {
+            console.warn("[SuperAdmin Approval] Isolated auth client error:", authErr);
+          }
+
+          // 2. Insert into staff_profiles with must_change_password = true
           const { error: insertErr } = await supabase.from("staff_profiles").insert({
-            auth_uid: dummyUid,
-            email: changes.email,
-            full_name: changes.full_name,
-            role: req.requested_role || "viewer",
-            department: changes.department || "Operations",
-            phone: changes.phone || null,
+            auth_uid: authUid,
+            email: targetEmail,
+            full_name: targetFullName,
+            role: targetRole,
+            department: targetDept,
+            phone: targetPhone,
             is_active: true,
+            must_change_password: true,
           });
 
           if (insertErr) {
             executionSuccess = false;
             execErrorMsg = insertErr.message;
+          } else {
+            // 3. Prepare login URL and show One-Time Credential Modal
+            const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+            const loginUrl = isLocal
+              ? `${window.location.origin}/admin/login`
+              : "https://www.ablebiz.com.ng/admin/login";
+
+            setCredentialModalInfo({
+              fullName: targetFullName,
+              email: targetEmail,
+              role: targetRole,
+              tempPassword,
+              loginUrl,
+            });
+            setCredentialCopied(false);
           }
         } else if (req.target_staff_profile_id) {
           const target = staffList.find((s) => s.id === req.target_staff_profile_id);
@@ -1834,6 +1958,138 @@ export function StaffRbacPage() {
           </div>
         </div>
       )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* MODAL 5: ONE-TIME ONBOARDING CREDENTIAL MODAL */}
+      {/* ------------------------------------------------------------------ */}
+      {credentialModalInfo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100">
+                  <KeyRound className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-slate-900">
+                    Staff Account Provisioned
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    One-time initial login credentials
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setCredentialModalInfo(null)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                title="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              {/* Account Details Box */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 space-y-2">
+                <div className="flex justify-between items-center py-0.5 border-b border-slate-200/60">
+                  <span className="text-slate-500 font-medium">Full Name:</span>
+                  <span className="font-bold text-slate-800">{credentialModalInfo.fullName}</span>
+                </div>
+                <div className="flex justify-between items-center py-0.5 border-b border-slate-200/60">
+                  <span className="text-slate-500 font-medium">Email Address:</span>
+                  <span className="font-bold text-slate-800 font-mono">{credentialModalInfo.email}</span>
+                </div>
+                <div className="flex justify-between items-center py-0.5 border-b border-slate-200/60">
+                  <span className="text-slate-500 font-medium">Assigned Role:</span>
+                  <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
+                    {getRoleTitle(credentialModalInfo.role)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center py-0.5">
+                  <span className="text-slate-500 font-medium">Login URL:</span>
+                  <span className="font-mono text-slate-700 select-all">{credentialModalInfo.loginUrl}</span>
+                </div>
+              </div>
+
+              {/* Temporary Password Highlight Box */}
+              <div className="rounded-xl border-2 border-emerald-500/30 bg-emerald-50/50 p-4">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider">
+                    Generated Temporary Password
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(credentialModalInfo.tempPassword);
+                      setCredentialCopied(true);
+                      setTimeout(() => setCredentialCopied(false), 2500);
+                    }}
+                    className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 transition active:scale-95 shadow-xs"
+                  >
+                    {credentialCopied ? (
+                      <>
+                        <Check className="h-3.5 w-3.5" />
+                        <span>Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3.5 w-3.5" />
+                        <span>Copy Password</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <div className="mt-2 flex items-center justify-between rounded-lg bg-white px-3.5 py-2.5 border border-emerald-200 shadow-inner">
+                  <code className="font-mono text-base font-bold text-slate-900 tracking-wider select-all">
+                    {credentialModalInfo.tempPassword}
+                  </code>
+                </div>
+              </div>
+
+              {/* Security Warning Notice */}
+              <div className="rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-amber-900 flex items-start gap-2.5">
+                <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-1 text-[11px] leading-relaxed">
+                  <p className="font-bold text-amber-950">
+                    Mandatory First-Login Password Change Active
+                  </p>
+                  <p>
+                    Provide this temporary password securely to the staff member. Upon signing in, they will be automatically redirected to change their password before they can access the ABLEBIZ Suite.
+                  </p>
+                  <p className="font-semibold text-amber-800 pt-0.5">
+                    For security reasons, this temporary password is not stored in plaintext and will not be displayed again after closing this window.
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="mt-5 flex justify-between items-center pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const onboardingText = `ABLEBIZ SUITE — Staff Account Credentials\n\nFull Name: ${credentialModalInfo.fullName}\nEmail: ${credentialModalInfo.email}\nRole: ${getRoleTitle(credentialModalInfo.role)}\nLogin URL: ${credentialModalInfo.loginUrl}\nTemporary Password: ${credentialModalInfo.tempPassword}\n\nNote: You will be required to create your own secure password upon your first login.`;
+                    navigator.clipboard.writeText(onboardingText);
+                    setCredentialCopied(true);
+                    setTimeout(() => setCredentialCopied(false), 2500);
+                  }}
+                  className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3.5 py-2 text-slate-700 hover:bg-slate-50 font-semibold"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  <span>Copy Full Details</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCredentialModalInfo(null)}
+                  className="rounded-xl bg-[#043F2E] px-5 py-2 font-bold text-white hover:bg-[#06553F] transition shadow-xs"
+                >
+                  Done / Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

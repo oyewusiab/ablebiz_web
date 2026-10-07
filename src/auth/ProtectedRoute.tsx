@@ -99,7 +99,12 @@ export function ProtectedRoute({
     );
   }
 
-  // 3. Role Check (if specified)
+  // 3. First-login Password Change Requirement
+  if (profile.must_change_password && location.pathname !== "/admin/change-password") {
+    return <Navigate to="/admin/change-password" replace />;
+  }
+
+  // 4. Role Check (if specified)
   if (requiredRole) {
     const rolesArray = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
     const isSuper = profile.role === "super_admin" || (profile.role as string) === "managing_director";

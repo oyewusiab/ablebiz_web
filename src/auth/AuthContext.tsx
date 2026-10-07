@@ -28,6 +28,7 @@ export interface StaffProfile {
   department: string;
   phone?: string | null;
   is_active: boolean;
+  must_change_password?: boolean;
   avatar_url?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -230,7 +231,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       const fetchPromise = (async () => {
-        const { data, error } = await supabase
+        let { data, error } = await supabase
           .from("staff_profiles")
           .select("*")
           .eq("auth_uid", authUser.id)
@@ -239,6 +240,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (error) {
           console.error("[Auth] Error fetching staff profile:", error.message);
           return { profile: null, permissions: [], error: error.message };
+        }
+
+        // If not matched by auth_uid, fallback to matching by email and link auth_uid
+        if (!data && authUser.email) {
+          const { data: emailData, error: emailErr } = await supabase
+            .from("staff_profiles")
+            .select("*")
+            .ilike("email", authUser.email.trim())
+            .maybeSingle();
+
+          if (!emailErr && emailData) {
+            data = emailData;
+            if (data.auth_uid !== authUser.id) {
+              await supabase
+                .from("staff_profiles")
+                .update({ auth_uid: authUser.id })
+                .eq("id", data.id);
+              data.auth_uid = authUser.id;
+            }
+          }
         }
 
         if (!data) {

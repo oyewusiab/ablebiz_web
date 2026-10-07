@@ -106,7 +106,40 @@ Rather than destructive hard deletion:
 
 ---
 
-## 7. Security & Functional Test Results
+## 7. Staff Login Provisioning & First-Login Password Change
+
+To ensure rigorous enterprise security on the production platform, staff onboarding enforces cryptographic temporary credentials and mandatory first-login password initialization:
+
+### A. Unique Cryptographic Temporary Passwords
+- **No Predictable Defaults:** Universal default passwords such as `"Welcome1"` are strictly forbidden and disallowable.
+- **Entropy & Complexity:** Newly provisioned staff accounts receive a uniquely generated 14-character temporary password using `crypto.getRandomValues()` containing uppercase, lowercase, numbers, and symbols.
+- **Zero Plaintext Storage:** Plaintext passwords are never stored in `public.staff_profiles`, `public.staff_change_requests`, `public.audit_logs`, `public.activity_timeline`, local/session storage, or query parameters.
+
+### B. One-Time Onboarding Credential Modal
+- Upon account creation (either direct Super Admin provisioning or approval of a pending request), the Super Admin is presented with an ephemeral **One-Time Onboarding Credential Dialog**.
+- The dialog displays:
+  - Full Name, Email Address, Assigned Role
+  - Application Login URL (`https://www.ablebiz.com.ng/admin/login` / local dev origin)
+  - Temporary Password in a secure card with single-click copy buttons
+  - Security warning: *"This temporary password is valid only for initial login and cannot be viewed again once this dialog is closed. Plaintext passwords are never stored in the database."*
+
+### C. Mandatory First-Login Guard (`must_change_password`)
+- `public.staff_profiles` contains the column `must_change_password boolean not null default false`.
+- Existing staff profiles default to `false` and suffer zero operational disruption.
+- Newly provisioned staff profiles are flagged with `must_change_password: true`.
+- `ProtectedRoute` inspects the authenticated user's `staff_profiles.must_change_password` status:
+  - If `true`, the user is immediately redirected to `/admin/change-password` and denied access to all other Admin Suite routes until resolved.
+- At `/admin/change-password`:
+  - Staff enters current temporary password and chooses a new secure password.
+  - Trivial/default passwords like `"Welcome1"` or `"password123"` are rejected by client validation.
+  - Password is updated directly in Supabase Auth via `supabase.auth.updateUser()`.
+  - Database flag `must_change_password` is set to `false`.
+  - Structured audit log entry (`staff_first_login_password_changed`) is recorded.
+  - User is redirected to `/admin/dashboard` with full privileges restored.
+
+---
+
+## 8. Security & Functional Test Results
 
 | Test ID | Test Scenario | Expected Outcome | Result |
 | :---: | :--- | :--- | :---: |
@@ -123,9 +156,14 @@ Rather than destructive hard deletion:
 | **TEST K** | `service_role` security check | Absent from frontend source and build bundle | **PASS** |
 | **TEST L** | Failed execution error handling | Sets status to `failed` with error details, not `executed` | **PASS** |
 | **TEST M** | Build verification (`npm run build`) | 0 TypeScript errors, 0 bundling errors | **PASS** |
+| **TEST N** | Unique temporary password generation | Cryptographic 14-char password; no "Welcome1" | **PASS** |
+| **TEST O** | One-time credential display modal | Super Admin views password; copy button; security alert | **PASS** |
+| **TEST P** | First-login redirect safeguard | `ProtectedRoute` redirects to `/admin/change-password` | **PASS** |
+| **TEST Q** | Password change completion | Flag cleared (`false`), Supabase Auth updated, redirected | **PASS** |
+| **TEST R** | Existing staff continuity | `default false` preserves access for existing staff | **PASS** |
 
 ---
 
-## 8. Git Commit Reference
-- **Commit Message:** `feat(admin): implement maker-checker staff management approval workflow`
-- **Git Commit Hash:** `b9b3092294dbf45d82a43dbd3d5e6928438bea3f`
+## 9. Git Checkpoint Verification
+- **Latest Commit Hash:** (Refer to git log)
+

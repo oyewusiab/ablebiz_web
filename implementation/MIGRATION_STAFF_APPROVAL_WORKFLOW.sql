@@ -95,7 +95,11 @@ create trigger trg_protect_last_super_admin
   before update on public.staff_profiles
   for each row execute function public.check_last_super_admin_safeguard();
 
--- 5. Row-Level Security on staff_change_requests
+-- 5. Add must_change_password column to staff_profiles (idempotent, defaults false for existing staff)
+alter table public.staff_profiles
+  add column if not exists must_change_password boolean not null default false;
+
+-- 6. Row-Level Security on staff_change_requests
 alter table public.staff_change_requests enable row level security;
 
 -- Active staff view policy:

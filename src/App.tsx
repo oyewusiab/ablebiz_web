@@ -20,6 +20,7 @@ import { ProtectedRoute } from "./auth/ProtectedRoute";
 import { AdminPortalLayout } from "./components/AdminPortalLayout";
 import { AdminLoginPage } from "./pages/admin/Login";
 import { AdminResetPasswordPage } from "./pages/admin/ResetPassword";
+import { AdminChangePasswordPage } from "./pages/admin/ChangePassword";
 import { AdminDashboard } from "./pages/admin/Dashboard";
 import { AdminReferrals } from "./pages/admin/Referrals";
 import { AdminClients } from "./pages/admin/Clients";
@@ -69,6 +70,7 @@ export default function App() {
           {/* Admin Portal Routes */}
           <Route path="/admin/login" element={<AdminLoginPage />} />
           <Route path="/admin/reset-password" element={<AdminResetPasswordPage />} />
+          <Route path="/admin/change-password" element={<ProtectedRoute><AdminChangePasswordPage /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute><AdminPortalLayout /></ProtectedRoute>}>
             <Route index element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
