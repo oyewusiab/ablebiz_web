@@ -74,6 +74,7 @@ export default function App() {
           <Route path="/admin" element={<ProtectedRoute><AdminPortalLayout /></ProtectedRoute>}>
             <Route index element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+            <Route path="workbench" element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="leads" element={<ProtectedRoute requiredModule="crm"><LeadsPipelinePage /></ProtectedRoute>} />
             <Route path="clients" element={<ProtectedRoute requiredModule="crm"><AdminClients /></ProtectedRoute>} />
             <Route path="businesses" element={<ProtectedRoute requiredModule="crm"><BusinessesPage /></ProtectedRoute>} />
@@ -81,6 +82,7 @@ export default function App() {
             <Route path="services-catalog" element={<ProtectedRoute requiredModule="operations"><ServicesCatalogPage /></ProtectedRoute>} />
             <Route path="service-requests" element={<ProtectedRoute requiredModule="operations"><ServiceRequestsPage /></ProtectedRoute>} />
             <Route path="cac-operations" element={<ProtectedRoute requiredModule="operations"><CacOperationsPage /></ProtectedRoute>} />
+            <Route path="cac" element={<Navigate to="/admin/cac-operations" replace />} />
             <Route path="tasks" element={<ProtectedRoute requiredModule="operations"><TasksPage /></ProtectedRoute>} />
             <Route path="documents" element={<ProtectedRoute requiredModule="operations"><DocumentsPage /></ProtectedRoute>} />
             {/* Finance Routes */}
