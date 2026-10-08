@@ -1,7 +1,7 @@
 import { supabase, supabaseEnabled } from "./supabaseClient";
 
 export interface ProvisionStaffPayload {
-  action: "create_staff" | "reconcile_staff" | "approve_request" | "diagnostic";
+  action: "create_staff" | "reconcile_staff" | "approve_request" | "diagnostic" | "complete_password_change";
   email?: string;
   fullName?: string;
   role?: string;
