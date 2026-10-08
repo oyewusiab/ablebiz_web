@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 interface RequestPayload {
-  action: "create_staff" | "reconcile_staff" | "approve_request";
+  action: "create_staff" | "reconcile_staff" | "approve_request" | "diagnostic";
   email?: string;
   fullName?: string;
   role?: string;
@@ -57,10 +57,13 @@ serve(async (req: Request) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
-    const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const supabaseServiceRoleKey =
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
+      Deno.env.get("SERVICE_ROLE_KEY") ||
+      Deno.env.get("SUPABASE_SERVICE_KEY");
 
     if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
-      throw new Error("Server configuration error: Missing Supabase environment variables.");
+      throw new Error("Server configuration error: Missing Supabase environment variables (URL, Anon Key, or Service Role Key).");
     }
 
     // 2. Validate Caller Authentication (Bearer JWT)
@@ -104,12 +107,11 @@ serve(async (req: Request) => {
     }
 
     const isSuperAdmin =
-      callerProfile.is_active &&
-      (callerProfile.role === "super_admin" || callerProfile.role === "managing_director");
+      callerProfile.is_active && callerProfile.role === "super_admin";
 
     if (!isSuperAdmin) {
       return new Response(
-        JSON.stringify({ error: "Forbidden: Only active Super Admins can provision staff accounts." }),
+        JSON.stringify({ error: "Forbidden: Only active super_admin staff can provision staff accounts." }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -147,6 +149,26 @@ serve(async (req: Request) => {
     };
 
     // =========================================================================
+    // ACTION: DIAGNOSTIC (SAFE TEST MODE - ZERO MUTATIONS)
+    // =========================================================================
+    if (action === "diagnostic") {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          action: "diagnostic",
+          authenticated: true,
+          callerUserId: callerUser.id,
+          callerStaffProfileFound: true,
+          callerRole: callerProfile.role,
+          callerActive: callerProfile.is_active,
+          adminAuthClientAvailable: Boolean(adminClient && adminClient.auth && adminClient.auth.admin),
+          functionVersion: "2026-10-08-v1.2",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // =========================================================================
     // ACTION A: RECONCILE EXISTING ORPHANED STAFF PROFILE
     // =========================================================================
     if (action === "reconcile_staff") {
@@ -173,43 +195,73 @@ serve(async (req: Request) => {
         );
       }
 
-      const tempPassword = generateSecureTempPassword();
-      let realAuthUid: string;
+      // Check whether an Auth user already exists with this email in Supabase Auth
+      const { data: { users }, error: listUsersErr } = await adminClient.auth.admin.listUsers();
+      if (listUsersErr) {
+        throw new Error(`Failed to inspect Supabase Auth users directory: ${listUsersErr.message}`);
+      }
 
-      // Check if auth user already exists in auth.users by attempting creation
-      const { data: newAuthUser, error: createAuthErr } = await adminClient.auth.admin.createUser({
+      const existingAuthUser = users?.find(
+        (u) => u.email?.trim().toLowerCase() === targetProfile.email.trim().toLowerCase()
+      );
+
+      if (existingAuthUser) {
+        // CASE A: Target staff_profiles.auth_uid already matches this existing Auth user's ID
+        if (targetProfile.auth_uid === existingAuthUser.id) {
+          const { data: updatedProfile, error: syncErr } = await adminClient
+            .from("staff_profiles")
+            .update({
+              auth_status: "provisioned",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", targetProfile.id)
+            .select()
+            .single();
+
+          if (syncErr) throw new Error(`Database error confirming linked status: ${syncErr.message}`);
+
+          return new Response(
+            JSON.stringify({
+              success: true,
+              action: "reconcile_staff",
+              message: "Staff profile is already legitimately linked to existing Supabase Auth account. Credentials preserved.",
+              staff: updatedProfile,
+            }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // CASE B: An Auth account exists, but target staff_profiles.auth_uid does not match it
+        // DO NOT silently take ownership or reset password!
+        return new Response(
+          JSON.stringify({
+            error: `Reconciliation Conflict: A Supabase Auth identity for '${targetProfile.email}' already exists (Auth ID: ${existingAuthUser.id}), but staff_profiles has auth_uid '${targetProfile.auth_uid || "null"}'. Automatic credential override is blocked to prevent unauthorized account takeover. Explicit Super Admin resolution required.`,
+            conflictDetails: {
+              email: targetProfile.email,
+              existingAuthUserId: existingAuthUser.id,
+              currentStaffProfileAuthUid: targetProfile.auth_uid,
+            },
+          }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // CASE C: No Auth user exists for this email -> Safe to provision a new Auth identity
+      const tempPassword = generateSecureTempPassword();
+      const { data: newAuthData, error: createAuthErr } = await adminClient.auth.admin.createUser({
         email: targetProfile.email,
         password: tempPassword,
         email_confirm: true,
         user_metadata: { full_name: targetProfile.full_name },
       });
 
-      if (createAuthErr) {
-        if (createAuthErr.message.toLowerCase().includes("already registered") || createAuthErr.message.toLowerCase().includes("already exists")) {
-          // User already exists in Auth: Locate the user ID
-          const { data: { users }, error: listErr } = await adminClient.auth.admin.listUsers();
-          const existingUser = users?.find((u) => u.email?.toLowerCase() === targetProfile.email.toLowerCase());
-          if (!existingUser) {
-            throw new Error(`Auth account conflict: user exists but could not be located in Auth directory.`);
-          }
-          realAuthUid = existingUser.id;
-
-          // Update their password to the newly issued temporary password & ensure email is confirmed
-          const { error: updateAuthErr } = await adminClient.auth.admin.updateUserById(realAuthUid, {
-            password: tempPassword,
-            email_confirm: true,
-          });
-          if (updateAuthErr) {
-            throw new Error(`Failed to reset credentials for existing Auth user: ${updateAuthErr.message}`);
-          }
-        } else {
-          throw new Error(`Failed to provision Auth account: ${createAuthErr.message}`);
-        }
-      } else {
-        realAuthUid = newAuthUser.user.id;
+      if (createAuthErr || !newAuthData?.user) {
+        throw new Error(`Failed to create Auth user: ${createAuthErr?.message || "Unknown error"}`);
       }
 
-      // Update staff_profiles with real auth_uid, auth_status = 'provisioned', and must_change_password = true
+      const realAuthUid = newAuthData.user.id;
+
+      // Link staff_profiles with the newly created Auth user ID
       const { data: updatedProfile, error: updateProfErr } = await adminClient
         .from("staff_profiles")
         .update({
@@ -223,14 +275,16 @@ serve(async (req: Request) => {
         .single();
 
       if (updateProfErr) {
+        // Rollback created Auth user if profile update fails
+        await adminClient.auth.admin.deleteUser(realAuthUid);
         throw new Error(`Database error updating staff profile with auth_uid: ${updateProfErr.message}`);
       }
 
       await logAudit(
         "staff_auth_provisioned",
         targetProfile.id,
-        { auth_uid: targetProfile.auth_uid, must_change_password: targetProfile.must_change_password },
-        { auth_uid: realAuthUid, must_change_password: true, reconciled: true },
+        { auth_uid: targetProfile.auth_uid, auth_status: targetProfile.auth_status },
+        { auth_uid: realAuthUid, auth_status: "provisioned", must_change_password: true, reconciled: true },
         `Staff account reconciled and Auth identity provisioned for ${targetProfile.full_name} (${targetProfile.email})`
       );
 

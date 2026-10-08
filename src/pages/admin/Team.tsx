@@ -178,7 +178,7 @@ export function StaffRbacPage() {
   const [actionError, setActionError] = useState("");
   const [actionSuccess, setActionSuccess] = useState("");
 
-  const isSuperAdmin = profile?.role === "super_admin" || (profile?.role as string) === "managing_director";
+  const isSuperAdmin = profile?.role === "super_admin";
 
   const fetchData = async () => {
     if (!supabase) return;

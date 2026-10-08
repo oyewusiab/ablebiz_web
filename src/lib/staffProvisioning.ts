@@ -1,7 +1,7 @@
 import { supabase, supabaseEnabled } from "./supabaseClient";
 
 export interface ProvisionStaffPayload {
-  action: "create_staff" | "reconcile_staff" | "approve_request";
+  action: "create_staff" | "reconcile_staff" | "approve_request" | "diagnostic";
   email?: string;
   fullName?: string;
   role?: string;
@@ -14,7 +14,7 @@ export interface ProvisionStaffPayload {
 export interface ProvisionStaffResponse {
   success: boolean;
   action: string;
-  staff: {
+  staff?: {
     id: string;
     auth_uid: string;
     email: string;
@@ -27,6 +27,14 @@ export interface ProvisionStaffResponse {
   };
   tempPassword?: string;
   error?: string;
+  // Diagnostic fields
+  authenticated?: boolean;
+  callerUserId?: string;
+  callerStaffProfileFound?: boolean;
+  callerRole?: string;
+  callerActive?: boolean;
+  adminAuthClientAvailable?: boolean;
+  functionVersion?: string;
 }
 
 /**
