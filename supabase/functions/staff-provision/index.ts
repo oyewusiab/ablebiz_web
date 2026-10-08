@@ -117,7 +117,17 @@ serve(async (req: Request) => {
     }
 
     // 4. Parse Request Body
-    const body: RequestPayload = await req.json();
+    let body: RequestPayload;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(
+        JSON.stringify({
+          error: "Invalid JSON in request body. The request body must be a valid JSON object, e.g. {\"action\": \"diagnostic\"}",
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
     const { action } = body;
 
     // Helper: Audit Logging
