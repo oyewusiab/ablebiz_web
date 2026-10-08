@@ -19,6 +19,46 @@ export function AdminChangePasswordPage() {
   const [statusError, setStatusError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
+  const [isRetryingClearFlag, setIsRetryingClearFlag] = useState(false);
+  const [passwordAlreadyUpdated, setPasswordAlreadyUpdated] = useState(false);
+
+  const handleRetryClearFlag = async () => {
+    if (!supabaseEnabled || !supabase) {
+      setStatusError("Authentication service is unavailable.");
+      return;
+    }
+
+    setIsRetryingClearFlag(true);
+    setStatusError(null);
+
+    try {
+      const { data, error: rpcErr } = await supabase.rpc("clear_own_password_change_flag");
+
+      if (rpcErr || (data && data.success === false)) {
+        setStatusError(
+          "Password has been changed, but finalizing your account setup failed: " +
+            (rpcErr?.message || "RPC error") +
+            ". Click 'Retry Account Initialization' to complete setup."
+        );
+        setIsRetryingClearFlag(false);
+        return;
+      }
+
+      await refreshProfile();
+      setSuccess(true);
+      setIsRetryingClearFlag(false);
+
+      setTimeout(() => {
+        navigate("/admin/dashboard", { replace: true });
+      }, 1500);
+    } catch (err: any) {
+      setStatusError(
+        "Unexpected error clearing account setup flag: " + (err?.message || "Unknown error") + ". Click 'Retry Account Initialization' to try again."
+      );
+      setIsRetryingClearFlag(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError(null);
@@ -84,55 +124,23 @@ export function AdminChangePasswordPage() {
         return;
       }
 
-      // 3. Clear must_change_password flag on staff_profiles via authoritative Edge Function
-      try {
-        await invokeStaffProvision({
-          action: "complete_password_change",
-        });
-      } catch (flagErr: any) {
-        console.warn("[PasswordChange] Fallback to direct update if Edge Function unavailable:", flagErr);
-        if (profile?.id) {
-          const { error: profErr } = await supabase
-            .from("staff_profiles")
-            .update({
-              must_change_password: false,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", profile.id);
-          if (profErr) {
-            console.warn("[PasswordChange] Direct flag clear warning:", profErr.message);
-          }
-        }
+      // Password change in Auth succeeded!
+      setPasswordAlreadyUpdated(true);
+
+      // 3. Clear must_change_password flag via authoritative, narrowly scoped RPC
+      const { data, error: rpcErr } = await supabase.rpc("clear_own_password_change_flag");
+
+      if (rpcErr || (data && data.success === false)) {
+        setStatusError(
+          "Your password was updated successfully in the authentication system, but finalizing your internal profile flag encountered an error: " +
+            (rpcErr?.message || "RPC error") +
+            ". Please click 'Retry Account Initialization' below."
+        );
+        setIsSubmitting(false);
+        return;
       }
 
-      // 4. Record audit event (without logging any passwords)
-      if (profile?.id) {
-        try {
-          await Promise.all([
-            supabase.from("audit_logs").insert({
-              staff_id: profile.id,
-              staff_email: profile.email,
-              action: "staff_first_login_password_changed",
-              entity_type: "staff_profile",
-              entity_id: profile.id,
-              old_values: { must_change_password: true },
-              new_values: { must_change_password: false },
-            }),
-            supabase.from("activity_timeline").insert({
-              entity_type: "staff_profile",
-              entity_id: profile.id,
-              actor_type: "staff",
-              actor_id: profile.id,
-              event_type: "password_changed",
-              event_title: `First-login password change completed for ${profile.full_name}`,
-            }),
-          ]);
-        } catch (auditErr) {
-          console.warn("[AuditLog] Failed to record password change event:", auditErr);
-        }
-      }
-
-      // 5. Refresh profile state in AuthContext so ProtectedRoute immediately allows Suite access
+      // 4. Refresh profile state in AuthContext so ProtectedRoute immediately allows Suite access
       await refreshProfile();
 
       setSuccess(true);
@@ -275,20 +283,38 @@ export function AdminChangePasswordPage() {
               </div>
 
               <div className="pt-2 flex flex-col gap-2">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-amber-500 text-xs font-bold text-slate-950 transition hover:bg-amber-400 disabled:opacity-50"
-                >
-                  {isSubmitting ? (
-                    <div className="flex items-center gap-2">
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
-                      <span>Updating Password...</span>
-                    </div>
-                  ) : (
-                    <span>Save Password & Enter Suite</span>
-                  )}
-                </button>
+                {passwordAlreadyUpdated && statusError ? (
+                  <button
+                    type="button"
+                    onClick={handleRetryClearFlag}
+                    disabled={isRetryingClearFlag}
+                    className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 text-xs font-bold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-50 shadow-lg shadow-emerald-500/20"
+                  >
+                    {isRetryingClearFlag ? (
+                      <div className="flex items-center gap-2">
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
+                        <span>Finalizing Setup...</span>
+                      </div>
+                    ) : (
+                      <span>Retry Account Initialization</span>
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-amber-500 text-xs font-bold text-slate-950 transition hover:bg-amber-400 disabled:opacity-50"
+                  >
+                    {isSubmitting ? (
+                      <div className="flex items-center gap-2">
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
+                        <span>Updating Password...</span>
+                      </div>
+                    ) : (
+                      <span>Save Password & Enter Suite</span>
+                    )}
+                  </button>
+                )}
 
                 <button
                   type="button"
