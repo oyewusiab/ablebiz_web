@@ -145,30 +145,46 @@ Empirical live verification performed against target Supabase project `https://k
 
 ---
 
-## 9. Admin Route Check
+## 9. Admin Route Check & Route Inventory Reconciliation
 
-All 16 operational admin routes specified for v1.0 have been verified in the application router:
+The authoritative application router inventory consists of **26 unique application routes** (3 authentication & account lifecycle routes + 23 core operational routes) plus 5 documented aliases/redirects:
 
-| Route Path | View / Component | Access Guard | Status |
-|---|---|---|---|
-| `/admin/login` | `AdminLoginPage` | Public / Guest | **Verified** |
-| `/admin/workbench` | `AdminDashboard` (via alias redirect) | Authenticated Staff | **Verified** |
-| `/admin/clients` | `AdminClients` | `crm` module permission | **Verified** |
-| `/admin/businesses` | `BusinessesPage` | `crm` module permission | **Verified** |
-| `/admin/leads` | `LeadsPipelinePage` | `crm` module permission | **Verified** |
-| `/admin/service-requests` | `ServiceRequestsPage` | `operations` module permission | **Verified** |
-| `/admin/cac` | `CacOperationsPage` (via alias redirect) | `operations` module permission | **Verified** |
-| `/admin/quotations` | `QuotationsPage` | `finance` module permission | **Verified** |
-| `/admin/invoices` | `InvoicesPage` | `finance` module permission | **Verified** |
-| `/admin/payments` | `PaymentsPage` | `finance` module permission | **Verified** |
-| `/admin/expenses` | `ExpensesPage` | `finance` module permission | **Verified** |
-| `/admin/vendors` | `VendorsPage` | `finance` module permission | **Verified** |
-| `/admin/communications` | `ClientCommunicationsPage` | `crm` module permission | **Verified** |
-| `/admin/reports` | `AdminReports` | `reports` module permission | **Verified** |
-| `/admin/team` | `StaffRbacPage` | `super_admin` / `admin` role | **Verified** |
-| `/admin/settings` | `AdminSettings` | Authenticated Staff | **Verified** |
+### 3 Authentication & Account Lifecycle Routes:
+- `/admin/login` → `AdminLoginPage` (Public / Guest)
+- `/admin/reset-password` → `AdminResetPasswordPage` (Public / Recovery token)
+- `/admin/change-password` → `AdminChangePasswordPage` (Protected / Mandatory first login setup)
 
-*(Additional verified internal routes: `/admin/tasks`, `/admin/documents`, `/admin/audit-logs`, `/admin/ai-secretary`, `/admin/notifications`, `/admin/reset-password`, `/admin/change-password`)*
+### 23 Core Operational Routes:
+- `/admin/dashboard` → `AdminDashboard` (Manager Workbench)
+- `/admin/leads` → `LeadsPipelinePage` (`crm` module)
+- `/admin/clients` → `AdminClients` (`crm` module)
+- `/admin/businesses` → `BusinessesPage` (`crm` module)
+- `/admin/follow-ups` → `FollowUpsPage` (`crm` module)
+- `/admin/services-catalog` → `ServicesCatalogPage` (`operations` module)
+- `/admin/service-requests` → `ServiceRequestsPage` (`operations` module)
+- `/admin/cac-operations` → `CacOperationsPage` (`operations` module)
+- `/admin/tasks` → `TasksPage` (`operations` module)
+- `/admin/documents` → `DocumentsPage` (`operations` module)
+- `/admin/quotations` → `QuotationsPage` (`finance` module)
+- `/admin/invoices` → `InvoicesPage` (`finance` module)
+- `/admin/payments` → `PaymentsPage` (`finance` module)
+- `/admin/expenses` → `ExpensesPage` (`finance` module)
+- `/admin/vendors` → `VendorsPage` (`finance` module)
+- `/admin/audit-logs` → `AuditLogsPage` (`super_admin` / `admin` role)
+- `/admin/ai-secretary` → `AiSecretaryPage` (Staff Workspace)
+- `/admin/notifications` → `NotificationsPage` (Staff Workspace)
+- `/admin/communications` → `ClientCommunicationsPage` (`crm` module)
+- `/admin/team` → `StaffRbacPage` (`super_admin` / `admin` role)
+- `/admin/referrals` → `AdminReferrals` (Staff Workspace)
+- `/admin/reports` → `AdminReports` (`reports` module)
+- `/admin/settings` → `AdminSettings` (Staff Workspace)
+
+### 5 Documented Route Aliases & Redirects:
+- `/admin` → Redirects to `/admin/dashboard`
+- `/admin/workbench` → Redirects to `/admin/dashboard`
+- `/admin/cac` → Redirects to `/admin/cac-operations`
+- `/admin/audit` → Redirects to `/admin/audit-logs`
+- `/admin-porter/*` → Redirects to `/admin`
 
 - **Status:** **PASS**
 
