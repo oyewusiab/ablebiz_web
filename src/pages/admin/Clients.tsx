@@ -249,7 +249,7 @@ export function AdminClients() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">Clients 360°</h1>
-            <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">
+            <span className="rounded bg-blue-50 border border-blue-200 px-2 py-0.5 text-xs font-bold text-[#0A2558]">
               CRM Engine
             </span>
           </div>
@@ -262,7 +262,7 @@ export function AdminClients() {
           {canCreate && (
             <button
               onClick={() => setIsCreateOpen(true)}
-              className="flex items-center gap-2 rounded-xl bg-[#043F2E] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#06553F] shadow-xs transition"
+              className="flex items-center gap-2 rounded-xl bg-[#0A2558] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#061738] shadow-xs transition"
             >
               <Plus className="h-4 w-4" />
               <span>Create Client</span>
@@ -352,7 +352,7 @@ export function AdminClients() {
               <div className="border-b border-slate-200 bg-slate-50/70 p-5">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#043F2E] text-white font-bold text-base shadow-xs">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0A2558] text-white font-bold text-base shadow-xs">
                       {clientDetail.full_name[0]?.toUpperCase()}
                     </div>
                     <div>
@@ -391,7 +391,7 @@ export function AdminClients() {
                       onClick={() => setActive360Tab(tab.id as any)}
                       className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
                         active360Tab === tab.id
-                          ? "bg-[#043F2E] text-white"
+                          ? "bg-[#0A2558] text-white"
                           : "text-slate-600 hover:bg-slate-200/60"
                       }`}
                     >
@@ -508,7 +508,7 @@ export function AdminClients() {
                       <div className="relative pl-4 border-l border-slate-200 space-y-4">
                         {clientDetail.activity_timeline.map((act) => (
                           <div key={act.id} className="relative text-xs">
-                            <div className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-emerald-600" />
+                            <div className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-[#0A2558]" />
                             <p className="font-semibold text-slate-900">{act.event_title}</p>
                             <span className="text-[10px] text-slate-400">{new Date(act.created_at).toLocaleString()}</span>
                           </div>
@@ -674,7 +674,7 @@ export function AdminClients() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="rounded-xl bg-[#043F2E] px-4 py-2 font-bold text-white hover:bg-[#06553F] transition disabled:opacity-50"
+                  className="rounded-xl bg-[#0A2558] px-4 py-2 font-bold text-white hover:bg-[#061738] transition disabled:opacity-50"
                 >
                   {isSubmitting ? "Creating..." : "Save Client"}
                 </button>

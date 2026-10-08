@@ -99,7 +99,7 @@ export function NotificationsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-[#0A2558] border border-blue-200">
               <Bell className="h-5 w-5" />
             </div>
             <div>
@@ -157,13 +157,13 @@ export function NotificationsPage() {
               <div
                 key={n.id}
                 className={`p-4 transition flex items-start justify-between gap-4 text-xs ${
-                  n.is_read ? "bg-white hover:bg-slate-50/50" : "bg-emerald-50/30 hover:bg-emerald-50/50"
+                  n.is_read ? "bg-white hover:bg-slate-50/50" : "bg-blue-50/30 hover:bg-blue-50/50"
                 }`}
               >
                 <div className="flex items-start gap-3">
                   <div
                     className={`mt-0.5 h-2 w-2 rounded-full shrink-0 ${
-                      n.is_read ? "bg-transparent" : "bg-emerald-600"
+                      n.is_read ? "bg-transparent" : "bg-[#0A2558]"
                     }`}
                   />
                   <div>
@@ -192,7 +192,7 @@ export function NotificationsPage() {
                   {n.link && (
                     <Link
                       to={n.link}
-                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:border-emerald-600 hover:text-emerald-700"
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:border-[#0A2558] hover:text-[#0A2558]"
                     >
                       <span>Open</span>
                       <ExternalLink className="h-3 w-3" />

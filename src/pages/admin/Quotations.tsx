@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
+import { DocumentHeader, DocumentFooter } from "../../components/admin/DocumentBranding";
 
 export interface QuotationRecord {
   id: string;
@@ -546,11 +547,13 @@ export function QuotationsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* On-Screen Dashboard View - Hidden during print when quotation preview modal is open */}
+      <div className={isPrintModalOpen ? "space-y-6 print:hidden" : "space-y-6"}>
+        {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-[#0A2558] border border-blue-200">
               <FileSpreadsheet className="h-5 w-5" />
             </div>
             <div>
@@ -565,7 +568,7 @@ export function QuotationsPage() {
         {canManageFinance && (
           <button
             onClick={() => setIsCreateOpen(true)}
-            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-emerald-700 transition"
+            className="inline-flex items-center gap-2 rounded-xl bg-[#0A2558] px-4 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-[#061738] transition active:translate-y-px"
           >
             <Plus className="h-4 w-4" />
             Create Quotation
@@ -721,7 +724,7 @@ export function QuotationsPage() {
                             <button
                               onClick={() => handleConvertToInvoice(q)}
                               disabled={convertingId === q.id}
-                              className="rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 transition disabled:opacity-50"
+                              className="rounded-lg bg-[#0A2558] px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-[#061738] transition disabled:opacity-50"
                               title="Convert directly to official Invoice"
                             >
                               {convertingId === q.id ? "Converting..." : "Convert to Invoice"}
@@ -979,7 +982,7 @@ export function QuotationsPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="rounded-xl bg-emerald-600 px-5 py-2 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                  className="rounded-xl bg-[#0A2558] px-5 py-2 font-semibold text-white hover:bg-[#061738] disabled:opacity-50 transition"
                 >
                   {submitting ? "Saving..." : "Save Draft Quotation"}
                 </button>
@@ -988,15 +991,16 @@ export function QuotationsPage() {
           </div>
         </div>
       )}
+      </div>
 
       {/* VIEW & PRINT QUOTATION MODAL */}
       {isPrintModalOpen && selectedQuote && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl max-h-[95vh] overflow-y-auto">
+        <div className="print-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+          <div className="print-modal-content w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl max-h-[95vh] overflow-y-auto">
             {/* Modal Controls */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
+            <div className="no-print flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
               <div className="flex items-center gap-2">
-                <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-1 rounded">
+                <span className="font-mono text-xs font-bold text-[#0A2558] bg-blue-50 border border-blue-200 px-2 py-1 rounded">
                   {selectedQuote.quotation_number}
                 </span>
                 <span className="text-xs text-slate-400 capitalize">({selectedQuote.status})</span>
@@ -1019,50 +1023,27 @@ export function QuotationsPage() {
             </div>
 
             {/* Printable Document Area */}
-            <div className="p-4 border border-slate-200 rounded-xl bg-white space-y-6 print:border-none print:p-0">
-              {/* Header Letterhead */}
-              <div className="flex justify-between items-start border-b border-slate-200 pb-5">
-                <div>
-                  <h2 className="text-lg font-black tracking-tight text-slate-900">
-                    ABLEBIZ BUSINESS SERVICES
-                  </h2>
-                  <p className="text-[11px] text-slate-500 font-medium">
-                    Corporate Affairs Commission (CAC) Accredited Professional Firm
-                  </p>
-                  <p className="text-[11px] text-slate-500">
-                    Abeokuta, Ogun State, Nigeria • support@ablebiz.com.ng
-                  </p>
-                </div>
-                <div className="text-right">
-                  <h3 className="text-xl font-black text-emerald-700 tracking-wide">QUOTATION</h3>
-                  <p className="font-mono text-xs font-bold text-slate-800">{selectedQuote.quotation_number}</p>
-                  <p className="text-[11px] text-slate-500">
-                    Date: {new Date(selectedQuote.quotation_date).toLocaleDateString()}
-                  </p>
-                  <p className="text-[11px] text-slate-500">
-                    Valid Until: {new Date(selectedQuote.valid_until).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
-
-              {/* Recipient Details */}
-              <div className="grid grid-cols-2 gap-4 text-xs">
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">PREPARED FOR:</span>
-                  <p className="font-bold text-slate-900 mt-0.5">{selectedQuote.client?.full_name}</p>
-                  <p className="text-slate-600">{selectedQuote.client?.phone}</p>
-                  {selectedQuote.client?.email && <p className="text-slate-600">{selectedQuote.client.email}</p>}
-                  {selectedQuote.business && (
-                    <p className="text-emerald-700 font-semibold mt-1">Re: {selectedQuote.business.name}</p>
-                  )}
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">PAYMENT DETAILS:</span>
-                  <p className="font-semibold text-slate-900 mt-0.5">Moniepoint Microfinance Bank</p>
-                  <p className="text-slate-600">Account Name: Ablebiz Business Services</p>
-                  <p className="font-mono text-slate-800 font-bold">Account No: 8243178920</p>
-                </div>
-              </div>
+            <div className="print-document p-4 border border-slate-200 rounded-xl bg-white space-y-6 print:border-none print:p-0">
+              <DocumentHeader
+                title="OFFICIAL QUOTATION"
+                documentNumber={selectedQuote.quotation_number}
+                date={selectedQuote.quotation_date}
+                dueDate={selectedQuote.valid_until}
+                dueLabel="Valid Until"
+                status={selectedQuote.status}
+                recipient={{
+                  name: selectedQuote.client?.full_name,
+                  phone: selectedQuote.client?.phone,
+                  email: selectedQuote.client?.email,
+                  businessName: selectedQuote.business?.name,
+                }}
+                recipientLabel="PREPARED FOR"
+                paymentDetails={{
+                  bankName: "Moniepoint Microfinance Bank",
+                  accountName: "Ablebiz Business Services",
+                  accountNumber: "8243178920",
+                }}
+              />
 
               {/* Items Breakdown */}
               <table className="w-full text-left text-xs border border-slate-200 rounded-lg overflow-hidden">
@@ -1114,18 +1095,15 @@ export function QuotationsPage() {
                 </div>
               </div>
 
-              {/* Terms */}
-              {selectedQuote.terms_and_conditions && (
-                <div className="text-[11px] text-slate-600 border-t border-slate-100 pt-3">
-                  <span className="font-bold text-slate-900">Terms & Conditions:</span>
-                  <p className="mt-1 whitespace-pre-line text-slate-500">{selectedQuote.terms_and_conditions}</p>
-                </div>
-              )}
+              <DocumentFooter
+                documentId={selectedQuote.id}
+                notes={selectedQuote.terms_and_conditions || "This quotation is valid until the stated date. Formal engagement commences upon acceptance and confirmation of advance deposit."}
+              />
             </div>
 
             {/* Status Management Actions */}
             {canManageFinance && (
-              <div className="mt-5 border-t border-slate-100 pt-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="no-print mt-5 border-t border-slate-100 pt-4 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-xs">
                   <span className="font-semibold text-slate-700">Transition Status:</span>
                   {selectedQuote.status === "draft" && (
@@ -1158,7 +1136,7 @@ export function QuotationsPage() {
                   <button
                     onClick={() => handleConvertToInvoice(selectedQuote)}
                     disabled={convertingId === selectedQuote.id}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-emerald-700 disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-[#0A2558] px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-[#061738] disabled:opacity-50 transition"
                   >
                     <Receipt className="h-4 w-4" />
                     {convertingId === selectedQuote.id ? "Converting..." : "Convert to Official Invoice"}

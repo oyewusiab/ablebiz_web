@@ -94,15 +94,7 @@
   --color-danger-100: #fee2e2;
   --color-danger-700: #b91c1c;
 
-  /* ABLEBIZ SUITE Enterprise Deep Green Identity */
-  --suite-green-primary: #043F2E;
-  --suite-green-dark: #02261B;
-  --suite-green-hover: #06553F;
-  --suite-green-accent: #10B981;
-  --suite-green-light: #ECFDF5;
-  --suite-green-border: rgba(4, 63, 46, 0.15);
-
-  /* Theme Mapping */
+  /* ABLEBIZ SUITE Authoritative Brand Identity: Navy & Gold */
   --ablebiz-primary: var(--color-primary-600);
   --ablebiz-cta: var(--color-gold-600);
   --ablebiz-bg: #F8FAFC;
@@ -113,14 +105,14 @@
   --admin-panel: #ffffff;
   --admin-panel-muted: #F8FAFC;
   --admin-panel-strong: var(--color-neutral-100);
-  --sidebar-bg: #043F2E;
+  --sidebar-bg: #061738;
   --text-primary: #0F172A;
   --text-secondary: #475569;
   --text-muted: #94A3B8;
-  --admin-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
-  --admin-shadow-md: 0 4px 12px rgba(4, 63, 46, 0.05), 0 1px 3px rgba(0, 0, 0, 0.05);
-  --admin-shadow-lg: 0 12px 28px rgba(4, 63, 46, 0.08);
-  --admin-focus-ring: 0 0 0 3px rgba(4, 63, 46, 0.18);
+  --admin-shadow-sm: 0 1px 2px rgba(10, 37, 88, 0.04);
+  --admin-shadow-md: 0 4px 12px rgba(10, 37, 88, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+  --admin-shadow-lg: 0 12px 28px rgba(10, 37, 88, 0.09);
+  --admin-focus-ring: 0 0 0 3px rgba(10, 37, 88, 0.15);
   --admin-success-bg: #f0fdf4;
   --admin-success-fg: #15803d;
   --admin-info-bg: var(--color-info-100);
@@ -205,7 +197,7 @@
   }
 
   .admin-eyebrow {
-    color: var(--admin-success-fg);
+    color: var(--color-gold-600);
     font-size: 11px;
     font-weight: var(--admin-font-weight-semibold);
     letter-spacing: 0.12em;
@@ -283,7 +275,7 @@
   .admin-icon-chip {
     @apply flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)];
     background: var(--admin-panel-muted);
-    color: var(--admin-success-fg);
+    color: var(--ablebiz-primary);
   }
 
   .admin-icon-chip-success {
@@ -321,7 +313,8 @@
 
   .admin-tab-active {
     background: var(--color-primary-50);
-    color: var(--admin-success-fg);
+    color: var(--ablebiz-primary);
+    font-weight: var(--admin-font-weight-semibold);
   }
 
   .admin-badge {
@@ -424,7 +417,7 @@
   }
 
   .admin-table tbody tr:hover {
-    background: color-mix(in srgb, var(--admin-success-bg) 38%, transparent);
+    background: rgba(10, 37, 88, 0.025);
   }
 
   .admin-empty-state {
@@ -500,5 +493,145 @@
 
   .admin-button-secondary:hover {
     background: var(--admin-panel-muted);
+  }
+}
+
+.print-only {
+  display: none !important;
+}
+
+/* --- Enterprise Standalone Document Print Styles --- */
+@media print {
+  .print-only,
+  .print\:block {
+    display: block !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 14mm 16mm;
+  }
+
+  html,
+  body {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-size: 10.5pt !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Unconstrain application shell wrappers */
+  .admin-theme,
+  .admin-theme > div,
+  main,
+  main > div {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    position: static !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
+  }
+
+  /* Hide application shell elements when printing */
+  aside,
+  header,
+  nav,
+  .no-print,
+  button:not(.allow-print),
+  input,
+  select,
+  textarea {
+    display: none !important;
+  }
+
+  /* Modal unconstrain: Remove scroll locks, backdrops, and fixed constraints */
+  .print-modal-backdrop,
+  .fixed.inset-0 {
+    position: static !important;
+    inset: auto !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    display: block !important;
+    z-index: auto !important;
+  }
+
+  .print-modal-content,
+  .max-w-3xl,
+  .max-w-2xl,
+  .max-w-4xl,
+  .max-w-lg {
+    position: static !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  /* The Standalone Printable Document */
+  .print-document {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+  }
+
+  /* Natural Table Pagination & Page Break Hygiene */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tfoot {
+    display: table-footer-group !important;
+  }
+
+  tr,
+  .print-avoid-break {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Hide scrollbars during print output */
+  ::-webkit-scrollbar {
+    display: none !important;
   }
 }

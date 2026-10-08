@@ -181,7 +181,7 @@ export function VendorsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-[#0A2558] border border-blue-200">
               <Building2 className="h-5 w-5" />
             </div>
             <div>
@@ -196,7 +196,7 @@ export function VendorsPage() {
         {canManageFinance && (
           <button
             onClick={handleOpenCreate}
-            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-emerald-700 transition"
+            className="inline-flex items-center gap-2 rounded-xl bg-[#0A2558] px-4 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-[#061738] transition"
           >
             <Plus className="h-4 w-4" />
             Add New Vendor
@@ -461,7 +461,7 @@ export function VendorsPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="rounded-xl bg-emerald-600 px-5 py-2 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                  className="rounded-xl bg-[#0A2558] px-5 py-2 font-semibold text-white hover:bg-[#061738] disabled:opacity-50 transition"
                 >
                   {submitting ? "Saving..." : editingVendor ? "Update Vendor" : "Create Vendor"}
                 </button>

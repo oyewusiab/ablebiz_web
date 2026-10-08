@@ -162,7 +162,7 @@ export function LeadsPipelinePage() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">Leads Pipeline</h1>
-            <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">
+            <span className="rounded bg-blue-50 border border-blue-200 px-2 py-0.5 text-xs font-bold text-[#0A2558]">
               Acquisition
             </span>
           </div>
@@ -172,7 +172,7 @@ export function LeadsPipelinePage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900">
+          <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-[#0A2558]">
             <span>{leads.length} Inbound Prospects</span>
           </div>
         </div>
@@ -199,7 +199,7 @@ export function LeadsPipelinePage() {
               onClick={() => setStageFilter(st)}
               className={`rounded-lg px-2.5 py-1.5 text-xs font-medium capitalize transition whitespace-nowrap ${
                 stageFilter === st
-                  ? "bg-[#043F2E] text-white"
+                  ? "bg-[#0A2558] text-white"
                   : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
               }`}
             >
@@ -342,7 +342,7 @@ export function LeadsPipelinePage() {
                 type="button"
                 onClick={handleConvertLead}
                 disabled={isConverting}
-                className="rounded-xl bg-[#043F2E] px-4 py-2 text-xs font-bold text-white hover:bg-[#06553F] transition disabled:opacity-50"
+                className="rounded-xl bg-[#0A2558] px-4 py-2 text-xs font-bold text-white hover:bg-[#061738] transition disabled:opacity-50"
               >
                 {isConverting ? "Converting..." : "Confirm Conversion"}
               </button>

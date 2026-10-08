@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Lock, CheckCircle2, AlertCircle, ArrowRight, ShieldCheck, KeyRound } from "lucide-react";
+import { Lock, CheckCircle2, AlertCircle, ArrowRight, ShieldCheck, KeyRound, Eye, EyeOff } from "lucide-react";
 import { supabase, supabaseEnabled } from "../../lib/supabaseClient";
+import { BrandLogo } from "../../components/BrandLogo";
 
 export function AdminResetPasswordPage() {
   const navigate = useNavigate();
@@ -160,21 +161,21 @@ export function AdminResetPasswordPage() {
   };
 
   return (
-    <div className="admin-theme flex min-h-screen items-center justify-center bg-[#061738] px-4 relative overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(217,119,6,0.2),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(10,37,88,0.6),transparent_45%)]" />
+    <div className="admin-theme flex min-h-screen items-center justify-center bg-[#F8FAFC] px-4 py-12 relative">
+      <div className="absolute inset-0 bg-[radial-gradient(#0A2558_1px,transparent_1px)] [background-size:24px_24px] opacity-[0.04] pointer-events-none" />
 
       <div className="relative z-10 w-full max-w-md">
-        <div className="mb-6 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 p-2 border border-white/20 shadow-2xl backdrop-blur-md">
-            <img src="/images/ablebiz-logo.png" alt="ABLEBIZ" className="h-full w-full object-contain" />
+        <div className="mb-8 text-center flex flex-col items-center">
+          <div className="mb-4 flex items-center justify-center p-2 rounded-xl bg-white border border-slate-200/80 shadow-xs">
+            <BrandLogo variant="landscape" size="lg" priority />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-white">ABLEBIZ SUITE</h1>
-          <p className="mt-2 text-sm text-slate-300">
+          <h1 className="text-2xl font-black tracking-tight text-[#0A2558]">ABLEBIZ SUITE</h1>
+          <p className="mt-1 text-xs font-medium text-slate-500">
             Internal Operations Portal — Password Recovery
           </p>
         </div>
 
-        <div className="rounded-2xl border border-white/15 bg-white/10 p-8 shadow-2xl backdrop-blur-xl">
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-900/5">
           {isLoadingSession ? (
             <div className="py-8 text-center space-y-3">
               <div className="mx-auto h-8 w-8 animate-spin rounded-full border-3 border-amber-500 border-t-transparent" />
@@ -216,20 +217,20 @@ export function AdminResetPasswordPage() {
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="flex items-center gap-2 pb-1 text-amber-400 text-xs font-semibold uppercase tracking-wider">
-                <KeyRound className="h-4 w-4" />
+              <div className="flex items-center gap-2 pb-1 text-[#0A2558] text-xs font-bold uppercase tracking-wider">
+                <KeyRound className="h-4 w-4 text-[#D97706]" />
                 <span>Set New Password</span>
               </div>
 
               {validationError || statusError ? (
-                <div className="flex items-start gap-3 rounded-xl border border-red-400/30 bg-red-500/20 px-4 py-3 text-sm text-red-200">
-                  <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+                <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-800">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-600" />
                   <span>{validationError || statusError}</span>
                 </div>
               ) : null}
 
-              <label className="block space-y-2">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+              <label className="block space-y-1.5">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
                   New Password
                 </span>
                 <div className="relative">
@@ -238,17 +239,30 @@ export function AdminResetPasswordPage() {
                     type={showPassword ? "text" : "password"}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className="h-12 w-full rounded-xl border border-white/15 bg-black/20 pl-10 pr-4 text-sm text-white placeholder:text-slate-400 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20"
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-11 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-[#0A2558] focus:bg-white focus:ring-2 focus:ring-[#0A2558]/15"
                     placeholder="Minimum 8 characters"
                     autoComplete="new-password"
                     required
                     minLength={8}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    title={showPassword ? "Hide password" : "Show password"}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition focus:outline-none focus:ring-2 focus:ring-[#0A2558]/20"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" aria-hidden="true" />
+                    ) : (
+                      <Eye className="h-4 w-4" aria-hidden="true" />
+                    )}
+                  </button>
                 </div>
               </label>
 
-              <label className="block space-y-2">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+              <label className="block space-y-1.5">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
                   Confirm Password
                 </span>
                 <div className="relative">
@@ -257,7 +271,7 @@ export function AdminResetPasswordPage() {
                     type={showPassword ? "text" : "password"}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="h-12 w-full rounded-xl border border-white/15 bg-black/20 pl-10 pr-4 text-sm text-white placeholder:text-slate-400 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20"
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-11 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-[#0A2558] focus:bg-white focus:ring-2 focus:ring-[#0A2558]/15"
                     placeholder="Re-enter new password"
                     autoComplete="new-password"
                     required
@@ -266,26 +280,15 @@ export function AdminResetPasswordPage() {
                 </div>
               </label>
 
-              <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={showPassword}
-                    onChange={(e) => setShowPassword(e.target.checked)}
-                    className="rounded border-white/20 bg-black/20 text-amber-500 focus:ring-0"
-                  />
-                  <span>Show password</span>
-                </label>
-                <span className="text-[11px] text-slate-400">Min. 8 characters</span>
-              </div>
+              <p className="text-[11px] text-slate-500 pt-0.5">Password must be at least 8 characters.</p>
 
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-sm font-bold text-slate-950 transition hover:from-amber-600 hover:to-amber-700 disabled:opacity-70 shadow-lg"
+                className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#0A2558] text-sm font-bold text-white transition hover:bg-[#061738] active:translate-y-px disabled:opacity-70 shadow-md shadow-[#0A2558]/10"
               >
                 {isSubmitting ? (
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                 ) : (
                   <>
                     Update Password & Sign In
@@ -297,7 +300,7 @@ export function AdminResetPasswordPage() {
               <div className="pt-2 text-center">
                 <Link
                   to="/admin/login"
-                  className="text-xs text-slate-400 hover:text-amber-400 transition"
+                  className="text-xs text-slate-500 hover:text-[#0A2558] transition"
                 >
                   Cancel and return to login
                 </Link>

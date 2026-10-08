@@ -177,7 +177,7 @@ export function DocumentsPage() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">Document Vault</h1>
-            <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">
+            <span className="rounded bg-blue-50 border border-blue-200 px-2 py-0.5 text-xs font-bold text-[#0A2558]">
               Private Storage
             </span>
           </div>
@@ -190,7 +190,7 @@ export function DocumentsPage() {
           {canUpload && (
             <button
               onClick={() => setIsUploadOpen(true)}
-              className="flex items-center gap-2 rounded-xl bg-[#043F2E] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#06553F] shadow-xs transition"
+              className="flex items-center gap-2 rounded-xl bg-[#0A2558] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#061738] shadow-xs transition"
             >
               <Upload className="h-4 w-4" />
               <span>Upload Document</span>
@@ -254,7 +254,7 @@ export function DocumentsPage() {
               {filteredDocs.map((doc) => (
                 <tr key={doc.id} className="hover:bg-slate-50/70 transition">
                   <td className="px-4 py-3.5 font-bold text-slate-900 flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-emerald-700 shrink-0" />
+                    <FileText className="h-4 w-4 text-[#0A2558] shrink-0" />
                     <span>{doc.title}</span>
                   </td>
                   <td className="px-4 py-3.5">
@@ -274,7 +274,7 @@ export function DocumentsPage() {
                   <td className="px-4 py-3.5 text-right">
                     <button
                       onClick={() => handleDownload(doc.file_path, doc.title)}
-                      className="rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-1 text-xs font-bold hover:bg-emerald-100 transition"
+                      className="rounded-lg bg-blue-50 text-[#0A2558] border border-blue-200 px-2.5 py-1 text-xs font-bold hover:bg-blue-100 transition"
                     >
                       Download Signed
                     </button>
@@ -365,7 +365,7 @@ export function DocumentsPage() {
                 <button
                   type="submit"
                   disabled={isUploading}
-                  className="rounded-xl bg-[#043F2E] px-4 py-2 text-xs font-bold text-white hover:bg-[#06553F] transition disabled:opacity-50"
+                  className="rounded-xl bg-[#0A2558] px-4 py-2 text-xs font-bold text-white hover:bg-[#061738] transition disabled:opacity-50"
                 >
                   {isUploading ? "Uploading..." : "Save to Vault"}
                 </button>

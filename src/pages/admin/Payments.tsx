@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
+import { DocumentHeader, DocumentFooter } from "../../components/admin/DocumentBranding";
 
 export interface PaymentRecord {
   id: string;
@@ -259,11 +260,13 @@ export function PaymentsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* On-Screen Dashboard View - Hidden during print when receipt preview modal is open */}
+      <div className={isReceiptModalOpen ? "space-y-6 print:hidden" : "space-y-6"}>
+        {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-[#0A2558] border border-blue-200">
               <CreditCard className="h-5 w-5" />
             </div>
             <div>
@@ -278,7 +281,7 @@ export function PaymentsPage() {
         {canManageFinance && (
           <button
             onClick={() => setIsCreateOpen(true)}
-            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-emerald-700 transition"
+            className="inline-flex items-center gap-2 rounded-xl bg-[#0A2558] px-4 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-[#061738] transition active:translate-y-px"
           >
             <Plus className="h-4 w-4" />
             Record New Payment
@@ -403,13 +406,14 @@ export function PaymentsPage() {
           </div>
         )}
       </div>
+      </div>
 
       {/* OFFICIAL RECEIPT VIEW & PRINT MODAL */}
       {isReceiptModalOpen && selectedPayment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl max-h-[95vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
-              <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-1 rounded">
+        <div className="print-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+          <div className="print-modal-content w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl max-h-[95vh] overflow-y-auto">
+            <div className="no-print flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <span className="font-mono text-xs font-bold text-[#0A2558] bg-blue-50 border border-blue-200 px-2 py-1 rounded">
                 Official Receipt: {selectedPayment.receipt_number}
               </span>
               <div className="flex items-center gap-2">
@@ -430,46 +434,35 @@ export function PaymentsPage() {
             </div>
 
             {/* Official Receipt Printable Card */}
-            <div className="border-2 border-slate-200 rounded-xl p-6 bg-white space-y-5 print:border-none print:p-0">
-              <div className="flex justify-between items-start border-b border-slate-200 pb-4">
-                <div>
-                  <h2 className="text-base font-black tracking-tight text-slate-900">
-                    ABLEBIZ BUSINESS SERVICES
-                  </h2>
-                  <p className="text-[11px] text-slate-500 font-medium">
-                    CAC Accredited Corporate Consultants • Abeokuta, Ogun State
-                  </p>
-                  <p className="text-[10px] text-slate-400">RC: 3341892 • info@ablebiz.com.ng • 0803 000 0000</p>
-                </div>
-                <div className="text-right">
-                  <h3 className="text-sm font-black text-emerald-700 tracking-wider">OFFICIAL RECEIPT</h3>
-                  <p className="font-mono text-xs font-bold text-slate-900">{selectedPayment.receipt_number}</p>
-                  <p className="text-[10px] text-slate-500">
-                    Date: {new Date(selectedPayment.payment_date).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
+            <div className="print-document border border-slate-200 rounded-xl p-6 bg-white space-y-5 print:border-none print:p-0">
+              <DocumentHeader
+                title="OFFICIAL PAYMENT RECEIPT"
+                documentNumber={selectedPayment.receipt_number}
+                date={selectedPayment.payment_date}
+                status="CONFIRMED"
+                recipient={{
+                  name: selectedPayment.client?.full_name,
+                  phone: selectedPayment.client?.phone,
+                  email: selectedPayment.client?.email,
+                }}
+                recipientLabel="RECEIVED FROM"
+              />
 
               {/* Receipt Body */}
               <div className="space-y-3 text-xs">
-                <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg">
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">RECEIVED FROM:</span>
-                    <p className="font-bold text-slate-900 mt-0.5">{selectedPayment.client?.full_name}</p>
-                    <p className="text-slate-600">{selectedPayment.client?.phone}</p>
+                {selectedPayment.invoice?.invoice_number && (
+                  <div className="flex items-center justify-between bg-slate-50 border border-slate-100 p-3 rounded-lg">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">APPLIED TO INVOICE:</span>
+                    <div className="text-right">
+                      <span className="font-mono font-bold text-[#0A2558]">{selectedPayment.invoice.invoice_number}</span>
+                      {selectedPayment.invoice?.service_request && (
+                        <p className="text-[11px] text-slate-500">
+                          Tracking: {selectedPayment.invoice.service_request.tracking_code}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">APPLIED TO INVOICE:</span>
-                    <p className="font-mono font-bold text-slate-900 mt-0.5">
-                      {selectedPayment.invoice?.invoice_number || "Direct"}
-                    </p>
-                    {selectedPayment.invoice?.service_request && (
-                      <p className="text-[11px] text-slate-500">
-                        SR: {selectedPayment.invoice.service_request.tracking_code}
-                      </p>
-                    )}
-                  </div>
-                </div>
+                )}
 
                 <div className="border border-slate-200 rounded-lg p-3 space-y-2">
                   <div className="flex justify-between font-medium">
@@ -524,19 +517,10 @@ export function PaymentsPage() {
                 </div>
               </div>
 
-              {/* Signature stamp */}
-              <div className="border-t border-slate-200 pt-4 flex justify-between items-end">
-                <div className="text-[10px] text-slate-400">
-                  <p>Computer-generated official receipt.</p>
-                  <p>Valid without physical stamp when referenced with bank transaction ID.</p>
-                </div>
-                <div className="text-center">
-                  <div className="w-32 border-b border-slate-400 pb-1 mb-1 font-serif italic text-xs text-slate-600">
-                    Ablebiz Accounts
-                  </div>
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold">Authorized Signatory</span>
-                </div>
-              </div>
+              <DocumentFooter
+                documentId={selectedPayment.id}
+                notes="Computer-generated official receipt. Valid when referenced with verified bank transaction ID."
+              />
             </div>
           </div>
         </div>
@@ -544,7 +528,7 @@ export function PaymentsPage() {
 
       {/* RECORD PAYMENT MODAL */}
       {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
           <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
               <div>
@@ -658,7 +642,7 @@ export function PaymentsPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="rounded-xl bg-emerald-600 px-5 py-2 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                  className="rounded-xl bg-[#0A2558] px-5 py-2 font-semibold text-white hover:bg-[#061738] disabled:opacity-50 transition"
                 >
                   {submitting ? "Processing..." : "Confirm Payment & Issue Receipt"}
                 </button>

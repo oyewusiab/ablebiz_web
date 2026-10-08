@@ -960,7 +960,7 @@ export function StaffRbacPage() {
               setActionError("");
               setActionSuccess("");
             }}
-            className="flex items-center gap-2 rounded-xl bg-[#043F2E] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#06553F] shadow-xs transition"
+            className="flex items-center gap-2 rounded-xl bg-[#0A2558] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#061738] shadow-xs transition"
           >
             <UserPlus className="h-4 w-4" />
             <span>{isSuperAdmin ? "Add Staff Directly" : "Request New Staff"}</span>
@@ -974,7 +974,7 @@ export function StaffRbacPage() {
           onClick={() => setActiveTab("staff")}
           className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition ${
             activeTab === "staff"
-              ? "bg-[#043F2E] text-white shadow-xs"
+              ? "bg-[#0A2558] text-white shadow-xs"
               : "text-slate-600 hover:bg-slate-100"
           }`}
         >
@@ -987,7 +987,7 @@ export function StaffRbacPage() {
             onClick={() => setActiveTab("pending_approvals")}
             className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition relative ${
               activeTab === "pending_approvals"
-                ? "bg-[#043F2E] text-white shadow-xs"
+                ? "bg-[#0A2558] text-white shadow-xs"
                 : "text-slate-600 hover:bg-slate-100"
             }`}
           >
@@ -1005,7 +1005,7 @@ export function StaffRbacPage() {
           onClick={() => setActiveTab("my_requests")}
           className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition ${
             activeTab === "my_requests"
-              ? "bg-[#043F2E] text-white shadow-xs"
+              ? "bg-[#0A2558] text-white shadow-xs"
               : "text-slate-600 hover:bg-slate-100"
           }`}
         >
@@ -1017,7 +1017,7 @@ export function StaffRbacPage() {
           onClick={() => setActiveTab("rbac_matrix")}
           className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition ${
             activeTab === "rbac_matrix"
-              ? "bg-[#043F2E] text-white shadow-xs"
+              ? "bg-[#0A2558] text-white shadow-xs"
               : "text-slate-600 hover:bg-slate-100"
           }`}
         >
@@ -1288,7 +1288,7 @@ export function StaffRbacPage() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleOpenReviewModal(req, "approve")}
-                          className="flex items-center gap-1 rounded-lg bg-[#043F2E] px-3 py-1.5 font-bold text-white hover:bg-[#06553F] transition shadow-xs"
+                          className="flex items-center gap-1 rounded-lg bg-[#0A2558] px-3 py-1.5 font-bold text-white hover:bg-[#061738] transition shadow-xs"
                         >
                           <Check className="h-3.5 w-3.5" />
                           <span>Review & Approve</span>
@@ -1631,7 +1631,7 @@ export function StaffRbacPage() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="rounded-xl bg-[#043F2E] px-4 py-2 font-bold text-white hover:bg-[#06553F] transition disabled:opacity-50"
+                  className="rounded-xl bg-[#0A2558] px-4 py-2 font-bold text-white hover:bg-[#061738] transition disabled:opacity-50"
                 >
                   {isSubmitting
                     ? "Processing..."
@@ -1738,7 +1738,7 @@ export function StaffRbacPage() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="rounded-xl bg-[#043F2E] px-4 py-2 font-bold text-white hover:bg-[#06553F] transition disabled:opacity-50"
+                  className="rounded-xl bg-[#0A2558] px-4 py-2 font-bold text-white hover:bg-[#061738] transition disabled:opacity-50"
                 >
                   {isSubmitting
                     ? "Saving..."
@@ -1831,7 +1831,7 @@ export function StaffRbacPage() {
                   className={`rounded-xl px-4 py-2 font-bold text-white transition disabled:opacity-50 ${
                     confirmActionModal.actionType === "deprovision_staff"
                       ? "bg-red-600 hover:bg-red-700"
-                      : "bg-[#043F2E] hover:bg-[#06553F]"
+                      : "bg-[#0A2558] hover:bg-[#061738]"
                   }`}
                 >
                   {isSubmitting
@@ -1923,7 +1923,7 @@ export function StaffRbacPage() {
                   disabled={isSubmitting}
                   className={`rounded-xl px-4 py-2 font-bold text-white transition disabled:opacity-50 ${
                     reviewDecision === "approve"
-                      ? "bg-[#043F2E] hover:bg-[#06553F]"
+                      ? "bg-[#0A2558] hover:bg-[#061738]"
                       : "bg-red-600 hover:bg-red-700"
                   }`}
                 >
@@ -2060,7 +2060,7 @@ export function StaffRbacPage() {
                 <button
                   type="button"
                   onClick={() => setCredentialModalInfo(null)}
-                  className="rounded-xl bg-[#043F2E] px-5 py-2 font-bold text-white hover:bg-[#06553F] transition shadow-xs"
+                  className="rounded-xl bg-[#0A2558] px-5 py-2 font-bold text-white hover:bg-[#061738] transition shadow-xs"
                 >
                   Done / Close
                 </button>

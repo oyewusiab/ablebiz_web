@@ -135,6 +135,82 @@ export function AdminTabs<T extends string>({
   );
 }
 
+export function getStatusBadgeTone(
+  status?: string | null
+): "default" | "success" | "warning" | "danger" | "info" {
+  if (!status) return "default";
+  const normalized = status.toLowerCase().trim().replace(/[-_\s]+/g, "");
+
+  // Success states (semantic green)
+  if (
+    [
+      "paid",
+      "approved",
+      "completed",
+      "active",
+      "verified",
+      "registered",
+      "resolved",
+      "won",
+      "delivered",
+      "successful",
+    ].includes(normalized)
+  ) {
+    return "success";
+  }
+
+  // Warning states (amber)
+  if (
+    [
+      "pending",
+      "underreview",
+      "review",
+      "inreview",
+      "documentsrequired",
+      "awaitingpayment",
+      "submitted",
+      "partiallypaid",
+      "waiting",
+      "actionrequired",
+    ].includes(normalized)
+  ) {
+    return "warning";
+  }
+
+  // Danger states (red)
+  if (
+    [
+      "rejected",
+      "cancelled",
+      "canceled",
+      "failed",
+      "overdue",
+      "query",
+      "queried",
+      "lost",
+      "suspended",
+    ].includes(normalized)
+  ) {
+    return "danger";
+  }
+
+  // Info states (navy/blue)
+  if (
+    [
+      "inprocess",
+      "inprogress",
+      "processing",
+      "filing",
+      "assigned",
+    ].includes(normalized)
+  ) {
+    return "info";
+  }
+
+  // Default / Neutral states (draft, new, archived, inactive)
+  return "default";
+}
+
 export function AdminBadge({
   children,
   tone = "default",

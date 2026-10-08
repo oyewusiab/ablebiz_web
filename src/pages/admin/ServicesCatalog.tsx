@@ -102,7 +102,7 @@ export function ServicesCatalogPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900">
+          <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-[#0A2558]">
             <span>{services.length} Registered Services</span>
           </div>
         </div>
@@ -129,7 +129,7 @@ export function ServicesCatalogPage() {
               onClick={() => setSelectedCategory(cat)}
               className={`rounded-lg px-2.5 py-1.5 text-xs font-medium capitalize transition whitespace-nowrap ${
                 selectedCategory === cat
-                  ? "bg-[#043F2E] text-white"
+                  ? "bg-[#0A2558] text-white"
                   : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
               }`}
             >

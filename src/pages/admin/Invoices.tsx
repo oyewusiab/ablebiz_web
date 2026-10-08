@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
+import { DocumentHeader, DocumentFooter } from "../../components/admin/DocumentBranding";
 
 export interface InvoiceRecord {
   id: string;
@@ -470,11 +471,13 @@ export function InvoicesPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      {/* On-Screen Dashboard View - Hidden during print when invoice preview modal is open */}
+      <div className={isPrintModalOpen ? "space-y-6 print:hidden" : "space-y-6"}>
+        {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between no-print">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-[#0A2558] border border-blue-200">
               <Receipt className="h-5 w-5" />
             </div>
             <div>
@@ -489,7 +492,7 @@ export function InvoicesPage() {
         {canManageFinance && (
           <button
             onClick={() => setIsCreateOpen(true)}
-            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-emerald-700 transition"
+            className="inline-flex items-center gap-2 rounded-xl bg-[#0A2558] px-4 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-[#061738] transition active:translate-y-px"
           >
             <Plus className="h-4 w-4" />
             Create Direct Invoice
@@ -652,7 +655,7 @@ export function InvoicesPage() {
                                   notes: "",
                                 });
                               }}
-                              className="rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 transition"
+                              className="rounded-lg bg-[#0A2558] px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-[#061738] transition"
                             >
                               Record Payment
                             </button>
@@ -874,7 +877,7 @@ export function InvoicesPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="rounded-xl bg-emerald-600 px-5 py-2 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                  className="rounded-xl bg-[#0A2558] px-5 py-2 font-semibold text-white hover:bg-[#061738] disabled:opacity-50 transition"
                 >
                   {submitting ? "Issuing..." : "Generate Official Invoice"}
                 </button>
@@ -883,14 +886,15 @@ export function InvoicesPage() {
           </div>
         </div>
       )}
+      </div>
 
       {/* VIEW & PRINT INVOICE MODAL */}
       {isPrintModalOpen && selectedInvoice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl max-h-[95vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
+        <div className="print-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+          <div className="print-modal-content w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl max-h-[95vh] overflow-y-auto">
+            <div className="no-print flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
               <div className="flex items-center gap-2">
-                <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-1 rounded">
+                <span className="font-mono text-xs font-bold text-[#0A2558] bg-blue-50 border border-blue-200 px-2 py-1 rounded">
                   {selectedInvoice.invoice_number}
                 </span>
                 <span className="text-xs text-slate-400 uppercase">({selectedInvoice.status})</span>
@@ -918,49 +922,26 @@ export function InvoicesPage() {
             </div>
 
             {/* Printable Document */}
-            <div className="p-4 border border-slate-200 rounded-xl bg-white space-y-6 print:border-none print:p-0">
-              <div className="flex justify-between items-start border-b border-slate-200 pb-5">
-                <div>
-                  <h2 className="text-lg font-black tracking-tight text-slate-900">
-                    ABLEBIZ BUSINESS SERVICES
-                  </h2>
-                  <p className="text-[11px] text-slate-500 font-medium">
-                    CAC Accredited Corporate Consultants & Enterprise Agents
-                  </p>
-                  <p className="text-[11px] text-slate-500">
-                    Abeokuta, Ogun State, Nigeria • billing@ablebiz.com.ng
-                  </p>
-                </div>
-                <div className="text-right">
-                  <h3 className="text-xl font-black text-emerald-700 tracking-wide">TAX INVOICE</h3>
-                  <p className="font-mono text-xs font-bold text-slate-800">{selectedInvoice.invoice_number}</p>
-                  <p className="text-[11px] text-slate-500">
-                    Issued: {new Date(selectedInvoice.issue_date).toLocaleDateString()}
-                  </p>
-                  <p className="text-[11px] text-slate-500 font-semibold">
-                    Payment Due: {new Date(selectedInvoice.due_date).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
-
-              {/* Recipient / Bank details */}
-              <div className="grid grid-cols-2 gap-4 text-xs">
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">BILLED TO:</span>
-                  <p className="font-bold text-slate-900 mt-0.5">{selectedInvoice.client?.full_name}</p>
-                  <p className="text-slate-600">{selectedInvoice.client?.phone}</p>
-                  {selectedInvoice.client?.email && <p className="text-slate-600">{selectedInvoice.client.email}</p>}
-                  {selectedInvoice.business && (
-                    <p className="text-emerald-700 font-semibold mt-1">Re: {selectedInvoice.business.name}</p>
-                  )}
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">REMITTANCE INSTRUCTIONS:</span>
-                  <p className="font-semibold text-slate-900 mt-0.5">Moniepoint Microfinance Bank</p>
-                  <p className="text-slate-600">Account Name: Ablebiz Business Services</p>
-                  <p className="font-mono text-slate-800 font-bold">Account No: 8243178920</p>
-                </div>
-              </div>
+            <div className="print-document p-4 border border-slate-200 rounded-xl bg-white space-y-6 print:border-none print:p-0">
+              <DocumentHeader
+                title="TAX INVOICE"
+                documentNumber={selectedInvoice.invoice_number}
+                date={selectedInvoice.issue_date}
+                dueDate={selectedInvoice.due_date}
+                dueLabel="Payment Due"
+                status={selectedInvoice.status}
+                recipient={{
+                  name: selectedInvoice.client?.full_name,
+                  phone: selectedInvoice.client?.phone,
+                  email: selectedInvoice.client?.email,
+                  businessName: selectedInvoice.business?.name,
+                }}
+                paymentDetails={{
+                  bankName: "Moniepoint Microfinance Bank",
+                  accountName: "Ablebiz Business Services",
+                  accountNumber: "8243178920",
+                }}
+              />
 
               {/* Items */}
               <table className="w-full text-left text-xs border border-slate-200 rounded-lg overflow-hidden">
@@ -1046,17 +1027,15 @@ export function InvoicesPage() {
                 </div>
               )}
 
-              {selectedInvoice.payment_terms && (
-                <div className="text-[11px] text-slate-500 border-t border-slate-100 pt-3">
-                  <span className="font-bold text-slate-900">Payment Terms:</span>
-                  <p className="mt-0.5">{selectedInvoice.payment_terms}</p>
-                </div>
-              )}
+              <DocumentFooter
+                documentId={selectedInvoice.id}
+                notes={selectedInvoice.payment_terms || "Thank you for engaging ABLEBIZ Business Services. CAC compliance and operational filings commence following payment reconciliation."}
+              />
             </div>
 
             {/* Bottom Actions */}
             {canManageFinance && Number(selectedInvoice.balance_due) > 0 && (
-              <div className="mt-5 border-t border-slate-100 pt-4 flex items-center justify-end gap-3">
+              <div className="no-print mt-5 border-t border-slate-100 pt-4 flex items-center justify-end gap-3">
                 <button
                   onClick={() => {
                     setIsPrintModalOpen(false);
@@ -1069,7 +1048,7 @@ export function InvoicesPage() {
                       notes: "",
                     });
                   }}
-                  className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-emerald-700 transition"
+                  className="rounded-xl bg-[#0A2558] px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-[#061738] transition active:translate-y-px"
                 >
                   Record Payment for this Invoice
                 </button>
@@ -1081,7 +1060,7 @@ export function InvoicesPage() {
 
       {/* QUICK PAYMENT RECORDING MODAL */}
       {paymentModalInvoice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
           <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
               <div>
@@ -1106,7 +1085,7 @@ export function InvoicesPage() {
                   step="0.01"
                   value={paymentData.amount}
                   onChange={(e) => setPaymentData({ ...paymentData, amount: parseFloat(e.target.value) || 0 })}
-                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600 text-sm font-bold text-slate-900"
+                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-[#0A2558] focus:ring-1 focus:ring-[#0A2558]/20 text-sm font-bold text-slate-900"
                 />
               </div>
 
@@ -1115,7 +1094,7 @@ export function InvoicesPage() {
                 <select
                   value={paymentData.payment_method}
                   onChange={(e) => setPaymentData({ ...paymentData, payment_method: e.target.value })}
-                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600"
+                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-[#0A2558] focus:ring-1 focus:ring-[#0A2558]/20"
                 >
                   <option value="bank_transfer">Bank Transfer</option>
                   <option value="pos">POS Terminal</option>
@@ -1132,7 +1111,7 @@ export function InvoicesPage() {
                   placeholder="e.g. NIP Transfer 9823487192"
                   value={paymentData.transaction_reference}
                   onChange={(e) => setPaymentData({ ...paymentData, transaction_reference: e.target.value })}
-                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600"
+                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-[#0A2558] focus:ring-1 focus:ring-[#0A2558]/20"
                 />
               </div>
 
@@ -1142,7 +1121,7 @@ export function InvoicesPage() {
                   type="text"
                   value={paymentData.bank_account_credited}
                   onChange={(e) => setPaymentData({ ...paymentData, bank_account_credited: e.target.value })}
-                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600"
+                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-[#0A2558] focus:ring-1 focus:ring-[#0A2558]/20"
                 />
               </div>
 
@@ -1153,7 +1132,7 @@ export function InvoicesPage() {
                   placeholder="Additional payment commentary..."
                   value={paymentData.notes}
                   onChange={(e) => setPaymentData({ ...paymentData, notes: e.target.value })}
-                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600"
+                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-[#0A2558] focus:ring-1 focus:ring-[#0A2558]/20"
                 />
               </div>
 
@@ -1168,7 +1147,7 @@ export function InvoicesPage() {
                 <button
                   type="submit"
                   disabled={recordingPayment}
-                  className="rounded-xl bg-emerald-600 px-5 py-2 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                  className="rounded-xl bg-[#0A2558] px-5 py-2 font-semibold text-white hover:bg-[#061738] disabled:opacity-50 transition"
                 >
                   {recordingPayment ? "Processing..." : "Confirm & Issue Receipt"}
                 </button>

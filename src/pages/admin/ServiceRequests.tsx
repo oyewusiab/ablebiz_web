@@ -145,7 +145,7 @@ export function ServiceRequestsPage() {
               onClick={() => setStatusFilter(st)}
               className={`rounded-lg px-2.5 py-1.5 text-xs font-medium capitalize transition whitespace-nowrap ${
                 statusFilter === st
-                  ? "bg-[#043F2E] text-white"
+                  ? "bg-[#0A2558] text-white"
                   : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
               }`}
             >

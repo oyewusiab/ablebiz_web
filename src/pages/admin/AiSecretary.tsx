@@ -282,7 +282,7 @@ export function AiSecretaryPage() {
               <div
                 className={`max-w-[85%] rounded-2xl p-4 shadow-2xs whitespace-pre-wrap ${
                   msg.sender === "user"
-                    ? "bg-emerald-600 text-white rounded-tr-xs"
+                    ? "bg-[#0A2558] text-white rounded-tr-xs"
                     : "bg-slate-50 border border-slate-200 text-slate-800 rounded-tl-xs"
                 }`}
               >
@@ -344,7 +344,7 @@ export function AiSecretaryPage() {
             <button
               type="submit"
               disabled={!inputText.trim() || isProcessing}
-              className="rounded-xl bg-emerald-600 p-2 text-white hover:bg-emerald-700 disabled:opacity-50 shadow-xs transition"
+              className="rounded-xl bg-[#0A2558] p-2 text-white hover:bg-[#061738] disabled:opacity-50 shadow-xs transition"
             >
               <Send className="h-4 w-4" />
             </button>

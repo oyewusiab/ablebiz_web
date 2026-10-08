@@ -210,10 +210,10 @@ export function AdminDashboard() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-slate-200 bg-white p-5 lg:p-6 shadow-xs">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            <h1 className="text-2xl font-bold tracking-tight text-[#0A2558]">
               Good day, {profile?.full_name?.split(" ")[0] || "Staff Member"}
             </h1>
-            <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
+            <span className="rounded-md bg-amber-100 border border-amber-200 px-2.5 py-0.5 text-xs font-semibold text-amber-900">
               {roleTitle}
             </span>
           </div>
@@ -228,17 +228,17 @@ export function AdminDashboard() {
             disabled={loading}
             className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs disabled:opacity-50"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin text-emerald-600" : ""}`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin text-[#0A2558]" : ""}`} />
             <span>Sync Live Data</span>
           </button>
         </div>
       </div>
 
       {/* 2. Priority Attention Center ("What requires my attention today?") */}
-      <div className="rounded-2xl border border-emerald-900/10 bg-gradient-to-br from-emerald-50/50 via-white to-slate-50 p-5 lg:p-6 shadow-xs">
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-blue-50/20 via-white to-slate-50 p-5 lg:p-6 shadow-xs">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-800 text-white shadow-xs">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0A2558] text-amber-400 shadow-xs">
               <AlertCircle className="h-4 w-4" />
             </div>
             <div>
@@ -246,14 +246,14 @@ export function AdminDashboard() {
               <p className="text-xs text-slate-500">Items awaiting internal review, filing, or client response</p>
             </div>
           </div>
-          <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
+          <span className="rounded-full bg-amber-100 border border-amber-200 px-2.5 py-0.5 text-xs font-bold text-amber-900">
             {attentionItems.length} Action Items
           </span>
         </div>
 
         {attentionItems.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-emerald-200 bg-white/60 p-6 text-center">
-            <FileCheck2 className="mx-auto h-8 w-8 text-emerald-600 mb-2 opacity-70" />
+          <div className="rounded-xl border border-dashed border-slate-200 bg-white/60 p-6 text-center">
+            <FileCheck2 className="mx-auto h-8 w-8 text-[#0A2558] mb-2 opacity-70" />
             <p className="text-xs font-semibold text-slate-800">All queues are clear!</p>
             <p className="text-[11px] text-slate-500">No overdue tasks or pending filings require immediate escalation.</p>
           </div>
@@ -263,7 +263,7 @@ export function AdminDashboard() {
               <Link
                 key={item.id}
                 to={item.link}
-                className="group flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-3.5 hover:border-emerald-500 hover:shadow-xs transition"
+                className="group flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-3.5 hover:border-[#0A2558] hover:shadow-xs transition"
               >
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
@@ -274,10 +274,10 @@ export function AdminDashboard() {
                       {item.priority}
                     </span>
                   </div>
-                  <p className="text-xs font-bold text-slate-900 group-hover:text-emerald-800 line-clamp-1">{item.title}</p>
+                  <p className="text-xs font-bold text-slate-900 group-hover:text-[#0A2558] line-clamp-1">{item.title}</p>
                   <p className="text-[11px] text-slate-500 line-clamp-1">{item.subtitle}</p>
                 </div>
-                <div className="mt-3 flex items-center justify-end text-[11px] font-semibold text-emerald-700 group-hover:translate-x-0.5 transition">
+                <div className="mt-3 flex items-center justify-end text-[11px] font-semibold text-[#0A2558] group-hover:translate-x-0.5 transition">
                   Resolve <ArrowUpRight className="ml-1 h-3 w-3" />
                 </div>
               </Link>
@@ -293,7 +293,7 @@ export function AdminDashboard() {
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
             <div className="flex items-center justify-between text-slate-500">
               <span className="text-xs font-medium">Active Clients</span>
-              <Users className="h-4 w-4 text-emerald-600" />
+              <Users className="h-4 w-4 text-[#0A2558]" />
             </div>
             <p className="mt-2 text-2xl font-bold text-slate-900">{metrics.activeClients}</p>
             <p className="mt-0.5 text-[11px] text-slate-500">Client entities with active records</p>
@@ -302,7 +302,7 @@ export function AdminDashboard() {
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
             <div className="flex items-center justify-between text-slate-500">
               <span className="text-xs font-medium">Businesses</span>
-              <Building2 className="h-4 w-4 text-emerald-600" />
+              <Building2 className="h-4 w-4 text-[#0A2558]" />
             </div>
             <p className="mt-2 text-2xl font-bold text-slate-900">{metrics.activeBusinesses}</p>
             <p className="mt-0.5 text-[11px] text-slate-500">Registered business entities</p>
@@ -311,7 +311,7 @@ export function AdminDashboard() {
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
             <div className="flex items-center justify-between text-slate-500">
               <span className="text-xs font-medium">Service Requests</span>
-              <FileCheck2 className="h-4 w-4 text-emerald-600" />
+              <FileCheck2 className="h-4 w-4 text-[#0A2558]" />
             </div>
             <p className="mt-2 text-2xl font-bold text-slate-900">{metrics.openServiceRequests}</p>
             <p className="mt-0.5 text-[11px] text-slate-500">Active operational engagements</p>
@@ -320,7 +320,7 @@ export function AdminDashboard() {
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
             <div className="flex items-center justify-between text-slate-500">
               <span className="text-xs font-medium">CAC Applications</span>
-              <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+              <FileSpreadsheet className="h-4 w-4 text-[#0A2558]" />
             </div>
             <p className="mt-2 text-2xl font-bold text-slate-900">{metrics.pendingCacApplications}</p>
             <p className="mt-0.5 text-[11px] text-slate-500">In statutory filing workflow</p>
@@ -333,10 +333,10 @@ export function AdminDashboard() {
         <div className="rounded-2xl border border-slate-200 bg-white p-5 lg:p-6 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <CreditCard className="h-4 w-4 text-emerald-700" />
+              <CreditCard className="h-4 w-4 text-[#0A2558]" />
               <h3 className="text-sm font-bold text-slate-900">Financial Ledger Summary</h3>
             </div>
-            <Link to="/admin/invoices" className="text-xs font-semibold text-emerald-700 hover:underline">
+            <Link to="/admin/invoices" className="text-xs font-semibold text-[#0A2558] hover:underline">
               View Invoices & Payments →
             </Link>
           </div>
@@ -407,34 +407,34 @@ export function AdminDashboard() {
             <div className="space-y-2">
               <Link
                 to="/admin/services-catalog"
-                className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:border-emerald-400 transition"
+                className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-[#0A2558] hover:text-[#0A2558] transition"
               >
                 <span>Browse Services Catalogue</span>
-                <ArrowUpRight className="h-3.5 w-3.5 text-emerald-700" />
+                <ArrowUpRight className="h-3.5 w-3.5 text-[#0A2558]" />
               </Link>
               <Link
                 to="/admin/service-requests"
-                className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:border-emerald-400 transition"
+                className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-[#0A2558] hover:text-[#0A2558] transition"
               >
                 <span>Manage Service Requests</span>
-                <ArrowUpRight className="h-3.5 w-3.5 text-emerald-700" />
+                <ArrowUpRight className="h-3.5 w-3.5 text-[#0A2558]" />
               </Link>
               <Link
                 to="/admin/clients"
-                className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:border-emerald-400 transition"
+                className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-[#0A2558] hover:text-[#0A2558] transition"
               >
                 <span>Client 360° Directory</span>
-                <ArrowUpRight className="h-3.5 w-3.5 text-emerald-700" />
+                <ArrowUpRight className="h-3.5 w-3.5 text-[#0A2558]" />
               </Link>
             </div>
           </div>
 
-          <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-[11px] text-emerald-900">
-            <p className="font-semibold flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-emerald-700" />
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-[11px] text-slate-700">
+            <p className="font-semibold flex items-center gap-1.5 text-slate-900">
+              <Sparkles className="h-3.5 w-3.5 text-amber-600" />
               Operational Security Active
             </p>
-            <p className="mt-0.5 text-emerald-700">All data queries are secured via Supabase PostgreSQL Row-Level Security.</p>
+            <p className="mt-0.5 text-slate-500">All data queries are secured via Supabase PostgreSQL Row-Level Security.</p>
           </div>
         </div>
       </div>

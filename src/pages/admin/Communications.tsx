@@ -241,7 +241,7 @@ export function ClientCommunicationsPage() {
           {canCreate && (
             <button
               onClick={() => setIsLogOpen(true)}
-              className="flex items-center gap-2 rounded-xl bg-[#043F2E] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#06553F] shadow-xs transition"
+              className="flex items-center gap-2 rounded-xl bg-[#0A2558] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#061738] shadow-xs transition"
             >
               <Plus className="h-4 w-4" />
               <span>Log Communication</span>
@@ -510,7 +510,7 @@ export function ClientCommunicationsPage() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="rounded-xl bg-[#043F2E] px-4 py-2 font-bold text-white hover:bg-[#06553F] transition disabled:opacity-50"
+                  className="rounded-xl bg-[#0A2558] px-4 py-2 font-bold text-white hover:bg-[#061738] transition disabled:opacity-50"
                 >
                   {isSubmitting ? "Saving..." : "Save Record"}
                 </button>

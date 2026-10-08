@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
+import { DocumentHeader, DocumentFooter } from "../../components/admin/DocumentBranding";
 
 type DateRangeOption = "today" | "this_week" | "this_month" | "this_quarter" | "this_year" | "all";
 
@@ -195,12 +196,27 @@ export function AdminReports() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="print-document space-y-6">
+      {/* Print-Only Document Letterhead */}
+      <div className="print-only mb-6">
+        <DocumentHeader
+          title="EXECUTIVE PERFORMANCE & OPERATIONS REPORT"
+          date={new Date()}
+          status="OFFICIAL REPORT"
+          documentNumber={`REP-${new Date().getFullYear()}-${dateRange.toUpperCase()}`}
+          recipientLabel="REPORT GENERATED FOR"
+          recipient={{
+            name: "Ablebiz Executive Management",
+            email: "management@ablebiz.com.ng",
+          }}
+        />
+      </div>
+
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between no-print">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-[#0A2558] border border-blue-200">
               <BarChart3 className="h-5 w-5" />
             </div>
             <div>
@@ -240,7 +256,7 @@ export function AdminReports() {
 
           <button
             onClick={exportReportCsv}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 shadow-xs transition"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[#0A2558] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-[#061738] shadow-xs transition active:translate-y-px"
           >
             <Download className="h-3.5 w-3.5" />
             Export CSV
@@ -249,7 +265,7 @@ export function AdminReports() {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex border-b border-slate-200 gap-1 overflow-x-auto text-xs font-semibold">
+      <div className="flex border-b border-slate-200 gap-1 overflow-x-auto text-xs font-semibold no-print">
         {[
           { id: "overview", label: "Executive Overview" },
           { id: "operations", label: "Operations & CAC SLA" },
@@ -262,7 +278,7 @@ export function AdminReports() {
             onClick={() => setActiveTab(tab.id as any)}
             className={`pb-3 px-4 transition border-b-2 ${
               activeTab === tab.id
-                ? "border-emerald-600 text-emerald-800"
+                ? "border-[#0A2558] text-[#0A2558] font-bold"
                 : "border-transparent text-slate-500 hover:text-slate-800"
             }`}
           >
@@ -282,11 +298,11 @@ export function AdminReports() {
               <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
                 <Link
                   to="/admin/clients"
-                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs hover:border-emerald-500 transition group"
+                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs hover:border-[#0A2558] transition group"
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-slate-500 font-medium">Active Clients</span>
-                    <ArrowUpRight className="h-4 w-4 text-slate-300 group-hover:text-emerald-600" />
+                    <ArrowUpRight className="h-4 w-4 text-slate-300 group-hover:text-[#0A2558]" />
                   </div>
                   <p className="mt-1 text-2xl font-bold text-slate-900">{clientsCount}</p>
                   <span className="text-[11px] text-slate-400">{businessesCount} registered businesses</span>
@@ -294,11 +310,11 @@ export function AdminReports() {
 
                 <Link
                   to="/admin/cac-operations"
-                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs hover:border-emerald-500 transition group"
+                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs hover:border-[#0A2558] transition group"
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-slate-500 font-medium">Active CAC Filings</span>
-                    <ArrowUpRight className="h-4 w-4 text-slate-300 group-hover:text-emerald-600" />
+                    <ArrowUpRight className="h-4 w-4 text-slate-300 group-hover:text-[#0A2558]" />
                   </div>
                   <p className="mt-1 text-2xl font-bold text-blue-600">{activeCacCount}</p>
                   <span className="text-[11px] text-slate-400">Applications currently processing</span>
@@ -319,11 +335,11 @@ export function AdminReports() {
                 {canViewFinance ? (
                   <Link
                     to="/admin/invoices"
-                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs hover:border-emerald-500 transition group"
+                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs hover:border-[#0A2558] transition group"
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-slate-500 font-medium">Collected Collections</span>
-                      <ArrowUpRight className="h-4 w-4 text-slate-300 group-hover:text-emerald-600" />
+                      <ArrowUpRight className="h-4 w-4 text-slate-300 group-hover:text-[#0A2558]" />
                     </div>
                     <p className="mt-1 text-2xl font-bold text-emerald-700">₦{totalCollected.toLocaleString()}</p>
                     <span className="text-[11px] text-slate-400">Outstanding: ₦{outstandingBalance.toLocaleString()}</span>
@@ -361,7 +377,7 @@ export function AdminReports() {
                     </p>
                     <Link
                       to="/admin/invoices"
-                      className="inline-flex items-center gap-1 font-semibold text-emerald-700 hover:underline text-[11px]"
+                      className="inline-flex items-center gap-1 font-semibold text-[#0A2558] hover:underline text-[11px]"
                     >
                       Inspect Overdue Invoices →
                     </Link>
@@ -374,7 +390,7 @@ export function AdminReports() {
                     </p>
                     <Link
                       to="/admin/documents"
-                      className="inline-flex items-center gap-1 font-semibold text-emerald-700 hover:underline text-[11px]"
+                      className="inline-flex items-center gap-1 font-semibold text-[#0A2558] hover:underline text-[11px]"
                     >
                       Verify Documents in Vault →
                     </Link>
@@ -387,7 +403,7 @@ export function AdminReports() {
                     </p>
                     <Link
                       to="/admin/cac-operations"
-                      className="inline-flex items-center gap-1 font-semibold text-emerald-700 hover:underline text-[11px]"
+                      className="inline-flex items-center gap-1 font-semibold text-[#0A2558] hover:underline text-[11px]"
                     >
                       Open CAC Workbench →
                     </Link>
@@ -429,7 +445,7 @@ export function AdminReports() {
                             <span className="font-bold text-slate-900">{count}</span>
                           </div>
                           <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-emerald-600 rounded-full" style={{ width: `${percent}%` }} />
+                            <div className="h-full bg-[#0A2558] rounded-full" style={{ width: `${percent}%` }} />
                           </div>
                         </div>
                       );
@@ -599,6 +615,14 @@ export function AdminReports() {
           )}
         </div>
       )}
+
+      {/* Print-Only Document Footer */}
+      <div className="print-only mt-8">
+        <DocumentFooter
+          documentId={`REP-${dateRange.toUpperCase()}`}
+          notes="Confidential internal operations intelligence document. Authorized for ABLEBIZ Business Services executive decision-making."
+        />
+      </div>
     </div>
   );
 }

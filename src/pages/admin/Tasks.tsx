@@ -210,7 +210,7 @@ export function TasksPage() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">Operational Tasks</h1>
-            <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">
+            <span className="rounded bg-blue-50 border border-blue-200 px-2 py-0.5 text-xs font-bold text-[#0A2558]">
               Task Delegation
             </span>
           </div>
@@ -223,7 +223,7 @@ export function TasksPage() {
           {canCreate && (
             <button
               onClick={() => setIsCreateOpen(true)}
-              className="flex items-center gap-2 rounded-xl bg-[#043F2E] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#06553F] shadow-xs transition"
+              className="flex items-center gap-2 rounded-xl bg-[#0A2558] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#061738] shadow-xs transition"
             >
               <Plus className="h-4 w-4" />
               <span>Create Task</span>
@@ -253,7 +253,7 @@ export function TasksPage() {
               onClick={() => setStatusFilter(st)}
               className={`rounded-lg px-2.5 py-1.5 text-xs font-medium capitalize transition whitespace-nowrap ${
                 statusFilter === st
-                  ? "bg-[#043F2E] text-white"
+                  ? "bg-[#0A2558] text-white"
                   : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
               }`}
             >
@@ -386,7 +386,7 @@ export function TasksPage() {
                   <button
                     type="submit"
                     disabled={isSubmittingComment}
-                    className="flex items-center justify-center rounded-xl bg-[#043F2E] px-3 text-white hover:bg-[#06553F] transition disabled:opacity-50"
+                    className="flex items-center justify-center rounded-xl bg-[#0A2558] px-3 text-white hover:bg-[#061738] transition disabled:opacity-50"
                   >
                     <Send className="h-3.5 w-3.5" />
                   </button>
@@ -477,7 +477,7 @@ export function TasksPage() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="rounded-xl bg-[#043F2E] px-4 py-2 font-bold text-white hover:bg-[#06553F] transition disabled:opacity-50"
+                  className="rounded-xl bg-[#0A2558] px-4 py-2 font-bold text-white hover:bg-[#061738] transition disabled:opacity-50"
                 >
                   {isSubmitting ? "Creating..." : "Assign Task"}
                 </button>
