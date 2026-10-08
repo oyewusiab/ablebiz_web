@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 interface RequestPayload {
-  action: "create_staff" | "reconcile_staff" | "approve_request" | "diagnostic";
+  action: "create_staff" | "reconcile_staff" | "approve_request" | "diagnostic" | "complete_password_change";
   email?: string;
   fullName?: string;
   role?: string;
@@ -106,16 +106,6 @@ serve(async (req: Request) => {
       );
     }
 
-    const isSuperAdmin =
-      callerProfile.is_active && callerProfile.role === "super_admin";
-
-    if (!isSuperAdmin) {
-      return new Response(
-        JSON.stringify({ error: "Forbidden: Only active super_admin staff can provision staff accounts." }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     // 4. Parse Request Body
     let body: RequestPayload;
     try {
@@ -129,6 +119,50 @@ serve(async (req: Request) => {
       );
     }
     const { action } = body;
+
+    // Action: Complete Password Change (Available to any active authenticated staff member)
+    if (action === "complete_password_change") {
+      if (!callerProfile.is_active) {
+        return new Response(
+          JSON.stringify({ error: "Inactive staff account cannot change password." }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data: updatedProfile, error: updErr } = await adminClient
+        .from("staff_profiles")
+        .update({
+          must_change_password: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", callerProfile.id)
+        .select()
+        .single();
+
+      if (updErr) {
+        throw new Error(`Failed to update password change flag: ${updErr.message}`);
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          action: "complete_password_change",
+          staff: updatedProfile,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // All other actions (diagnostic, reconcile_staff, create_staff, approve_request) require Super Admin
+    const isSuperAdmin =
+      callerProfile.is_active && callerProfile.role === "super_admin";
+
+    if (!isSuperAdmin) {
+      return new Response(
+        JSON.stringify({ error: "Forbidden: Only active super_admin staff can provision staff accounts." }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Helper: Audit Logging
     const logAudit = async (actionName: string, entityId: string, oldVals: any, newVals: any, title: string) => {

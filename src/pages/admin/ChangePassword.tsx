@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Lock, CheckCircle2, AlertCircle, ArrowRight, ShieldCheck, KeyRound, LogOut } from "lucide-react";
 import { supabase, supabaseEnabled } from "../../lib/supabaseClient";
+import { invokeStaffProvision } from "../../lib/staffProvisioning";
 import { useAuth } from "../../auth/AuthContext";
 
 export function AdminChangePasswordPage() {
@@ -83,21 +84,29 @@ export function AdminChangePasswordPage() {
         return;
       }
 
-      // 3. Clear must_change_password flag on staff_profiles
-      if (profile?.id) {
-        const { error: profErr } = await supabase
-          .from("staff_profiles")
-          .update({
-            must_change_password: false,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", profile.id);
-
-        if (profErr) {
-          console.warn("[PasswordChange] Failed to clear must_change_password flag:", profErr.message);
+      // 3. Clear must_change_password flag on staff_profiles via authoritative Edge Function
+      try {
+        await invokeStaffProvision({
+          action: "complete_password_change",
+        });
+      } catch (flagErr: any) {
+        console.warn("[PasswordChange] Fallback to direct update if Edge Function unavailable:", flagErr);
+        if (profile?.id) {
+          const { error: profErr } = await supabase
+            .from("staff_profiles")
+            .update({
+              must_change_password: false,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", profile.id);
+          if (profErr) {
+            console.warn("[PasswordChange] Direct flag clear warning:", profErr.message);
+          }
         }
+      }
 
-        // 4. Record audit event (without logging any passwords)
+      // 4. Record audit event (without logging any passwords)
+      if (profile?.id) {
         try {
           await Promise.all([
             supabase.from("audit_logs").insert({
