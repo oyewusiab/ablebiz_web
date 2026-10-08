@@ -49,9 +49,18 @@ export async function invokeStaffProvision(
     throw new Error("Supabase client is not configured.");
   }
 
-  const { data, error } = await supabase.functions.invoke("staff-provision", {
+  // Invoke the live deployed Edge Function 'super-api', with fallback to 'staff-provision'
+  let res = await supabase.functions.invoke("super-api", {
     body: payload,
   });
+
+  if (res.error && (res.error.message?.includes("not found") || res.error.message?.includes("404"))) {
+    res = await supabase.functions.invoke("staff-provision", {
+      body: payload,
+    });
+  }
+
+  const { data, error } = res;
 
   if (error) {
     // If Edge Function returned an HTTP error or function error message
