@@ -1,7 +1,7 @@
 # ABLEBIZ SUITE — CANONICAL AUDIT & REMEDIATION REPORT
 ## SPIN & EARN → SUPABASE → ABLEBIZ SUITE LIVE INTEGRATION GATE
 
-**Scope:** Production Defect Remediation, Authorization Hardening, Idempotent Migration & Live Verification  
+**Scope:** Production Defect Remediation, Granular Role-Based Access Control, Idempotent Migration & Live Verification  
 **Public Website:** `https://www.ablebiz.com.ng`  
 **Production Database:** Supabase (`https://ksjphkqxudtkduuhnyvn.supabase.co`)  
 **Suite Modules:** `/admin/referrals` (Redemptions/Rewards tab) & `/admin/leads` (Leads Pipeline)  
@@ -12,7 +12,7 @@
 
 ## 1. Production Deployment Status
 
-- **Committed SHA:** `6820c2f` (Core code at `ad47172` and migration hardening at `6820c2f`)
+- **Committed SHA:** `f68e675` (Code at `ad47172` and migration hardening at `f68e675`)
 - **Remote Branch:** `origin/main` (Synchronized and pushed)
 - **Live Deployment Platform:** Vercel Production
 - **Live URL:** `https://www.ablebiz.com.ng`
@@ -25,31 +25,36 @@
 
 ---
 
-## 2. Supabase Security & Authorization Review
+## 2. Security Review & Granular RBAC Hardening
 
-A comprehensive audit was performed across all tables and RPCs:
+A comprehensive audit was performed across all operational tables, replacing blanket active-staff grants with role-aware policies:
 
-| Table / Object | Anonymous Access (`anon`) | Authenticated Staff Access | Migration Enforcement | Status |
-| :--- | :--- | :--- | :--- | :--- |
-| `leads` | `SELECT` denied (`42501`); direct unvalidated `INSERT` blocked. | `SELECT`, `UPDATE` guarded by `is_active_staff()` RLS. | Revokes `anon` direct writes; routes public writes via validated RPCs. | **AUDITED & SECURED** |
-| `spin_rewards` | `SELECT`, `INSERT`, `UPDATE`, `DELETE` denied (`42501`). | `SELECT`, `UPDATE` guarded by `is_active_staff()` RLS. | Zero direct `anon` access; created solely by `SECURITY DEFINER` RPC. | **VERIFIED LEAST PRIVILEGE** |
-| `referral_events` | `SELECT`, `INSERT` denied (`42501`). | `SELECT`, `INSERT`, `UPDATE` guarded by `is_active_staff()` RLS. | Attributions logged only via validated RPC or authorized staff. | **VERIFIED LEAST PRIVILEGE** |
-| `spin_reward_configs`| `SELECT` allowed (`is_active = true`); writes denied (`42501`). | `SELECT` allowed; writes strictly restricted to Super Admin RPC. | Preserves active configuration lookup for frontend wheel animation. | **VERIFIED SAFE** |
-| `admin_users` | All access denied (`42501`). | `SELECT` own record via `auth_uid = auth.uid()`. | Prevents privilege escalation; syncs only `super_admin` & `admin`. | **VERIFIED ZERO ESCALATION** |
-| `admin_audit_log` | All access denied (`42501`). | `SELECT` restricted to management; appends audit logs on actions. | Audits fulfillment events with staff ID and timestamp. | **VERIFIED SECURE** |
+### Detailed Permission Matrix by Staff Role
 
-### Key Safety Findings & Fixes
-1. **Preserved Function Signatures:**
-   - Retained `_ablebiz_require_admin() returns public.admin_users` to avoid PostgreSQL error `42P13` (`cannot change return type of existing function`).
-   - Retained superadmin safeguards and trigger `trg_protect_last_super_admin` on `public.staff_profiles`.
-2. **Decoupled Fulfillment from Client Conversion:**
-   - `ablebiz_admin_fulfill_reward` updates `spin_rewards.status = 'fulfilled'` and appends to `admin_audit_log`.
-   - The parent record `leads.is_converted` remains strictly `false`. Promotional prizes do NOT distort paying client pipelines.
-3. **Rejection of Open Authenticated Policies:**
-   - Completely avoided `FOR ALL TO authenticated USING (true)`. All operational tables strictly check `public.is_active_staff()`.
-4. **Anti-Abuse Verification:**
-   - Duplicate spins return existing reward `{ note: "existing_spin" }`.
-   - Re-spins do NOT generate duplicate referral points or increment referral counts.
+| Table | Operation | Authorized Roles | Unauthorized Roles / Blocked |
+| :--- | :--- | :--- | :--- |
+| **`leads`** | `SELECT` | All active staff (`is_active_staff()`) | Anonymous visitors |
+| | `UPDATE` | `super_admin`, `admin`, `operations_manager`, `client_service_officer`, `marketing_officer` | `registration_officer`, `accounts_officer`, `viewer`, anonymous |
+| | `DELETE` | **None** (Hard deletes strictly prohibited to preserve acquisition audit trail) | All roles |
+| **`spin_rewards`** | `SELECT` | All active staff (`is_active_staff()`) | Anonymous visitors |
+| | `UPDATE` | `super_admin`, `admin` (or via audited RPC `ablebiz_admin_fulfill_reward`) | `operations_manager`, `registration_officer`, `accounts_officer`, `client_service_officer`, `marketing_officer`, `viewer` |
+| | `DELETE` | **None** | All roles |
+| **`referral_events`**| `SELECT` | All active staff (`is_active_staff()`) | Anonymous visitors |
+| | `INSERT` | `super_admin`, `admin`, `marketing_officer`, `operations_manager` | `registration_officer`, `accounts_officer`, `client_service_officer`, `viewer` |
+| | `UPDATE` | `super_admin`, `admin` | All operational roles |
+| | `DELETE` | **None** | All roles |
+| **`consultation_requests`**| `SELECT` | All active staff (`is_active_staff()`) | Anonymous visitors |
+| | Direct writes | **None** (Ingestion routes exclusively via validated backend RPCs) | All staff and anonymous |
+| **`checklist_downloads`**| `SELECT` | All active staff (`is_active_staff()`) | Anonymous visitors |
+| | Direct writes | **None** (Ingestion routes exclusively via validated backend RPCs) | All staff and anonymous |
+
+### Administrative Identity Hardening (`_ablebiz_require_admin`)
+- **Vulnerability Eliminated:** Removed insecure email fallback that updated `admin_users.auth_uid` based on unverified email strings.
+- **Enforced Resolution:** Administrator status is resolved strictly when `auth.uid()` matches an active `admin_users` record **OR** an active executive record in `staff_profiles` (`super_admin` or `admin`).
+- **Synchronization Trigger Safety:** `sync_executive_staff_to_admin_users` monitors staff profile changes:
+  - If staff email updates, updates `admin_users` email safely without creating duplicates.
+  - If a staff member is demoted or deactivated, immediately sets `admin_users.is_active = false`.
+  - Preserves the `trg_protect_last_super_admin` safeguard trigger.
 
 ---
 
@@ -78,7 +83,7 @@ Live tests were executed against production Supabase (`https://ksjphkqxudtkduuhn
 - **Status:** `NOT APPLIED` (Pending execution in Supabase SQL Editor).
 - **Suite Verification Status:**
   - Public Spin & Earn &rarr; Database: **VERIFIED WORKING**
-  - Staff Dashboard (`/admin/leads` and `/admin/referrals`): Awaiting execution of the migration to grant `is_active_staff()` RLS policies to authenticated staff JWTs.
+  - Staff Dashboard (`/admin/leads` and `/admin/referrals`): Awaiting execution of the migration to grant granular RBAC policies to authenticated staff JWTs.
   - Live Fulfillment via UI: **PENDING MIGRATION APPLICATION & STAFF LOGIN** (Unauthorized attempt was successfully blocked with `not_authorized`).
 
 ---
