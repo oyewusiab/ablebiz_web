@@ -6,29 +6,30 @@
 -- Security Standard: Zero-Trust & Canonical Role-Based Access Control (RBAC)
 --
 -- Audit & Security Hardening Summary:
---   1. Identity Conflict Protection:
---      - Aborts if conflicting identities exist between staff_profiles and admin_users.
---      - Does NOT silently overwrite auth_uid on email collisions.
---   2. Strict Staff Identity & Administrative Resolution:
---      - Every administrative RPC verifies the caller's active status and permitted role.
---      - Deactivated or demoted staff immediately lose all administrative privileges.
---      - Eliminates insecure email fallback in _ablebiz_require_admin().
+--   1. Strict Canonical Staff Verification in _ablebiz_require_admin():
+--      - Every administrative call MUST resolve to an active, canonical staff_profiles record
+--        holding an executive role ('super_admin' or 'admin').
+--      - If a staff member is missing, inactive, demoted, or conflicting, authorization is REJECTED.
+--      - Admin_users is treated strictly as an operational cache; canonical staff_profiles governs.
 --      - Preserves public._ablebiz_require_admin() return type (public.admin_users)
 --        to prevent PostgreSQL error 42P13.
---   3. Preservation of Working Public Spin RPC:
---      - Does NOT rewrite the working production ablebiz_create_spin_and_reward.
---      - Production function is validated, active, and preserved intact.
---   4. Role-Aware Least-Privilege Policies:
---      - Completely rejects blanket 'FOR ALL TO authenticated' and generic 'is_active_staff()' writes.
---      - Restricts SELECT, INSERT, UPDATE by exact staff role.
---      - Prohibits hard deletion across all operational tables (leads, spin_rewards, referral_events).
---   5. Execution Grants & RPC Callers:
---      - Revokes public/anon access from all administrative RPCs.
+--   2. Explicit Function Execution Grants & Revocations:
+--      - Revokes default PUBLIC and ANON execution on internal helpers:
+--        _ablebiz_require_admin(), _ablebiz_require_superadmin(), sync_executive_staff_to_admin_users().
+--      - Grants EXECUTE on helper functions strictly to authenticated callers.
+--      - Revokes public/anon execute on all administrative RPCs.
 --      - Grants public execute ONLY to validated intake RPCs and public leaderboards.
+--   3. Preservation of Verified Production Spin RPC:
+--      - The working production ablebiz_create_spin_and_reward is preserved intact.
+--   4. Identity Conflict Protection:
+--      - Aborts if conflicting auth_uids exist between staff_profiles and admin_users.
+--   5. Documented Policy Transition & Canonical RBAC:
+--      - Replaces blanket active-staff policies with granular, operation-level policies (SELECT, INSERT, UPDATE).
+--      - Hard deletion is blocked across all operational tables (leads, spin_rewards, referral_events).
 --   6. Decoupled Promotional Fulfillment:
---      - ablebiz_admin_fulfill_reward marks spin_rewards.status = 'fulfilled'.
---      - Leaves leads.is_converted = false.
---      - Records fulfilled_by, fulfillment_note, fulfilled_at, and writes to admin_audit_log.
+--      - ablebiz_admin_fulfill_reward marks spin_rewards.status = 'fulfilled',
+--        records staff identity, timestamp, and audit notes into admin_audit_log,
+--        and leaves leads.is_converted = false.
 -- ==============================================================================
 
 begin;
@@ -55,7 +56,6 @@ begin
 end $$;
 
 -- B. Safe Executive Synchronization (Inserts only bona-fide super_admin & admin)
--- Updates only matching auth_uid or unlinked (null auth_uid) admin records.
 insert into public.admin_users (auth_uid, email, name, role, is_active)
 select
   sp.auth_uid,
@@ -122,9 +122,9 @@ create trigger trg_sync_executive_staff_to_admin_users
 after insert or update on public.staff_profiles
 for each row execute function public.sync_executive_staff_to_admin_users();
 
--- D. Hardened administrative identity resolution:
--- Rejects unverified email fallbacks. Checks auth.uid() strictly against active admin_users
--- and verifies active executive status in canonical public.staff_profiles.
+-- D. Strictly Hardened Administrative Identity Resolution:
+-- Every authorization requires an active canonical staff_profiles record with role 'super_admin' or 'admin'.
+-- Rejects unverified email fallbacks, missing profiles, inactive accounts, and demoted staff.
 create or replace function public._ablebiz_require_admin()
 returns public.admin_users
 language plpgsql security definer set search_path = public
@@ -137,29 +137,7 @@ begin
     raise exception 'not_authorized';
   end if;
 
-  -- 1. Match directly by verified auth_uid in public.admin_users
-  select * into v_admin
-  from public.admin_users
-  where auth_uid = auth.uid()
-    and is_active = true
-  limit 1;
-
-  if found then
-    -- Verify that if a staff_profile exists, it is also active and not demoted
-    select * into v_staff
-    from public.staff_profiles
-    where auth_uid = auth.uid();
-
-    if found and (v_staff.is_active = false or v_staff.role not in ('super_admin', 'admin')) then
-      -- Deactivate stale admin_users entry immediately
-      update public.admin_users set is_active = false where id = v_admin.id;
-      raise exception 'not_authorized';
-    end if;
-
-    return v_admin;
-  end if;
-
-  -- 2. Match verified auth_uid in canonical public.staff_profiles for executive roles
+  -- 1. Verify caller in canonical staff_profiles: MUST be active and have executive role
   select * into v_staff
   from public.staff_profiles
   where auth_uid = auth.uid()
@@ -167,7 +145,23 @@ begin
     and role in ('super_admin', 'admin')
   limit 1;
 
-  if found then
+  if not found then
+    -- If caller exists in admin_users but was demoted/deactivated in staff_profiles, deactivate cache
+    update public.admin_users
+    set is_active = false, updated_at = now()
+    where auth_uid = auth.uid() and is_active = true;
+
+    raise exception 'not_authorized';
+  end if;
+
+  -- 2. Synchronize and retrieve the active admin_users record
+  select * into v_admin
+  from public.admin_users
+  where auth_uid = auth.uid()
+    and is_active = true
+  limit 1;
+
+  if not found then
     insert into public.admin_users (auth_uid, email, name, role, is_active)
     values (
       v_staff.auth_uid,
@@ -184,11 +178,9 @@ begin
       updated_at = now()
     where admin_users.auth_uid is null or admin_users.auth_uid = excluded.auth_uid
     returning * into v_admin;
-
-    return v_admin;
   end if;
 
-  raise exception 'not_authorized';
+  return v_admin;
 end;
 $$;
 
@@ -207,7 +199,7 @@ declare
   v_admin  public.admin_users;
   v_reward public.spin_rewards;
 begin
-  -- Enforce executive authorization inside the function
+  -- Enforce canonical executive authorization inside the function
   v_admin := public._ablebiz_require_admin();
 
   select * into v_reward from public.spin_rewards where id = p_reward_id;
@@ -270,6 +262,16 @@ grant select on table public.referral_tier_configs to anon, authenticated;
 -- ==============================================================================
 -- 4. FUNCTION EXECUTION PRIVILEGES (LEAST PRIVILEGE)
 -- ==============================================================================
+
+-- Internal Helper Functions: Revoke default PUBLIC execution, restrict to authenticated
+revoke all on function public._ablebiz_require_admin() from public, anon;
+grant execute on function public._ablebiz_require_admin() to authenticated;
+
+revoke all on function public._ablebiz_require_superadmin() from public, anon;
+grant execute on function public._ablebiz_require_superadmin() to authenticated;
+
+revoke all on function public.sync_executive_staff_to_admin_users() from public, anon;
+grant execute on function public.sync_executive_staff_to_admin_users() to authenticated;
 
 -- Public RPCs: Callable by anonymous visitors and authenticated users
 revoke all on function public.ablebiz_create_spin_and_reward(text,text,text,text,boolean,text,text,text,text,text,text) from public;
