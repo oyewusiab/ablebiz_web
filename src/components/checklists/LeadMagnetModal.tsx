@@ -3,8 +3,10 @@ import type { Checklist } from "../../content/checklists";
 import { services } from "../../content/services";
 import { buildWhatsAppLink } from "../../content/site";
 import { downloadChecklistPdf } from "../../utils/checklistPdf";
+import { rpcCreateChecklistDownload } from "../../lib/supabaseApi";
 import { Button } from "../ui/Button";
 import { Card, CardBody } from "../ui/Card";
+import { AlertCircle, Loader2 } from "lucide-react";
 
 type Props = {
   checklist: Checklist;
@@ -19,6 +21,8 @@ export function LeadMagnetModal({ checklist, onClose }: Props) {
     services.find((s) => checklist.relatedServiceIds.includes(s.id))?.title ?? "Custom / Not sure"
   );
   const [sendToWhatsApp, setSendToWhatsApp] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const whatsapp = useMemo(() => {
     const text =
@@ -31,33 +35,46 @@ export function LeadMagnetModal({ checklist, onClose }: Props) {
     return buildWhatsAppLink(text);
   }, [checklist.title, name, phone, email, interest]);
 
-  const saveLead = () => {
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !phone.trim() || !email.trim()) return;
+
+    setIsSubmitting(true);
+    setErrorMsg(null);
+
+    let sessionRef: string | undefined;
     try {
-      const key = "ablebiz_leads";
-      const existing = JSON.parse(localStorage.getItem(key) ?? "[]") as any[];
-      existing.unshift({
-        type: "checklist_download",
-        checklistId: checklist.id,
-        checklistTitle: checklist.title,
-        name,
-        email,
-        phone,
-        interest,
-        createdAt: new Date().toISOString(),
-      });
-      localStorage.setItem(key, JSON.stringify(existing.slice(0, 50)));
+      sessionRef = sessionStorage.getItem("ablebiz_referral_code") || undefined;
     } catch {
       // ignore
     }
+
+    try {
+      await rpcCreateChecklistDownload({
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        checklistKey: checklist.id,
+        referredBy: sessionRef,
+        consentMarketing: true,
+        pagePath: typeof window !== "undefined" ? window.location.pathname : undefined,
+      });
+
+      downloadChecklistPdf(checklist);
+      if (sendToWhatsApp) {
+        window.open(whatsapp, "_blank", "noreferrer");
+      }
+      onClose();
+    } catch (err: any) {
+      console.error("[LeadMagnetModal] Download lead submission failed:", err);
+      setErrorMsg(
+        err?.message || "Could not register download right now. Please try again or reach out on WhatsApp."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    saveLead();
-    downloadChecklistPdf(checklist);
-    if (sendToWhatsApp) window.open(whatsapp, "_blank", "noreferrer");
-    onClose();
-  };
 
   return (
     <div
@@ -148,12 +165,26 @@ export function LeadMagnetModal({ checklist, onClose }: Props) {
                 Also send my details to WhatsApp (fast response)
               </label>
 
+              {errorMsg && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300 flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+                  <div>{errorMsg}</div>
+                </div>
+              )}
+
               <div className="flex flex-wrap items-center gap-3">
                 <Button
                   type="submit"
-                  className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold border-0 shadow-md"
+                  disabled={isSubmitting}
+                  className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold border-0 shadow-md disabled:opacity-50"
                 >
-                  Download PDF
+                  {isSubmitting ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Preparing Download...
+                    </span>
+                  ) : (
+                    "Download PDF"
+                  )}
                 </Button>
                 {sendToWhatsApp ? (
                   <a

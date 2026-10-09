@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
+import { MessageCircle, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { buildWhatsAppLink, site } from "../content/site";
 import { useSiteConfig } from "../referrals/siteConfig";
-import { recordReferralConversion, getLeads, saveLeads, ConsultationLead } from "../referrals/core";
-import { uid } from "../utils/storageHelpers";
+import { rpcCreateConsultationRequest } from "../lib/supabaseApi";
 import { Card, CardBody } from "./ui/Card";
 import { Button } from "./ui/Button";
 
@@ -44,11 +45,13 @@ export function ConsultationForm({
   subtitle = "Answer a few questions so we can respond faster with the right steps and a clear quote.",
 }: Props) {
   const { services } = useSiteConfig();
+  const location = useLocation();
+
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [serviceNeeded, setServiceNeeded] = useState<string>(
-    services[0]?.title ?? ""
+    services[0]?.title ?? "CAC Business Name Registration"
   );
   const [preferredContact, setPreferredContact] = useState<PreferredContact>(
     "WhatsApp"
@@ -67,7 +70,10 @@ export function ConsultationForm({
     reminderTopics[0],
   ]);
 
-  const [sent, setSent] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionSuccess, setSubmissionSuccess] = useState(false);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const [generatedRefCode, setGeneratedRefCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   const toggleReminderTopic = (topic: string) => {
@@ -89,7 +95,7 @@ export function ConsultationForm({
     if (!defaultServiceId) return;
     const found = services.find((s) => s.id === defaultServiceId);
     if (found) setServiceNeeded(found.title);
-  }, [defaultServiceId]);
+  }, [defaultServiceId, services]);
 
   const summaryText = useMemo(() => {
     return (
@@ -132,22 +138,6 @@ export function ConsultationForm({
     return `mailto:${site.email}?subject=${subject}&body=${body}`;
   }, [serviceNeeded, summaryText]);
 
-  const saveLeadInternal = () => {
-    const leads = getLeads();
-    const newLead: ConsultationLead = {
-      id: uid(),
-      type: "consultation_request",
-      name,
-      phone,
-      email,
-      serviceNeeded,
-      status: "pending",
-      group: "prospect",
-      createdAt: new Date().toISOString(),
-    };
-    saveLeads([newLead, ...leads].slice(0, 100));
-  };
-
   const copySummary = async () => {
     try {
       await navigator.clipboard.writeText(summaryText);
@@ -158,24 +148,80 @@ export function ConsultationForm({
     }
   };
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    saveLeadInternal();
-
-    if (referralCode.trim()) {
-      recordReferralConversion(referralCode.trim(), { name, email, phone });
-    }
-
-    if (preferredContact === "WhatsApp") {
-      window.open(whatsapp, "_blank", "noreferrer");
-    } else if (preferredContact === "Email") {
-      window.open(mailto, "_blank", "noreferrer");
-    } else {
-      window.open(`tel:${site.phone}`, "_blank", "noreferrer");
-    }
-
-    setSent(true);
+  const mapUrgencyToEnum = (u: string): 'today' | 'this_week' | 'this_month' | 'just_info' => {
+    if (u === "ASAP (today)") return 'today';
+    if (u === "Within 24–48 hours" || u === "This week") return 'this_week';
+    return 'just_info';
   };
+
+  const mapBudgetToEnum = (b: string): 'under_25k' | '25k_40k' | '50k_80k' | '100k_plus' | 'not_sure' => {
+    if (b === "Under ₦25,000") return 'under_25k';
+    if (b === "₦25,000 – ₦50,000") return '25k_40k';
+    if (b === "₦50,000 – ₦100,000") return '50k_80k';
+    if (b === "₦100,000+") return '100k_plus';
+    return 'not_sure';
+  };
+
+  const mapReminderTopicsToEnum = (topics: string[]): Array<'annual_returns' | 'tax' | 'trademark' | 'bpp_nsitf' | 'ngo_returns' | 'general_compliance'> => {
+    const list: Array<'annual_returns' | 'tax' | 'trademark' | 'bpp_nsitf' | 'ngo_returns' | 'general_compliance'> = [];
+    for (const t of topics) {
+      if (t.includes('annual returns')) list.push('annual_returns');
+      else if (t.includes('Tax')) list.push('tax');
+      else if (t.includes('Trademark')) list.push('trademark');
+      else list.push('general_compliance');
+    }
+    return list;
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !phone.trim() || !email.trim()) return;
+
+    setIsSubmitting(true);
+    setSubmissionError(null);
+
+    // Extract UTM parameters if present
+    const searchParams = new URLSearchParams(location.search);
+    const utmSource = searchParams.get('utm_source') || undefined;
+    const utmMedium = searchParams.get('utm_medium') || undefined;
+    const utmCampaign = searchParams.get('utm_campaign') || undefined;
+
+    try {
+      // 1. Authoritative submission into Supabase Suite database
+      const result = await rpcCreateConsultationRequest({
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        serviceNeeded: serviceNeeded.trim(),
+        preferredContactMethod: preferredContact === "WhatsApp" ? "whatsapp" : preferredContact === "Email" ? "email" : "phone",
+        urgency: mapUrgencyToEnum(urgency),
+        budget: mapBudgetToEnum(budgetRange),
+        message: message.trim() || undefined,
+        remindersOptIn: wantsReminders,
+        reminderTopics: wantsReminders ? mapReminderTopicsToEnum(selectedReminderTopics) : [],
+        referredBy: referralCode.trim() || undefined,
+        consentMarketing: true,
+        pagePath: location.pathname,
+        utmSource,
+        utmMedium,
+        utmCampaign,
+      });
+
+      if (result?.referral_code) {
+        setGeneratedRefCode(result.referral_code);
+      }
+
+      setSubmissionSuccess(true);
+    } catch (err: any) {
+      console.error("[ConsultationForm] Submission failed:", err);
+      setSubmissionError(
+        err?.message || "Your request could not be submitted right now. Please try again or contact us directly on WhatsApp."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
 
   return (
     <Card>
@@ -352,32 +398,87 @@ export function ConsultationForm({
             />
           </label>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              type="submit"
-              className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold border-0 shadow-md"
-            >
-              {preferredContact === "WhatsApp"
-                ? "Request via WhatsApp"
-                : preferredContact === "Email"
-                  ? "Request via Email"
-                  : "Request a Call"}
-            </Button>
-
-            <button
-              type="button"
-              onClick={copySummary}
-              className="rounded-xl px-3 py-2 text-sm font-semibold text-[color:var(--ablebiz-primary)] hover:underline dark:text-amber-400"
-            >
-              {copied ? "Copied" : "Copy request details"}
-            </button>
-          </div>
-
-          {sent ? (
-            <div className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-900">
-              Your request is ready. If the new tab didn’t open, you can copy the details and send them via WhatsApp or email.
+          {submissionError && (
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-xs font-semibold text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300 flex items-start gap-2.5">
+              <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+              <div>
+                <div className="font-bold">Submission Notice</div>
+                <p className="mt-0.5 text-xs text-red-700 dark:text-red-300">{submissionError}</p>
+                <div className="mt-2.5 flex items-center gap-2">
+                  <a
+                    href={whatsapp}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 transition"
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" /> Contact via WhatsApp Directly
+                  </a>
+                </div>
+              </div>
             </div>
-          ) : null}
+          )}
+
+          {submissionSuccess ? (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-xs text-emerald-950 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200 space-y-3">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                <span className="font-bold text-sm text-emerald-900 dark:text-emerald-200">
+                  Thank you! Your request has been received.
+                </span>
+              </div>
+              <p className="text-slate-700 dark:text-slate-300">
+                A member of the ABLEBIZ team has received your submission and will contact you shortly via <strong>{preferredContact}</strong>.
+              </p>
+              {generatedRefCode && (
+                <div className="rounded-xl bg-white/80 dark:bg-slate-900/80 p-3 border border-emerald-200 dark:border-emerald-800 text-xs">
+                  Your Referral Code: <strong className="font-mono text-emerald-700 dark:text-emerald-400">{generatedRefCode}</strong>
+                </div>
+              )}
+              <div className="pt-2 flex flex-wrap items-center gap-3">
+                <a
+                  href={whatsapp}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-5 py-2.5 text-xs font-bold text-slate-950 shadow-sm hover:from-amber-600 hover:to-amber-700 transition"
+                >
+                  <MessageCircle className="h-4 w-4" /> Continue on WhatsApp
+                </a>
+                <button
+                  type="button"
+                  onClick={copySummary}
+                  className="rounded-xl px-3 py-2 text-xs font-semibold text-[color:var(--ablebiz-primary)] hover:underline dark:text-amber-400"
+                >
+                  {copied ? "Copied" : "Copy request details"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold border-0 shadow-md disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Submitting...
+                  </span>
+                ) : preferredContact === "WhatsApp"
+                  ? "Submit & Continue on WhatsApp"
+                  : preferredContact === "Email"
+                    ? "Submit Consultation Request"
+                    : "Request a Call"}
+              </Button>
+
+              <button
+                type="button"
+                onClick={copySummary}
+                className="rounded-xl px-3 py-2 text-sm font-semibold text-[color:var(--ablebiz-primary)] hover:underline dark:text-amber-400"
+              >
+                {copied ? "Copied" : "Copy request details"}
+              </button>
+            </div>
+          )}
 
           <div className="rounded-2xl bg-slate-50 p-4 text-xs text-slate-600 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:ring-slate-700">
             Conversion boosters: Trusted CAC Agent • Fast & Transparent Process • Physical Office Available • Award-Winning Business.
@@ -387,3 +488,4 @@ export function ConsultationForm({
     </Card>
   );
 }
+

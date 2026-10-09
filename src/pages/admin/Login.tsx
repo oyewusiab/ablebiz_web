@@ -9,11 +9,9 @@ import {
   KeyRound,
   Eye,
   EyeOff,
-  ShieldCheck,
 } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext";
 import { supabase, supabaseEnabled } from "../../lib/supabaseClient";
-import { BrandLogo } from "../../components/BrandLogo";
 
 export function AdminLoginPage() {
   const location = useLocation();
@@ -101,43 +99,43 @@ export function AdminLoginPage() {
   };
 
   return (
-    <div className="admin-theme flex min-h-screen items-center justify-center bg-[#F8FAFC] px-4 py-12 relative">
-      {/* Subtle background ambient styling */}
-      <div className="absolute inset-0 bg-[radial-gradient(#0A2558_1px,transparent_1px)] [background-size:24px_24px] opacity-[0.04] pointer-events-none" />
+    <div className="admin-theme flex min-h-screen items-center justify-center bg-[#061738] px-4 relative overflow-hidden">
+      {/* Background ambient lighting */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(217,119,6,0.2),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(10,37,88,0.6),transparent_45%)]" />
 
       <div className="relative z-10 w-full max-w-md">
         {/* Brand Header */}
-        <div className="mb-8 text-center flex flex-col items-center">
-          <div className="mb-4 flex items-center justify-center p-2 rounded-xl bg-white border border-slate-200/80 shadow-xs">
-            <BrandLogo variant="landscape" size="lg" priority />
+        <div className="mb-6 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 p-2 border border-white/20 shadow-2xl backdrop-blur-md">
+            <img src="/images/ablebiz-logo.png" alt="ABLEBIZ" className="h-full w-full object-contain" />
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-[#0A2558]">
+          <h1 className="text-3xl font-bold tracking-tight text-white">
             ABLEBIZ SUITE
           </h1>
-          <p className="mt-1 text-xs font-medium text-slate-500">
-            Internal Operations & Enterprise Business Platform
+          <p className="mt-2 text-sm text-slate-300">
+            Internal Operations & Staff Management Portal
           </p>
         </div>
 
         {/* Authentication Card */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-900/5">
+        <div className="rounded-2xl border border-white/15 bg-white/10 p-8 shadow-2xl backdrop-blur-xl">
           {incomingMessage ? (
-            <div className="mb-5 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-medium text-emerald-800">
-              <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-600" />
+            <div className="mb-4 flex items-start gap-3 rounded-xl border border-emerald-400/30 bg-emerald-500/20 px-4 py-3 text-sm text-emerald-200">
+              <CheckCircle2 className="h-5 w-5 shrink-0 mt-0.5" />
               <span>{incomingMessage}</span>
             </div>
           ) : null}
 
           {error ? (
-            <div className="mb-5 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-800">
-              <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5 text-red-600" />
+            <div className="mb-4 flex items-start gap-3 rounded-xl border border-red-400/30 bg-red-500/20 px-4 py-3 text-sm text-red-200">
+              <ShieldAlert className="h-5 w-5 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
           ) : null}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <label className="block space-y-1.5">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+            <label className="block space-y-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
                 Staff Email Address
               </span>
               <div className="relative">
@@ -146,7 +144,7 @@ export function AdminLoginPage() {
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-4 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-[#0A2558] focus:bg-white focus:ring-2 focus:ring-[#0A2558]/15"
+                  className="h-12 w-full rounded-xl border border-white/15 bg-black/20 pl-10 pr-4 text-sm text-white placeholder:text-slate-400 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20"
                   placeholder="staff@ablebiz.com.ng"
                   autoComplete="email"
                   required
@@ -154,9 +152,9 @@ export function AdminLoginPage() {
               </div>
             </label>
 
-            <label className="block space-y-1.5">
+            <label className="block space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
                   Password
                 </span>
                 <button
@@ -165,7 +163,7 @@ export function AdminLoginPage() {
                     setForgotEmail(email);
                     setShowForgotModal(true);
                   }}
-                  className="text-xs font-medium text-[#D97706] hover:text-[#B45309] transition hover:underline"
+                  className="text-xs text-amber-400 hover:text-amber-300 transition underline underline-offset-2"
                 >
                   Forgot password?
                 </button>
@@ -176,7 +174,7 @@ export function AdminLoginPage() {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-11 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-[#0A2558] focus:bg-white focus:ring-2 focus:ring-[#0A2558]/15"
+                  className="h-12 w-full rounded-xl border border-white/15 bg-black/20 pl-10 pr-11 text-sm text-white placeholder:text-slate-400 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20"
                   placeholder="Enter your account password"
                   autoComplete="current-password"
                   required
@@ -186,7 +184,7 @@ export function AdminLoginPage() {
                   onClick={() => setShowPassword((prev) => !prev)}
                   aria-label={showPassword ? "Hide password" : "Show password"}
                   title={showPassword ? "Hide password" : "Show password"}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition focus:outline-none focus:ring-2 focus:ring-[#0A2558]/20"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition focus:outline-none"
                 >
                   {showPassword ? (
                     <EyeOff className="h-4 w-4" aria-hidden="true" />
@@ -200,10 +198,10 @@ export function AdminLoginPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#0A2558] text-sm font-bold text-white transition hover:bg-[#061738] active:translate-y-px disabled:opacity-70 shadow-md shadow-[#0A2558]/10"
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-sm font-bold text-slate-950 transition hover:from-amber-600 hover:to-amber-700 disabled:opacity-70 shadow-lg"
             >
               {isSubmitting ? (
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
               ) : (
                 <>
                   Sign In to Suite
@@ -213,12 +211,11 @@ export function AdminLoginPage() {
             </button>
           </form>
 
-          <div className="mt-6 border-t border-slate-100 pt-4 text-center text-xs text-slate-400 space-y-1">
-            <p className="flex items-center justify-center gap-1.5 text-slate-500 font-medium">
-              <ShieldCheck className="h-3.5 w-3.5 text-[#0A2558]" />
-              Protected by Supabase Auth & Row-Level Security
+          <div className="mt-6 border-t border-white/10 pt-4 text-center text-xs text-slate-400">
+            <p>
+              Protected by Supabase Auth and Database RLS.
             </p>
-            <p className="text-[11px] text-slate-400">
+            <p className="mt-1 text-[11px] text-slate-500">
               Internal access only. Unauthorized attempts are logged.
             </p>
           </div>
@@ -227,15 +224,15 @@ export function AdminLoginPage() {
 
       {/* Forgot Password Modal */}
       {showForgotModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-          <div className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="relative w-full max-w-md rounded-2xl border border-white/15 bg-[#0a1e46] p-6 shadow-2xl">
             <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-700 border border-amber-200">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
                 <KeyRound className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-900">Reset Staff Password</h3>
-                <p className="text-xs text-slate-500">
+                <h3 className="text-lg font-bold text-white">Reset Staff Password</h3>
+                <p className="text-xs text-slate-300">
                   Receive a recovery link to restore your Suite account
                 </p>
               </div>
@@ -243,16 +240,16 @@ export function AdminLoginPage() {
 
             {forgotSuccess ? (
               <div className="space-y-4 py-2">
-                <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
-                  <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-600" />
+                <div className="flex items-start gap-3 rounded-xl border border-emerald-400/30 bg-emerald-500/20 px-4 py-3 text-sm text-emerald-200">
+                  <CheckCircle2 className="h-5 w-5 shrink-0 mt-0.5" />
                   <div>
                     <p className="font-semibold">Recovery email sent!</p>
-                    <p className="mt-1 text-emerald-700">
-                      If an account exists for <strong className="text-slate-900">{forgotEmail}</strong>, a secure password reset link has been dispatched.
+                    <p className="mt-1 text-xs text-emerald-300">
+                      If an account exists for <strong className="text-white">{forgotEmail}</strong>, a secure password reset link has been dispatched.
                     </p>
                   </div>
                 </div>
-                <p className="text-xs text-slate-600 leading-relaxed">
+                <p className="text-xs text-slate-300">
                   Follow the link inside the email to complete password recovery.
                 </p>
                 <button
@@ -261,7 +258,7 @@ export function AdminLoginPage() {
                     setShowForgotModal(false);
                     setForgotSuccess(false);
                   }}
-                  className="h-10 w-full rounded-xl bg-[#0A2558] text-xs font-bold text-white transition hover:bg-[#061738]"
+                  className="h-11 w-full rounded-xl bg-amber-500 text-sm font-bold text-slate-950 transition hover:bg-amber-400"
                 >
                   Back to Sign In
                 </button>
@@ -269,18 +266,18 @@ export function AdminLoginPage() {
             ) : (
               <form onSubmit={handleRequestReset} className="space-y-4">
                 {forgotError && (
-                  <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-800">
-                    <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5 text-red-600" />
+                  <div className="flex items-start gap-3 rounded-xl border border-red-400/30 bg-red-500/20 px-4 py-3 text-sm text-red-200">
+                    <ShieldAlert className="h-5 w-5 shrink-0 mt-0.5" />
                     <span>{forgotError}</span>
                   </div>
                 )}
 
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  Enter your registered staff email address. A recovery link will be sent to establish a new password.
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Enter your registered staff email address. A recovery email with a secure one-time link will be sent to reset your password.
                 </p>
 
-                <label className="block space-y-1.5">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                <label className="block space-y-2">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
                     Staff Email Address
                   </span>
                   <div className="relative">
@@ -289,7 +286,7 @@ export function AdminLoginPage() {
                       type="email"
                       value={forgotEmail}
                       onChange={(e) => setForgotEmail(e.target.value)}
-                      className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-4 text-xs text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-[#0A2558] focus:bg-white focus:ring-2 focus:ring-[#0A2558]/15"
+                      className="h-12 w-full rounded-xl border border-white/15 bg-black/20 pl-10 pr-4 text-sm text-white placeholder:text-slate-400 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20"
                       placeholder="staff@ablebiz.com.ng"
                       autoComplete="email"
                       required
@@ -305,17 +302,17 @@ export function AdminLoginPage() {
                       setForgotError("");
                     }}
                     disabled={forgotLoading}
-                    className="h-10 flex-1 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                    className="h-11 flex-1 rounded-xl border border-white/20 bg-white/5 text-sm font-semibold text-white transition hover:bg-white/10"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={forgotLoading}
-                    className="h-10 flex-1 rounded-xl bg-[#0A2558] text-xs font-bold text-white transition hover:bg-[#061738] disabled:opacity-60 flex items-center justify-center gap-2"
+                    className="h-11 flex-1 rounded-xl bg-amber-500 text-sm font-bold text-slate-950 transition hover:bg-amber-400 disabled:opacity-60 flex items-center justify-center gap-2"
                   >
                     {forgotLoading ? (
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
                     ) : (
                       "Send Reset Link"
                     )}

@@ -45,7 +45,7 @@ export function GamificationProvider({ children }: PropsWithChildren) {
 
   const closeSpin = () => setIsSpinOpen(false);
 
-  // Auto timer trigger (10–15s). Only once per session.
+  // Auto timer trigger (only for browsing users, never on high-intent routes like /contact or #consultation)
   useEffect(() => {
     let already = false;
     try {
@@ -55,39 +55,25 @@ export function GamificationProvider({ children }: PropsWithChildren) {
     }
     if (already) return;
     if (location.pathname.startsWith("/admin")) return;
+    if (location.pathname === "/contact" || location.hash.includes("consultation")) return;
 
     const t = window.setTimeout(() => {
+      // Re-check current pathname/hash in case user navigated to high-intent page
+      const currentPath = window.location.pathname;
+      const currentHash = window.location.hash;
+      if (
+        currentPath.startsWith("/admin") ||
+        currentPath === "/contact" ||
+        currentHash.includes("consultation")
+      ) {
+        return;
+      }
       openSpin("auto_timer");
-    }, 12000);
+    }, 20000);
 
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Contact page exit intent trigger (desktop only). Only if not already prompted.
-  useEffect(() => {
-    if (location.pathname !== "/contact") return;
-
-    let already = false;
-    try {
-      already = sessionStorage.getItem(SESSION.prompted) === "1";
-    } catch {
-      already = false;
-    }
-    if (already) return;
-
-    const onMouseLeave = (e: MouseEvent) => {
-      if (location.pathname.startsWith("/admin")) return;
-      // Exit intent: cursor leaves viewport at the top
-      if (e.clientY <= 0) {
-        openSpin("contact_exit_intent");
-      }
-    };
-
-    document.addEventListener("mouseleave", onMouseLeave);
-    return () => document.removeEventListener("mouseleave", onMouseLeave);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname]);
+  }, [location.pathname, location.hash]);
 
   const value = useMemo<GamificationContextValue>(
     () => ({ openSpin, closeSpin, isSpinOpen }),

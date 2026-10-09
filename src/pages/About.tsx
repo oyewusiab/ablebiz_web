@@ -13,15 +13,15 @@ export function AboutPage() {
   return (
     <>
       <Seo
-        title="About ABLEBIZ Business Services | Accredited CAC Agents in Abeokuta"
-        description="Learn about ABLEBIZ Business Services — an award-winning CAC accredited business compliance and registration consultancy in Abeokuta, Ogun State, serving clients across Nigeria."
+        title="About ABLEBIZ Business Services | Business Registration & Compliance"
+        description="Learn about ABLEBIZ Business Services — helping Nigerian entrepreneurs, SMEs, and organizations formalize their businesses, handle the paperwork, and stay on track."
         path="/about"
         keywords={[
           "about ABLEBIZ business services",
-          "CAC consultant Abeokuta",
-          "accredited CAC agents Ogun State",
-          "corporate affairs commission agent profile",
-          "business registration firm Abeokuta",
+          "business registration Abeokuta",
+          "CAC registration consultant",
+          "business compliance Ogun State",
+          "formalize business Nigeria",
         ]}
       />
 

@@ -151,7 +151,7 @@ export function AiSecretaryPage() {
         );
 
         return {
-          reply: `### 💰 Financial Health & Balance Ledger\n\n- **Total Invoiced:** ₦**${totalInvoiced.toLocaleString()}**\n- **Reconciled Collections (Revenue):** ₦**${totalCollected.toLocaleString()}**\n- **Outstanding Receivables:** ₦**${outstanding.toLocaleString()}**\n- **Recorded Operating Expenses:** ₦**${totalExpenses.toLocaleString()}**\n- **Net Operating Margin (Cash Collected − Expenses):** ₦**${netOperatingMargin.toLocaleString()}**\n\n*Note: Outstanding receivables are contractually billed but not yet received in our Moniepoint account.*`,
+          reply: `### 💰 Financial Health & Balance Ledger\n\n- **Total Invoiced:** ₦**${totalInvoiced.toLocaleString()}**\n- **Reconciled Collections (Revenue):** ₦**${totalCollected.toLocaleString()}**\n- **Outstanding Receivables:** ₦**${outstanding.toLocaleString()}**\n- **Recorded Operating Expenses:** ₦**${totalExpenses.toLocaleString()}**\n- **Net Operating Margin (Cash Collected − Expenses):** ₦**${netOperatingMargin.toLocaleString()}**\n\n*Note: Outstanding receivables are contractually billed but not yet received in our official settlement account.*`,
           citations,
         };
       }

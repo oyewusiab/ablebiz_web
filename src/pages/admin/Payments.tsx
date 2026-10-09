@@ -17,6 +17,7 @@ import {
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
 import { DocumentHeader, DocumentFooter } from "../../components/admin/DocumentBranding";
+import { useBusinessProfile } from "../../lib/businessProfileContext";
 
 export interface PaymentRecord {
   id: string;
@@ -46,6 +47,11 @@ export interface PaymentRecord {
 
 export function PaymentsPage() {
   const { profile, hasPermission } = useAuth();
+  const { profile: bizProfile, defaultBankAccount } = useBusinessProfile();
+  const defaultBankLabel = defaultBankAccount
+    ? `${defaultBankAccount.bank_name} (${defaultBankAccount.account_number})`
+    : bizProfile.legal_name || "Official Account";
+
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -63,7 +69,7 @@ export function PaymentsPage() {
     amount: 0,
     payment_method: "bank_transfer",
     transaction_reference: "",
-    bank_account_credited: "Moniepoint MFB - Ablebiz",
+    bank_account_credited: defaultBankLabel,
     notes: "",
   });
   const [submitting, setSubmitting] = useState(false);
@@ -229,7 +235,7 @@ export function PaymentsPage() {
         amount: 0,
         payment_method: "bank_transfer",
         transaction_reference: "",
-        bank_account_credited: "Moniepoint MFB - Ablebiz",
+        bank_account_credited: defaultBankLabel,
         notes: "",
       });
       fetchPayments();

@@ -87,10 +87,10 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-10 flex flex-col gap-2 border-t border-slate-800 pt-6 text-xs text-slate-400 md:flex-row md:items-center md:justify-between">
+        <div className="mt-10 flex flex-col gap-3 border-t border-slate-800 pt-6 text-xs text-slate-400 md:flex-row md:items-center md:justify-between">
           <div>© {new Date().getFullYear()} {site.name}. All rights reserved.</div>
-          <div className="text-slate-400">
-            Certified CAC Accreditation Support • Abeokuta, Nigeria
+          <div className="text-slate-400 max-w-md md:text-right">
+            Independent business support consultancy • Registered Business Services Agent in Abeokuta, Nigeria. Not a government agency.
           </div>
         </div>
       </Container>

@@ -44,20 +44,22 @@ import { AiSecretaryPage } from "./pages/admin/AiSecretary";
 import { NotificationsPage } from "./pages/admin/Notifications";
 import { ClientCommunicationsPage } from "./pages/admin/Communications";
 import { StaffRbacPage } from "./pages/admin/Team";
+import { BusinessProfileProvider } from "./lib/businessProfileContext";
 
 export default function App() {
   useReferralUrl();
 
   return (
     <AuthProvider>
-      <ThemeProvider>
-        <GamificationProvider>
-          <Analytics />
-          <Routes>
-          <Route element={<Layout />}>
-            <Route index element={<HomePage />} />
-            <Route path="/about" element={<AboutPage />} />
-            <Route path="/services" element={<ServicesPage />} />
+      <BusinessProfileProvider>
+        <ThemeProvider>
+          <GamificationProvider>
+            <Analytics />
+            <Routes>
+            <Route element={<Layout />}>
+              <Route index element={<HomePage />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/services" element={<ServicesPage />} />
             <Route path="/pricing" element={<Navigate to="/services" replace />} />
             <Route path="/testimonials" element={<TestimonialsPage />} />
             <Route path="/contact" element={<ContactPage />} />
@@ -110,6 +112,7 @@ export default function App() {
         </Routes>
       </GamificationProvider>
     </ThemeProvider>
+    </BusinessProfileProvider>
   </AuthProvider>
   );
 }

@@ -328,9 +328,9 @@ export function StaffRbacPage() {
           : "https://www.ablebiz.com.ng/admin/login";
 
         setCredentialModalInfo({
-          fullName: res.staff.full_name,
-          email: res.staff.email,
-          role: res.staff.role as StaffRole,
+          fullName: res.staff?.full_name || newStaffForm.fullName,
+          email: res.staff?.email || newStaffForm.email,
+          role: (res.staff?.role || newStaffForm.role) as StaffRole,
           tempPassword: res.tempPassword || "",
           loginUrl,
         });
@@ -725,9 +725,9 @@ export function StaffRbacPage() {
               : "https://www.ablebiz.com.ng/admin/login";
 
             setCredentialModalInfo({
-              fullName: res.staff.full_name,
-              email: res.staff.email,
-              role: res.staff.role as StaffRole,
+              fullName: res.staff?.full_name || req.requested_changes?.full_name || "",
+              email: res.staff?.email || req.requested_changes?.email || "",
+              role: ((res.staff?.role || req.requested_role || "operations_admin") as StaffRole),
               tempPassword: res.tempPassword || "",
               loginUrl,
             });
@@ -839,9 +839,9 @@ export function StaffRbacPage() {
         : "https://www.ablebiz.com.ng/admin/login";
 
       setCredentialModalInfo({
-        fullName: res.staff.full_name,
-        email: res.staff.email,
-        role: res.staff.role as StaffRole,
+        fullName: res.staff?.full_name || reconcileStaffTarget?.full_name || "",
+        email: res.staff?.email || reconcileStaffTarget?.email || "",
+        role: ((res.staff?.role || reconcileStaffTarget?.role || "operations_admin") as StaffRole),
         tempPassword: res.tempPassword || "",
         loginUrl,
       });

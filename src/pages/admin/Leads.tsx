@@ -24,11 +24,16 @@ export interface LeadRecord {
   email?: string | null;
   source: string;
   service_needed?: string | null;
+  notes?: string | null;
   status: string;
   qualification_status: string;
   priority: string;
   assigned_staff_id?: string | null;
   converted_client_id?: string | null;
+  is_converted?: boolean;
+  converted_at?: string | null;
+  referral_code?: string | null;
+  referred_by?: string | null;
   created_at: string;
 }
 
@@ -102,7 +107,9 @@ export function LeadsPipelinePage() {
             phone: convertingLead.phone,
             email: convertingLead.email || null,
             acquisition_source: convertingLead.source || "inbound_lead",
-            notes: `Converted from Lead ID ${convertingLead.id}. Interested in: ${convertingLead.service_needed || "General Inquiry"}`,
+            referral_code: convertingLead.referral_code || null,
+            referred_by_code: convertingLead.referred_by || null,
+            notes: `Converted from Lead ID ${convertingLead.id}. Interested in: ${convertingLead.service_needed || "General Inquiry"}${convertingLead.referred_by ? ` | Referred by: ${convertingLead.referred_by}` : ""}`,
             is_active: true,
           })
           .select()
@@ -118,21 +125,48 @@ export function LeadsPipelinePage() {
           actor_type: "staff",
           actor_id: profile?.id,
           event_type: "lead_converted",
-          event_title: `Lead converted to client: ${newClient.full_name}`,
+          event_title: `Lead converted to client: ${newClient.full_name}${convertingLead.referred_by ? ` (Referral: ${convertingLead.referred_by})` : ""}`,
         });
+      } else {
+        // If linked to existing client, update referral attribution if client didn't have one
+        try {
+          if (convertingLead.referral_code || convertingLead.referred_by) {
+            await supabase
+              .from("clients")
+              .update({
+                referral_code: convertingLead.referral_code || undefined,
+                referred_by_code: convertingLead.referred_by || undefined,
+              })
+              .eq("id", targetClientId);
+          }
+        } catch {
+          // ignore
+        }
       }
 
-      // Update lead record with converted link without deleting it
+      // Update lead record with converted link, timestamp, and status without deleting it
       const { error: leadErr } = await supabase
         .from("leads")
         .update({
           converted_client_id: targetClientId,
           qualification_status: "converted",
           status: "converted",
+          is_converted: true,
+          converted_at: new Date().toISOString(),
         })
         .eq("id", convertingLead.id);
 
       if (leadErr) throw leadErr;
+
+      // Update linked referral_events with client_id
+      try {
+        await supabase
+          .from("referral_events")
+          .update({ client_id: targetClientId })
+          .eq("referee_lead_id", convertingLead.id);
+      } catch {
+        // Table permission handled gracefully
+      }
 
       setConvertingLead(null);
       setSelectedExistingId("");
@@ -248,9 +282,24 @@ export function LeadsPipelinePage() {
                       <Mail className="h-3 w-3 text-emerald-600" /> {lead.email}
                     </p>
                   )}
+                  {lead.referred_by && (
+                    <p className="flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md mt-1 border border-amber-200 w-fit">
+                      🎁 Referred by: {lead.referred_by}
+                    </p>
+                  )}
+                  {lead.referral_code && (
+                    <p className="text-[10px] text-slate-400 font-mono">
+                      Partner Code: {lead.referral_code}
+                    </p>
+                  )}
                   {lead.service_needed && (
                     <p className="text-[11px] text-slate-700 font-medium pt-1">
                       Service: {lead.service_needed}
+                    </p>
+                  )}
+                  {lead.notes && (
+                    <p className="text-[10px] text-slate-500 bg-slate-50 rounded-lg p-2 border border-slate-100 mt-2 font-mono line-clamp-3">
+                      {lead.notes}
                     </p>
                   )}
                 </div>

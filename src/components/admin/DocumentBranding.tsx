@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { BrandLogo } from "../BrandLogo";
-import { useSiteConfig } from "../../referrals/siteConfig";
+import { useBusinessProfile } from "../../lib/businessProfileContext";
+import { formatBusinessAddress, formatPhoneDisplay } from "../../types/businessProfile";
 import { cn } from "../../utils/cn";
 
 export interface RecipientInfo {
@@ -69,7 +70,7 @@ export function DocumentHeader({
   extraMeta,
   className,
 }: DocumentHeaderProps) {
-  const { site } = useSiteConfig();
+  const { profile } = useBusinessProfile();
 
   const formattedDate = date
     ? typeof date === "string"
@@ -87,6 +88,9 @@ export function DocumentHeader({
       : dueDate.toLocaleDateString()
     : undefined;
 
+  const businessAddress = formatBusinessAddress(profile);
+  const phoneDisplay = formatPhoneDisplay(profile.primary_phone || "");
+
   return (
     <div className={cn("space-y-6 text-slate-900", className)}>
       {/* Top Banner: Logo & Primary Company Identity + Document Meta */}
@@ -98,14 +102,25 @@ export function DocumentHeader({
 
           <div className="text-xs text-slate-600 space-y-0.5">
             <p className="font-bold text-slate-900 text-sm tracking-tight">
-              {site.name || "ABLEBIZ Business Services"}
+              {profile.legal_name || profile.trading_name || "ABLEBIZ Business Services"}
             </p>
-            {site.location ? <p className="text-[11px]">{site.location}</p> : null}
+            {businessAddress ? <p className="text-[11px]">{businessAddress}</p> : null}
             <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500">
-              {site.phoneDisplay ? <span>{site.phoneDisplay}</span> : null}
-              {site.phoneDisplay && site.email ? <span>•</span> : null}
-              {site.email ? <span>{site.email}</span> : null}
+              {phoneDisplay ? <span>{phoneDisplay}</span> : null}
+              {phoneDisplay && profile.primary_email ? <span>•</span> : null}
+              {profile.primary_email ? <span>{profile.primary_email}</span> : null}
+              {profile.cac_registration_number ? (
+                <>
+                  <span>•</span>
+                  <span className="font-mono text-slate-700 font-semibold">{profile.cac_registration_number}</span>
+                </>
+              ) : null}
             </div>
+            {profile.cac_accredited_agent_number ? (
+              <p className="text-[10px] text-emerald-800 font-medium">
+                CAC Accredited Agent: <span className="font-mono">{profile.cac_accredited_agent_number}</span>
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -165,7 +180,7 @@ export function DocumentHeader({
           )}
 
           {/* Bank Instructions: Rendered ONLY if officially provided */}
-          {paymentDetails && (paymentDetails.bankName || paymentDetails.accountNumber) && (
+          {paymentDetails && (paymentDetails.bankName || paymentDetails.accountNumber) ? (
             <div className="rounded-lg border border-amber-200/60 bg-amber-50/30 p-3.5 space-y-1 sm:text-right">
               <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
                 PAYMENT REMITTANCE
@@ -184,6 +199,15 @@ export function DocumentHeader({
               {paymentDetails.notes ? (
                 <p className="text-[11px] text-slate-500">{paymentDetails.notes}</p>
               ) : null}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-amber-200/60 bg-amber-50/30 p-3.5 space-y-1 sm:text-right">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                PAYMENT REMITTANCE
+              </span>
+              <p className="text-xs text-amber-700 italic">
+                Official bank settlement account details pending configuration in Settings → Business Profile.
+              </p>
             </div>
           )}
         </div>
@@ -205,7 +229,8 @@ export interface DocumentFooterProps {
 }
 
 export function DocumentFooter({ notes, documentId, className }: DocumentFooterProps) {
-  const { site } = useSiteConfig();
+  const { profile } = useBusinessProfile();
+  const businessAddress = formatBusinessAddress(profile);
 
   return (
     <div
@@ -218,10 +243,10 @@ export function DocumentFooter({ notes, documentId, className }: DocumentFooterP
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 text-[11px] text-slate-400">
         <div>
-          <p className="font-semibold text-slate-700">{site.name || "ABLEBIZ Business Services"}</p>
+          <p className="font-semibold text-slate-700">{profile.legal_name || profile.trading_name || "ABLEBIZ Business Services"}</p>
           <p>
-            {site.location ? `${site.location} • ` : ""}
-            {site.email || ""}
+            {businessAddress ? `${businessAddress} • ` : ""}
+            {profile.primary_email || ""}
           </p>
         </div>
 

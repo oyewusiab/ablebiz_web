@@ -1,11 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { site as siteDefault } from "../content/site";
 import { services as servicesDefault } from "../content/services";
 import { pricingTiers as pricingDefault } from "../content/pricing";
 import { load, save } from "../utils/storageHelpers";
+import { useBusinessProfile } from "../lib/businessProfileContext";
+import { formatBusinessAddress, formatPhoneDisplay } from "../types/businessProfile";
 
 const KEYS = {
-  SITE: "ablebiz_config_site",
   SERVICES: "ablebiz_config_services",
   PRICING: "ablebiz_config_pricing",
   REFERRAL_TIERS: "ablebiz_config_referral_tiers",
@@ -49,7 +50,8 @@ export const flashCampaignDefault: FlashCampaign = {
 };
 
 export function useSiteConfig() {
-  const [site, setSite] = useState(siteDefault);
+  const { profile: authoritativeProfile, updateProfile } = useBusinessProfile();
+
   const [services, setServices] = useState(servicesDefault);
   const [pricing, setPricing] = useState(pricingDefault);
   const [referralTiers, setReferralTiers] = useState(referralTiersDefault);
@@ -58,8 +60,7 @@ export function useSiteConfig() {
   const [flashCampaign, setFlashCampaign] = useState<FlashCampaign>(flashCampaignDefault);
 
   useEffect(() => {
-    // Load overrides from localStorage
-    const savedSite = load(KEYS.SITE, null);
+    // Load services & referral configs from storage overrides
     const savedServices = load(KEYS.SERVICES, null);
     const savedPricing = load(KEYS.PRICING, null);
     const savedReferralTiers = load(KEYS.REFERRAL_TIERS, null);
@@ -67,7 +68,6 @@ export function useSiteConfig() {
     const savedAutomations = load(KEYS.AUTOMATIONS, null);
     const savedFlash = load(KEYS.FLASH_CAMPAIGN, null);
 
-    if (savedSite) setSite(savedSite);
     if (savedServices) setServices(savedServices);
     if (savedPricing) setPricing(savedPricing);
     if (savedReferralTiers) setReferralTiers(savedReferralTiers);
@@ -76,9 +76,31 @@ export function useSiteConfig() {
     if (savedFlash) setFlashCampaign(savedFlash);
   }, []);
 
-  const updateSite = (newSite: typeof siteDefault) => {
-    setSite(newSite);
-    save(KEYS.SITE, newSite);
+  // Compute live authoritative site object from authoritative Business Profile
+  const site = useMemo(() => {
+    return {
+      ...siteDefault,
+      name: authoritativeProfile.legal_name || authoritativeProfile.trading_name || siteDefault.name,
+      tagline: authoritativeProfile.tagline || siteDefault.tagline,
+      awardBadge: authoritativeProfile.award_badge || siteDefault.awardBadge,
+      phone: authoritativeProfile.primary_phone || siteDefault.phone,
+      phoneDisplay: formatPhoneDisplay(authoritativeProfile.primary_phone || siteDefault.phone),
+      email: authoritativeProfile.primary_email || siteDefault.email,
+      location: formatBusinessAddress(authoritativeProfile),
+      whatsappNumberIntl: authoritativeProfile.whatsapp_number_intl || siteDefault.whatsappNumberIntl,
+    };
+  }, [authoritativeProfile]);
+
+  const updateSite = async (newSite: typeof siteDefault) => {
+    // Forward changes to authoritative Supabase Business Profile
+    await updateProfile({
+      legal_name: newSite.name,
+      trading_name: newSite.name,
+      tagline: newSite.tagline,
+      award_badge: newSite.awardBadge,
+      primary_phone: newSite.phone,
+      primary_email: newSite.email,
+    });
   };
 
   const updateServices = (newServices: typeof servicesDefault) => {
@@ -112,14 +134,12 @@ export function useSiteConfig() {
   };
 
   const resetAll = () => {
-    setSite(siteDefault);
     setServices(servicesDefault);
     setPricing(pricingDefault);
     setReferralTiers(referralTiersDefault);
     setSpinRewards(spinRewardsDefault);
     setAutomations(automationsDefault);
     setFlashCampaign(flashCampaignDefault);
-    localStorage.removeItem(KEYS.SITE);
     localStorage.removeItem(KEYS.SERVICES);
     localStorage.removeItem(KEYS.PRICING);
     localStorage.removeItem(KEYS.REFERRAL_TIERS);
@@ -147,10 +167,10 @@ export function useSiteConfig() {
   };
 }
 
-// Global accessor for non-hook usage (e.g. initial server-side or outside React if needed)
+// Global accessor for non-hook usage (e.g. static/outside React)
 export function getSiteConfig() {
   return {
-    site: load(KEYS.SITE, siteDefault),
+    site: siteDefault,
     services: load(KEYS.SERVICES, servicesDefault),
     pricing: load(KEYS.PRICING, pricingDefault),
     referralTiers: load(KEYS.REFERRAL_TIERS, referralTiersDefault),

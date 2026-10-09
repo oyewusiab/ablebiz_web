@@ -1,21 +1,25 @@
 import { useState, useMemo } from "react";
-import { Copy, Gift, Share2, Sparkles, Trophy, Users } from "lucide-react";
+import { Copy, Gift, Loader2, Share2, Sparkles, Trophy, Users } from "lucide-react";
 import { Seo } from "../components/Seo";
 import { PageHero } from "../components/PageHero";
 import { Container } from "../components/ui/Container";
 import { Card, CardBody } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
-import { 
-  getOrCreateReferralClient, 
-  getReferrerStats, 
-  recordReferralConversion,
-  recordRedemption,
-  isTierRedeemed,
-  type ReferralClient, 
-  type ReferrerStats
-} from "../referrals/core";
+import {
+  rpcCreateReferralPartner,
+  rpcGetReferralStats,
+  type ReferralStatsRpcResult,
+} from "../lib/supabaseApi";
 import { getSessionReferralCode } from "../referrals/useReferralUrl";
-import { buildWhatsAppShareLink } from "../content/site";
+import { buildWhatsAppLink, buildWhatsAppShareLink } from "../content/site";
+
+type PartnerClient = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  referralCode: string;
+};
 
 export function ReferralsPage() {
   const [activeTab, setActiveTab] = useState<"join" | "dashboard">("join");
@@ -24,44 +28,67 @@ export function ReferralsPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [client, setClient] = useState<ReferralClient | null>(null);
+  const [client, setClient] = useState<PartnerClient | null>(null);
+  const [isJoining, setIsJoining] = useState(false);
+  const [joinError, setJoinError] = useState("");
 
   // Dashboard state
   const [dashCode, setDashCode] = useState("");
-  const [stats, setStats] = useState<ReferrerStats | null>(null);
+  const [stats, setStats] = useState<ReferralStatsRpcResult | null>(null);
+  const [dashLoading, setDashLoading] = useState(false);
   const [dashError, setDashError] = useState("");
 
   const [copied, setCopied] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  const handleJoin = (e: React.FormEvent) => {
+  const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !phone) return;
-    const newClient = getOrCreateReferralClient({ name, email, phone });
-    setClient(newClient);
+    setIsJoining(true);
+    setJoinError("");
 
-    // Record conversion if referred
-    const refCode = getSessionReferralCode();
-    if (refCode) {
-      recordReferralConversion(refCode, { name, email, phone });
+    try {
+      const res = await rpcCreateReferralPartner({
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        referredBy: getSessionReferralCode() || undefined,
+        pagePath: window.location.pathname,
+      });
+
+      setClient({
+        id: res.lead_id,
+        name: res.display_name,
+        email: email.trim(),
+        phone: phone.trim(),
+        referralCode: res.referral_code,
+      });
+    } catch (err: any) {
+      console.error("[Referrals] Failed to join:", err);
+      setJoinError(err?.message || "Could not register referral profile. Please try again.");
+    } finally {
+      setIsJoining(false);
     }
   };
 
-  const handleDashboard = (e: React.FormEvent) => {
+  const handleDashboard = async (e: React.FormEvent) => {
     e.preventDefault();
-    setDashError("");
-    setStats(null);
-    fetchStats();
-  };
-
-  const fetchStats = () => {
     if (!dashCode.trim()) return;
+    setDashError("");
+    setDashLoading(true);
+    setStats(null);
 
-    const res = getReferrerStats(dashCode.trim());
-    if (!res) {
-      setDashError("Referral code not found. Please verify and try again.");
-    } else {
-      setStats(res);
+    try {
+      const res = await rpcGetReferralStats(dashCode.trim());
+      if (!res) {
+        setDashError("Referral code not found. Please verify your code and try again.");
+      } else {
+        setStats(res);
+      }
+    } catch (err: any) {
+      setDashError(err?.message || "Failed to load referral statistics.");
+    } finally {
+      setDashLoading(false);
     }
   };
 
@@ -84,18 +111,15 @@ export function ReferralsPage() {
   const whatsappShareLink = useMemo(() => {
     if (!referralLink) return "";
     return buildWhatsAppShareLink(
-      `Hey! I'm using ABLEBIZ to handle my CAC business registration.\n\nUse my link to get connected: ${referralLink}`
+      `Hey! I'm using ABLEBIZ to handle business registration and compliance in Nigeria.\n\nConnect with them using my referral link: ${referralLink}`
     );
   }, [referralLink]);
 
-  const copyToClipboard = async () => {
-    try {
-      await navigator.clipboard.writeText(referralLink);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // ignore
-    }
+  const handleClaimReward = () => {
+    if (!stats?.current_tier) return;
+    const text = `Hello ABLEBIZ, I want to claim my referral reward for reaching ${stats.current_tier.title} (${stats.current_tier.note}). My referral code is ${stats.referral_code}.`;
+    const waLink = buildWhatsAppLink(text);
+    window.open(waLink, "_blank");
   };
 
   return (
@@ -217,11 +241,24 @@ export function ReferralsPage() {
                         />
                       </label>
                     </div>
+                    {joinError && (
+                      <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700">
+                        {joinError}
+                      </div>
+                    )}
                     <Button
                       type="submit"
-                      className="h-12 mt-2 w-full justify-center bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold border-0 shadow-md"
+                      disabled={isJoining}
+                      className="h-12 mt-2 w-full justify-center bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold border-0 shadow-md disabled:opacity-50"
                     >
-                      Generate Referral Link
+                      {isJoining ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Generating Your Code...
+                        </>
+                      ) : (
+                        "Generate Referral Link"
+                      )}
                     </Button>
                   </form>
                 ) : (
@@ -303,9 +340,10 @@ export function ReferralsPage() {
                       />
                       <Button
                         type="submit"
-                        className="h-12 px-6 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold border-0"
+                        disabled={dashLoading}
+                        className="h-12 px-6 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold border-0 disabled:opacity-50"
                       >
-                        Check
+                        {dashLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Check"}
                       </Button>
                     </div>
                     {dashError && <div className="text-sm font-semibold text-red-600">{dashError}</div>}
@@ -320,11 +358,17 @@ export function ReferralsPage() {
                       <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 text-[color:var(--ablebiz-primary)] mb-4 ring-1 ring-blue-100 dark:bg-blue-950 dark:text-blue-300">
                         <Users className="h-8 w-8 text-[color:var(--ablebiz-cta)]" />
                       </div>
-                      <div className="text-sm font-semibold text-slate-500 uppercase tracking-widest">
+                      <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                        Partner Profile: {stats.display_name}
+                      </div>
+                      <div className="mt-2 text-sm font-semibold text-slate-500 uppercase tracking-widest">
                         Total Successful Referrals
                       </div>
                       <div className="mt-2 text-6xl font-black text-slate-900 dark:text-white">
-                        {stats.totalReferrals}
+                        {stats.total_referrals}
+                      </div>
+                      <div className="mt-2 text-xs font-semibold text-slate-400">
+                        Total Points: {stats.total_points}
                       </div>
                     </CardBody>
                   </Card>
@@ -336,67 +380,56 @@ export function ReferralsPage() {
                       </div>
 
                       <div className="space-y-6">
-                        {stats.currentTier ? (
+                        {stats.current_tier ? (
                           <div className="rounded-2xl bg-amber-50/80 p-5 ring-1 ring-amber-200 dark:bg-amber-950/30 dark:ring-amber-900">
                             <div className="flex justify-between items-start mb-2">
                               <div className="text-xs font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1">
                                 <Sparkles className="h-3 w-3" /> Unlocked
                               </div>
-                              {isTierRedeemed(stats.client.referralCode, stats.currentTier.referralsRequired) ? (
-                                <div className="text-[10px] font-bold bg-amber-200 text-amber-900 px-2.5 py-0.5 rounded-full ring-1 ring-amber-300">
-                                  Claimed
-                                </div>
-                              ) : (
-                                <button
-                                  onClick={() => {
-                                    if (stats.currentTier) {
-                                      recordRedemption(stats.client.referralCode, stats.currentTier);
-                                      setStats(getReferrerStats(stats.client.referralCode));
-                                    }
-                                  }}
-                                  className="text-[10px] font-bold bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 px-3 py-1 rounded-full shadow-xs hover:from-amber-600 hover:to-amber-700 active:scale-95 transition-all"
-                                >
-                                  Claim Reward
-                                </button>
-                              )}
+                              <button
+                                onClick={handleClaimReward}
+                                className="text-xs font-bold bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 px-3.5 py-1.5 rounded-full shadow-xs hover:from-amber-600 hover:to-amber-700 active:scale-95 transition-all"
+                              >
+                                Claim on WhatsApp
+                              </button>
                             </div>
                             <div className="text-lg font-black text-slate-900 dark:text-white">
-                              {stats.currentTier.title}
+                              {stats.current_tier.title}
                             </div>
                             <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
-                              {stats.currentTier.note}
+                              {stats.current_tier.note}
                             </p>
                           </div>
                         ) : (
                           <div className="rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200 text-slate-500 text-sm font-medium dark:bg-slate-900 dark:ring-slate-700">
-                            No rewards unlocked yet. Keep referring!
+                            No rewards unlocked yet. Share your code to earn discounts and free services!
                           </div>
                         )}
 
-                        {stats.nextTier && (
+                        {stats.next_tier && (
                           <div className="rounded-2xl border border-dashed border-slate-300 p-5">
                             <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                              Next Reward at {stats.nextTier.referralsRequired} Referrals
+                              Next Reward at {stats.next_tier.referrals_required} Referrals
                             </div>
-                            <div className="text-base font-bold text-slate-700">
-                              {stats.nextTier.title}
+                            <div className="text-base font-bold text-slate-700 dark:text-slate-200">
+                              {stats.next_tier.title}
                             </div>
-                            <div className="mt-3 overflow-hidden rounded-full bg-slate-200 h-2">
+                            <div className="mt-3 overflow-hidden rounded-full bg-slate-200 h-2 dark:bg-slate-700">
                               <div
-                                className="bg-[color:var(--ablebiz-primary)] h-full rounded-full transition-all duration-1000"
+                                className="bg-[color:var(--ablebiz-primary)] h-full rounded-full transition-all duration-1000 dark:bg-blue-400"
                                 style={{
-                                  width: `${Math.min(100, (stats.totalReferrals / stats.nextTier.referralsRequired) * 100)}%`,
+                                  width: `${Math.min(100, (stats.total_referrals / stats.next_tier.referrals_required) * 100)}%`,
                                 }}
                               />
                             </div>
                             <div className="mt-2 text-right text-xs font-bold text-slate-500">
-                              {stats.totalReferrals} / {stats.nextTier.referralsRequired}
+                              {stats.total_referrals} / {stats.next_tier.referrals_required}
                             </div>
                           </div>
                         )}
-                        {!stats.nextTier && stats.currentTier && (
-                          <div className="rounded-2xl bg-blue-50 p-5 ring-1 ring-blue-100 text-blue-800 text-sm font-semibold">
-                            You've unlocked the highest tier!
+                        {!stats.next_tier && stats.current_tier && (
+                          <div className="rounded-2xl bg-blue-50 p-5 ring-1 ring-blue-100 text-blue-800 text-sm font-semibold dark:bg-blue-950/40 dark:text-blue-300 dark:ring-blue-900">
+                            You've unlocked the highest tier! Thank you for being a valued ABLEBIZ ambassador.
                           </div>
                         )}
                       </div>

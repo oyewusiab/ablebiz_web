@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Gift } from "lucide-react";
+import { Gift, MessageCircle } from "lucide-react";
+import { buildWhatsAppLink } from "../content/site";
 import { Seo } from "../components/Seo";
 import { PageHero } from "../components/PageHero";
 import { Container } from "../components/ui/Container";
@@ -55,9 +56,9 @@ export function ServicesPage() {
       />
 
       <PageHero
-        title="Services"
-        subtitle="Structured, clear, and professional support for CAC registration, compliance, and documentation — with real-time updates and dedicated guidance."
-        badge="Trusted CAC Agent • Abeokuta"
+        title="Our Services"
+        subtitle="Structured, clear, and professional support for business registration, compliance, and documentation — with real-time updates and dedicated guidance."
+        badge="Registered Business Services Agent • Abeokuta, Ogun State"
       />
 
       <TrustVerificationSection compact />
@@ -89,53 +90,129 @@ export function ServicesPage() {
 
       <section>
         <Container className="py-14">
-          <div className="grid gap-4">
+          <div className="grid gap-8">
             {services.map((s) => {
               const hasChecklist = checklists.some((c) => c.relatedServiceIds.includes(s.id));
+              const whatsappUrl = buildWhatsAppLink(
+                s.whatsappMessage ||
+                  `Hello ABLEBIZ, I would like to inquire about your service:\n\nService: ${s.title}\n\nPlease let me know the requirements, turnaround time, and next steps.`
+              );
+
               return (
                 <div key={s.id} id={s.id} className="scroll-mt-28">
-                  <Card>
-                    <CardBody>
-                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-                        <div className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-50 ring-1 ring-blue-100 dark:bg-blue-950 dark:ring-blue-900">
+                  <Card className="border border-slate-200/90 shadow-sm transition-shadow hover:shadow-md dark:border-slate-800">
+                    <CardBody className="p-6 sm:p-8">
+                      <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+                        <div className="grid h-14 w-14 place-items-center rounded-2xl bg-blue-50 ring-1 ring-blue-100 shrink-0 dark:bg-blue-950 dark:ring-blue-900">
                           <ServiceIcon
                             icon={s.icon}
-                            className="h-6 w-6 text-[color:var(--ablebiz-cta)]"
+                            className="h-7 w-7 text-[color:var(--ablebiz-cta)]"
                           />
                         </div>
                         <div className="flex-1">
-                          <div className="text-lg font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
-                            {s.title}
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <h2 className="text-xl sm:text-2xl font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
+                              {s.title}
+                            </h2>
+                            {s.timeline ? (
+                              <span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800 ring-1 ring-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:ring-amber-900">
+                                {s.timeline}
+                              </span>
+                            ) : null}
                           </div>
-                          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 sm:text-base">
+
+                          <p className="mt-2 text-base text-slate-700 dark:text-slate-200 leading-relaxed">
                             {s.description}
                           </p>
 
-                          {s.bullets?.length ? (
-                            <ul className="mt-4 grid gap-2 text-sm text-slate-700 dark:text-slate-300 sm:grid-cols-2">
-                              {s.bullets.map((b) => (
-                                <li
-                                  key={b}
-                                  className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700"
-                                >
-                                  {b}
-                                </li>
-                              ))}
-                            </ul>
-                          ) : null}
+                          {/* 4-Part Structured Breakdown */}
+                          <div className="mt-6 grid gap-6 md:grid-cols-2">
+                            {/* Who It Is For */}
+                            {s.whoItIsFor?.length ? (
+                              <div className="rounded-2xl bg-slate-50/80 p-4 ring-1 ring-slate-200/70 dark:bg-slate-800/60 dark:ring-slate-700/80">
+                                <div className="text-xs font-bold uppercase tracking-wider text-[color:var(--ablebiz-primary)] dark:text-blue-300">
+                                  👤 Who This Is For
+                                </div>
+                                <ul className="mt-3 space-y-2 text-xs sm:text-sm text-slate-700 dark:text-slate-300">
+                                  {s.whoItIsFor.map((item) => (
+                                    <li key={item} className="flex items-start gap-2">
+                                      <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                                      <span>{item}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ) : null}
 
-                          {s.timeline ? (
-                            <div className="mt-4 text-sm font-semibold text-amber-700 dark:text-amber-400">
-                              {s.timeline}
-                            </div>
-                          ) : null}
+                            {/* What You May Need */}
+                            {s.whatYouNeed?.length ? (
+                              <div className="rounded-2xl bg-slate-50/80 p-4 ring-1 ring-slate-200/70 dark:bg-slate-800/60 dark:ring-slate-700/80">
+                                <div className="text-xs font-bold uppercase tracking-wider text-[color:var(--ablebiz-primary)] dark:text-blue-300">
+                                  📋 What You May Need
+                                </div>
+                                <ul className="mt-3 space-y-2 text-xs sm:text-sm text-slate-700 dark:text-slate-300">
+                                  {s.whatYouNeed.map((item) => (
+                                    <li key={item} className="flex items-start gap-2">
+                                      <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
+                                      <span>{item}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ) : null}
 
-                          <div className="mt-5 flex flex-wrap items-center gap-3">
+                            {/* How ABLEBIZ Helps */}
+                            {s.howWeHelp?.length ? (
+                              <div className="rounded-2xl bg-blue-50/40 p-4 ring-1 ring-blue-100/70 dark:bg-blue-950/30 dark:ring-blue-900/40">
+                                <div className="text-xs font-bold uppercase tracking-wider text-[color:var(--ablebiz-primary)] dark:text-blue-300">
+                                  🛡️ How ABLEBIZ Helps
+                                </div>
+                                <ul className="mt-3 space-y-2 text-xs sm:text-sm text-slate-700 dark:text-slate-300">
+                                  {s.howWeHelp.map((item) => (
+                                    <li key={item} className="flex items-start gap-2">
+                                      <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                                      <span>{item}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ) : null}
+
+                            {/* What Happens Next */}
+                            {s.whatHappensNext?.length ? (
+                              <div className="rounded-2xl bg-blue-50/40 p-4 ring-1 ring-blue-100/70 dark:bg-blue-950/30 dark:ring-blue-900/40">
+                                <div className="text-xs font-bold uppercase tracking-wider text-[color:var(--ablebiz-primary)] dark:text-blue-300">
+                                  ⚡ What Happens Next
+                                </div>
+                                <ul className="mt-3 space-y-2 text-xs sm:text-sm text-slate-700 dark:text-slate-300">
+                                  {s.whatHappensNext.map((item) => (
+                                    <li key={item} className="flex items-start gap-2">
+                                      <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                                      <span>{item}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ) : null}
+                          </div>
+
+                          {/* Action CTAs */}
+                          <div className="mt-7 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-5 dark:border-slate-800">
+                            <a
+                              href={whatsappUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 px-5 text-sm font-bold text-slate-950 shadow-sm hover:from-amber-600 hover:to-amber-700"
+                            >
+                              <MessageCircle className="h-4 w-4 text-slate-950" />
+                              WhatsApp About This Service
+                            </a>
+
                             <Link
                               to={`/services?service=${encodeURIComponent(s.id)}#consultation`}
-                              className="inline-flex h-11 items-center justify-center rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 px-5 text-sm font-bold text-slate-950 shadow-sm hover:from-amber-600 hover:to-amber-700"
+                              className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                             >
-                              Request Consultation
+                              Request Consultation Form
                             </Link>
 
                             {hasChecklist ? (
@@ -143,18 +220,19 @@ export function ServicesPage() {
                                 to="/services#checklists"
                                 className="text-sm font-semibold text-[color:var(--ablebiz-primary)] hover:underline dark:text-amber-400"
                               >
-                                Download checklist →
+                                Download Checklist →
                               </Link>
                             ) : null}
                           </div>
 
+                          {/* FAQs */}
                           {s.faqs?.length ? (
-                            <div className="mt-8">
+                            <div className="mt-8 border-t border-slate-100 pt-6 dark:border-slate-800">
                               <div className="text-sm font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
                                 FAQs for {s.title}
                               </div>
-                              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                                Quick answers to the most common questions we get before payment.
+                              <p className="mt-1 text-xs sm:text-sm text-slate-600 dark:text-slate-300">
+                                Clear answers to common questions about requirements, timelines, and documentation.
                               </p>
                               <div className="mt-4">
                                 <FaqAccordion items={s.faqs} />

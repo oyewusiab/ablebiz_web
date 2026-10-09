@@ -22,6 +22,7 @@ import {
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
 import { DocumentHeader, DocumentFooter } from "../../components/admin/DocumentBranding";
+import { useBusinessProfile } from "../../lib/businessProfileContext";
 
 export interface QuotationRecord {
   id: string;
@@ -71,6 +72,7 @@ interface ServiceOption {
 
 export function QuotationsPage() {
   const { profile, hasPermission } = useAuth();
+  const { profile: bizProfile, defaultBankAccount } = useBusinessProfile();
   const [quotations, setQuotations] = useState<QuotationRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -465,7 +467,7 @@ export function QuotationsPage() {
           amount_paid: 0.0,
           balance_due: quote.total_amount,
           status: "draft",
-          payment_terms: "Payment due within 7 days of invoice issuance. Remit to Moniepoint MFB - Ablebiz Business Services.",
+          payment_terms: bizProfile.default_payment_terms || "Payment due within 7 days of invoice issuance. Remit to designated official settlement account.",
           notes: `Converted from Quotation ${quote.quotation_number}`,
           created_by: profile?.id || null,
         })
@@ -1038,11 +1040,14 @@ export function QuotationsPage() {
                   businessName: selectedQuote.business?.name,
                 }}
                 recipientLabel="PREPARED FOR"
-                paymentDetails={{
-                  bankName: "Moniepoint Microfinance Bank",
-                  accountName: "Ablebiz Business Services",
-                  accountNumber: "8243178920",
-                }}
+                paymentDetails={
+                  defaultBankAccount && defaultBankAccount.account_number ? {
+                    bankName: defaultBankAccount.bank_name,
+                    accountName: defaultBankAccount.account_name,
+                    accountNumber: defaultBankAccount.account_number,
+                    notes: defaultBankAccount.notes,
+                  } : undefined
+                }
               />
 
               {/* Items Breakdown */}

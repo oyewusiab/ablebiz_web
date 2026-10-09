@@ -20,6 +20,7 @@ import {
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
 import { DocumentHeader, DocumentFooter } from "../../components/admin/DocumentBranding";
+import { useBusinessProfile } from "../../lib/businessProfileContext";
 
 export interface InvoiceRecord {
   id: string;
@@ -81,7 +82,15 @@ export function InvoicesPage() {
   const [serviceRequests, setServiceRequests] = useState<{ id: string; tracking_code: string; client_id: string }[]>([]);
   const [services, setServices] = useState<{ id: string; name: string; default_fee_ngn: number }[]>([]);
 
+  const { profile: bizProfile, defaultBankAccount } = useBusinessProfile();
+
   // Create Form State
+  const defaultBankLabel = defaultBankAccount
+    ? `${defaultBankAccount.bank_name} (${defaultBankAccount.account_number})`
+    : bizProfile.legal_name || "Official Account";
+
+  const defaultInvoiceTerms = bizProfile.default_payment_terms || "Payment due within 7 days of invoice issuance. Remit to designated official settlement account.";
+
   const [formData, setFormData] = useState({
     client_id: "",
     business_id: "",
@@ -89,7 +98,7 @@ export function InvoicesPage() {
     due_days: 7,
     discount: 0,
     tax_percent: 0,
-    payment_terms: "Payment due within 7 days of invoice issuance. Remit to Moniepoint MFB - Ablebiz Business Services.",
+    payment_terms: defaultInvoiceTerms,
     notes: "",
   });
 
@@ -106,7 +115,7 @@ export function InvoicesPage() {
     amount: 0,
     payment_method: "bank_transfer",
     transaction_reference: "",
-    bank_account_credited: "Moniepoint MFB - Ablebiz",
+    bank_account_credited: defaultBankLabel,
     notes: "",
   });
   const [recordingPayment, setRecordingPayment] = useState(false);
@@ -357,7 +366,7 @@ export function InvoicesPage() {
         due_days: 7,
         discount: 0,
         tax_percent: 0,
-        payment_terms: "Payment due within 7 days of invoice issuance. Remit to Moniepoint MFB - Ablebiz Business Services.",
+        payment_terms: defaultInvoiceTerms,
         notes: "",
       });
       fetchInvoices();
@@ -431,7 +440,7 @@ export function InvoicesPage() {
         amount: 0,
         payment_method: "bank_transfer",
         transaction_reference: "",
-        bank_account_credited: "Moniepoint MFB - Ablebiz",
+        bank_account_credited: defaultBankLabel,
         notes: "",
       });
       fetchInvoices();
@@ -651,7 +660,7 @@ export function InvoicesPage() {
                                   amount: Number(inv.balance_due),
                                   payment_method: "bank_transfer",
                                   transaction_reference: "",
-                                  bank_account_credited: "Moniepoint MFB - Ablebiz",
+                                  bank_account_credited: defaultBankLabel,
                                   notes: "",
                                 });
                               }}
@@ -936,11 +945,14 @@ export function InvoicesPage() {
                   email: selectedInvoice.client?.email,
                   businessName: selectedInvoice.business?.name,
                 }}
-                paymentDetails={{
-                  bankName: "Moniepoint Microfinance Bank",
-                  accountName: "Ablebiz Business Services",
-                  accountNumber: "8243178920",
-                }}
+                paymentDetails={
+                  defaultBankAccount && defaultBankAccount.account_number ? {
+                    bankName: defaultBankAccount.bank_name,
+                    accountName: defaultBankAccount.account_name,
+                    accountNumber: defaultBankAccount.account_number,
+                    notes: defaultBankAccount.notes,
+                  } : undefined
+                }
               />
 
               {/* Items */}
@@ -1044,7 +1056,7 @@ export function InvoicesPage() {
                       amount: Number(selectedInvoice.balance_due),
                       payment_method: "bank_transfer",
                       transaction_reference: "",
-                      bank_account_credited: "Moniepoint MFB - Ablebiz",
+                      bank_account_credited: defaultBankLabel,
                       notes: "",
                     });
                   }}

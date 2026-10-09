@@ -1,20 +1,20 @@
 export const site = {
   name: "ABLEBIZ Business Services",
   tagline:
-    "An award-winning business compliance service helping Nigerians register and grow their businesses safely and professionally.",
+    "ABLEBIZ helps you formalize your business, handle the paperwork and stay on track.",
   awardBadge: "🏆 2nd Place – BYUMS Africa Business Plan Competition",
   phone: "08160486023",
   phoneDisplay: "0816 048 6023",
   email: "hello@ablebiz.com.ng",
-  location: "Abeokuta, Ogun State, Nigeria",
+  location: "Along M.K.O. Abiola Way, Leme, Abeokuta, Ogun State, Nigeria",
   whatsappNumberIntl: "2348160486023",
 
   trust: {
     verification: [
-      { title: "Certified CAC Agent", note: "Guided CAC registration with clear documentation." },
-      { title: "Physical Office in Abeokuta", note: "In-person support available when needed." },
+      { title: "Registered Business Services Agent", note: "Assisting with CAC registration, compliance filings, and formal documentation." },
+      { title: "Physical Office in Abeokuta", note: "In-person consultation and nationwide digital service delivery." },
       { title: "Award-Winning Business", note: "BYUMS Africa Business Plan Competition — 2nd Place." },
-      { title: "Transparent Process", note: "Clear steps, real-time updates, no hidden charges." },
+      { title: "Transparent Process", note: "Clear requirements, real-time updates, and upfront quotes with no hidden charges." },
     ],
     stats: [
       { label: "Years of experience", value: "5+" },

@@ -4,7 +4,6 @@ import { Lock, CheckCircle2, AlertCircle, ArrowRight, ShieldCheck, KeyRound, Log
 import { supabase, supabaseEnabled } from "../../lib/supabaseClient";
 import { invokeStaffProvision } from "../../lib/staffProvisioning";
 import { useAuth } from "../../auth/AuthContext";
-import { BrandLogo } from "../../components/BrandLogo";
 
 export function AdminChangePasswordPage() {
   const { user, profile, refreshProfile, logout } = useAuth();
@@ -157,45 +156,46 @@ export function AdminChangePasswordPage() {
   };
 
   return (
-    <div className="admin-theme flex min-h-screen items-center justify-center bg-[#F8FAFC] px-4 py-12 relative">
-      <div className="absolute inset-0 bg-[radial-gradient(#0A2558_1px,transparent_1px)] [background-size:24px_24px] opacity-[0.04] pointer-events-none" />
+    <div className="admin-theme flex min-h-screen items-center justify-center bg-[#061738] px-4 relative overflow-hidden">
+      {/* Background ambient lighting */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(217,119,6,0.2),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(10,37,88,0.6),transparent_45%)]" />
 
       <div className="relative z-10 w-full max-w-md">
-        <div className="mb-8 text-center flex flex-col items-center">
-          <div className="mb-4 flex items-center justify-center p-2 rounded-xl bg-white border border-slate-200/80 shadow-xs">
-            <BrandLogo variant="landscape" size="lg" priority />
+        <div className="mb-6 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 p-2 border border-white/20 shadow-2xl backdrop-blur-md">
+            <img src="/images/ablebiz-logo.png" alt="ABLEBIZ" className="h-full w-full object-contain" />
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-[#0A2558]">Security Initialization</h1>
-          <p className="mt-1 text-xs font-medium text-slate-500">
+          <h1 className="text-2xl font-bold tracking-tight text-white">Security Initialization</h1>
+          <p className="mt-1 text-xs text-slate-300">
             Mandatory Password Setup for New Staff Accounts
           </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-900/5">
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-8 shadow-2xl backdrop-blur-md">
           {success ? (
             <div className="space-y-4 py-2 text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400">
                 <CheckCircle2 className="h-6 w-6" />
               </div>
-              <h2 className="text-lg font-bold text-slate-900">Password Updated Successfully</h2>
-              <p className="text-xs text-slate-600 leading-relaxed">
+              <h2 className="text-lg font-bold text-white">Password Updated Successfully</h2>
+              <p className="text-xs text-slate-300 leading-relaxed">
                 Your permanent password has been established. Loading your internal ABLEBIZ Suite workspace...
               </p>
               <div className="pt-2">
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-                  <div className="h-full w-full animate-pulse bg-[#0A2558]" />
+                <div className="h-1 w-full overflow-hidden rounded-full bg-white/10">
+                  <div className="h-full w-full animate-pulse bg-amber-400" />
                 </div>
               </div>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-              <div className="flex items-center gap-2 pb-1 text-[#0A2558] text-xs font-bold uppercase tracking-wider">
-                <KeyRound className="h-4 w-4 text-[#D97706]" />
+              <div className="flex items-center gap-2 pb-1 text-amber-400 text-xs font-semibold uppercase tracking-wider">
+                <KeyRound className="h-4 w-4" />
                 <span>Establish Permanent Password</span>
               </div>
 
-              <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-amber-900 text-[11px] leading-relaxed">
-                <p className="font-bold text-amber-950">Initial Login Detected</p>
+              <div className="rounded-xl border border-amber-200/20 bg-amber-500/10 p-3 text-amber-200 text-[11px] leading-relaxed">
+                <p className="font-semibold text-white">Initial Login Detected</p>
                 <p className="mt-0.5">
                   Welcome to ABLEBIZ Suite, <strong>{profile?.full_name || user?.name || "Staff Member"}</strong>.
                   For platform security and compliance, you must replace your temporary credential with a private password before accessing operational tools.
@@ -203,14 +203,14 @@ export function AdminChangePasswordPage() {
               </div>
 
               {validationError || statusError ? (
-                <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-red-800">
-                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-600" />
+                <div className="flex items-start gap-3 rounded-xl border border-red-400/30 bg-red-500/20 p-3 text-red-200">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
                   <span>{validationError || statusError}</span>
                 </div>
               ) : null}
 
               <label className="block space-y-1.5">
-                <span className="font-bold uppercase tracking-wider text-slate-700 text-[11px]">
+                <span className="font-semibold uppercase tracking-wider text-slate-300 text-[11px]">
                   Current / Temporary Password *
                 </span>
                 <div className="relative">
@@ -219,7 +219,7 @@ export function AdminChangePasswordPage() {
                     type={showPassword ? "text" : "password"}
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
-                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-4 text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-[#0A2558] focus:bg-white focus:ring-2 focus:ring-[#0A2558]/15"
+                    className="h-11 w-full rounded-xl border border-white/15 bg-black/20 pl-10 pr-4 text-white placeholder:text-slate-500 outline-none transition focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
                     placeholder="Enter assigned temporary password"
                     required
                   />
@@ -227,7 +227,7 @@ export function AdminChangePasswordPage() {
               </label>
 
               <label className="block space-y-1.5">
-                <span className="font-bold uppercase tracking-wider text-slate-700 text-[11px]">
+                <span className="font-semibold uppercase tracking-wider text-slate-300 text-[11px]">
                   New Permanent Password *
                 </span>
                 <div className="relative">
@@ -236,7 +236,7 @@ export function AdminChangePasswordPage() {
                     type={showPassword ? "text" : "password"}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-4 text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-[#0A2558] focus:bg-white focus:ring-2 focus:ring-[#0A2558]/15"
+                    className="h-11 w-full rounded-xl border border-white/15 bg-black/20 pl-10 pr-4 text-white placeholder:text-slate-500 outline-none transition focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
                     placeholder="Minimum 8 characters"
                     required
                     minLength={8}
@@ -245,7 +245,7 @@ export function AdminChangePasswordPage() {
               </label>
 
               <label className="block space-y-1.5">
-                <span className="font-bold uppercase tracking-wider text-slate-700 text-[11px]">
+                <span className="font-semibold uppercase tracking-wider text-slate-300 text-[11px]">
                   Confirm New Password *
                 </span>
                 <div className="relative">
@@ -254,7 +254,7 @@ export function AdminChangePasswordPage() {
                     type={showPassword ? "text" : "password"}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-4 text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-[#0A2558] focus:bg-white focus:ring-2 focus:ring-[#0A2558]/15"
+                    className="h-11 w-full rounded-xl border border-white/15 bg-black/20 pl-10 pr-4 text-white placeholder:text-slate-500 outline-none transition focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
                     placeholder="Repeat new password"
                     required
                     minLength={8}
@@ -263,19 +263,19 @@ export function AdminChangePasswordPage() {
               </label>
 
               <div className="flex items-center justify-between pt-1">
-                <label className="flex items-center gap-2 cursor-pointer text-slate-600 text-[11px]">
+                <label className="flex items-center gap-2 cursor-pointer text-slate-300 text-[11px]">
                   <input
                     type="checkbox"
                     checked={showPassword}
                     onChange={(e) => setShowPassword(e.target.checked)}
-                    className="rounded border-slate-300 text-[#0A2558] focus:ring-[#0A2558]/20"
+                    className="rounded border-white/20 bg-black/20 text-amber-500"
                   />
                   <span>Show passwords</span>
                 </label>
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-[10px] text-slate-500 space-y-1">
-                <p className="font-semibold text-slate-700">Password Security Standards:</p>
+              <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-[10px] text-slate-400 space-y-1">
+                <p className="font-semibold text-slate-300">Password Security Standards:</p>
                 <ul className="list-disc list-inside space-y-0.5">
                   <li>Minimum 8 characters in length</li>
                   <li>Must not match generic terms (e.g. "Welcome1", "password123")</li>
@@ -289,11 +289,11 @@ export function AdminChangePasswordPage() {
                     type="button"
                     onClick={handleRetryClearFlag}
                     disabled={isRetryingClearFlag}
-                    className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#0A2558] text-xs font-bold text-white transition hover:bg-[#061738] disabled:opacity-50 shadow-md shadow-[#0A2558]/20"
+                    className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 text-xs font-bold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-50 shadow-lg shadow-emerald-500/20"
                   >
                     {isRetryingClearFlag ? (
                       <div className="flex items-center gap-2">
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
                         <span>Finalizing Setup...</span>
                       </div>
                     ) : (
@@ -304,11 +304,11 @@ export function AdminChangePasswordPage() {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#0A2558] text-xs font-bold text-white transition hover:bg-[#061738] disabled:opacity-50 shadow-md shadow-[#0A2558]/10"
+                    className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-amber-500 text-xs font-bold text-slate-950 transition hover:bg-amber-400 disabled:opacity-50"
                   >
                     {isSubmitting ? (
                       <div className="flex items-center gap-2">
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
                         <span>Updating Password...</span>
                       </div>
                     ) : (
@@ -320,7 +320,7 @@ export function AdminChangePasswordPage() {
                 <button
                   type="button"
                   onClick={() => logout()}
-                  className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                  className="flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 py-2 text-xs font-semibold text-slate-300 hover:bg-white/10 transition"
                 >
                   <LogOut className="h-3.5 w-3.5" />
                   <span>Sign Out</span>
