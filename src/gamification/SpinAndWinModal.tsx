@@ -158,13 +158,16 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
         if (res?.reward_type) chosenRewardType = res.reward_type;
         if (res?.reward_code) rewardCode = res.reward_code;
         if (res?.note === 'existing_spin') {
-          setSpinError("A promotional reward code is already active for this email/phone. Your existing reward details are shown below.");
+          setSpinError("A promotional reward is already active for this contact detail. Your existing reward details are shown below.");
         }
         const matchingConfig = spinRewards.find((r) => r.type === chosenRewardType);
         if (matchingConfig?.title) rewardTitle = matchingConfig.title;
       }
     } catch (err: any) {
-      console.warn("[SpinAndWinModal] Supabase registration warning, continuing with client state:", err);
+      console.error("[SpinAndWinModal] Supabase registration error:", err);
+      setSpinError(err?.message || "Failed to participate in Spin & Win. Please verify your contact details and try again.");
+      setIsSubmitting(false);
+      return;
     }
 
     // Update local gamification state for offline recovery

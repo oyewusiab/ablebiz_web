@@ -1,30 +1,30 @@
 -- ==============================================================================
--- ABLEBIZ SUITE & PROMOTION ENGINE: RECONCILIATION MIGRATION (REV 2)
+-- ABLEBIZ SUITE & PROMOTION ENGINE: CANONICAL LEAST-PRIVILEGE MIGRATION
 -- File: implementation/MIGRATION_RECONCILE_SPIN_AND_SUITE_PERMISSIONS.sql
 -- ==============================================================================
--- Target: Supabase production database
--- Objectives:
---   1. Replace ablebiz_create_spin_and_reward() with a zero-dependency PostgreSQL
---      function, eliminating gen_random_bytes(int) failure.
---   2. Grant permissions on public.leads, public.spin_rewards, and public.referral_events
---      to authenticated staff so ABLEBIZ Suite (/admin/leads & /admin/referrals)
---      can view, filter, and manage promotional leads and rewards.
---   3. Add RLS policies for authenticated staff on leads and spin_rewards.
---   4. Allow anon insert on public.leads for public marketing flows (spin, consult, checklist).
---   5. Synchronize staff authentication by ensuring staff_profiles are seamlessly
---      mirrored/available in admin_users so that all existing RPCs returning
---      public.admin_users work without altering function signatures or triggering ERROR 42P13.
---   6. Decouple promotional reward fulfillment from lead conversion.
+-- Target: Supabase production database (https://ksjphkqxudtkduuhnyvn.supabase.co)
+-- Security Standard: Zero-Trust & Canonical Least-Privilege
+--
+-- Audit & Correction Summary:
+--   1. REJECTS broad 'FOR ALL TO authenticated USING (true)' policies.
+--   2. Enforces canonical public.is_active_staff() check for all staff read/write policies.
+--   3. Keeps public.admin_users and public.staff_profiles role hierarchies distinct.
+--      Does NOT promote operational roles to 'admin'.
+--   4. Preserves public._ablebiz_require_admin() return type (public.admin_users)
+--      and maps Super Admin / Admin roles strictly.
+--   5. Fixes ablebiz_admin_fulfill_reward() to decouple promotional reward fulfillment
+--      from lead-to-client conversion (leaves leads.is_converted = false).
+--   6. Keeps public Spin & Win strictly behind the SECURITY DEFINER RPC
+--      public.ablebiz_create_spin_and_reward. Direct table writes from anon remain REVOKED.
 -- ==============================================================================
 
 begin;
 
 -- ==============================================================================
--- 1. SYNC ACTIVE STAFF INTO ADMIN_USERS (Preserves Return Type public.admin_users)
+-- 1. AUTHORIZATION & STAFF SYNCHRONIZATION (Zero Privilege Escalation)
 -- ==============================================================================
--- Avoids PostgreSQL 42P13 ("cannot change return type of existing function")
--- Ensures every active staff member in public.staff_profiles has a matching record
--- in public.admin_users with their real auth_uid, email, and name.
+-- Mirror ONLY bona-fide executives ('super_admin' and 'admin') into public.admin_users
+-- Operational staff (registration officers, marketing, viewers) are NOT promoted to admin.
 insert into public.admin_users (auth_uid, email, name, role, is_active)
 select
   sp.auth_uid,
@@ -37,17 +37,18 @@ select
   coalesce(sp.is_active, true)
 from public.staff_profiles sp
 where sp.auth_uid is not null
+  and sp.role in ('super_admin', 'admin')
 on conflict (email) do update set
-  auth_uid = excluded.auth_uid,
-  name     = excluded.name,
-  role     = excluded.role,
+  auth_uid  = excluded.auth_uid,
+  name      = excluded.name,
+  role      = excluded.role,
   is_active = excluded.is_active;
 
--- Trigger to keep public.admin_users synchronized whenever staff_profiles change
-create or replace function public.sync_staff_to_admin_user()
+-- Trigger to keep executive admin_users synchronized without promoting non-admins
+create or replace function public.sync_executive_staff_to_admin_users()
 returns trigger language plpgsql security definer as $$
 begin
-  if new.auth_uid is not null then
+  if new.auth_uid is not null and new.role in ('super_admin', 'admin') then
     insert into public.admin_users (auth_uid, email, name, role, is_active)
     values (
       new.auth_uid,
@@ -57,25 +58,24 @@ begin
       coalesce(new.is_active, true)
     )
     on conflict (email) do update set
-      auth_uid = excluded.auth_uid,
-      name = excluded.name,
-      role = excluded.role,
+      auth_uid  = excluded.auth_uid,
+      name      = excluded.name,
+      role      = excluded.role,
       is_active = excluded.is_active;
+  elsif new.role not in ('super_admin', 'admin') then
+    -- If a staff member was demoted or is an operational role, deactivate in admin_users
+    update public.admin_users set is_active = false where email = new.email;
   end if;
   return new;
 end;
 $$;
 
-drop trigger if exists trg_sync_staff_to_admin_user on public.staff_profiles;
-create trigger trg_sync_staff_to_admin_user
+drop trigger if exists trg_sync_executive_staff_to_admin_users on public.staff_profiles;
+create trigger trg_sync_executive_staff_to_admin_users
 after insert or update on public.staff_profiles
-for each row execute function public.sync_staff_to_admin_user();
+for each row execute function public.sync_executive_staff_to_admin_users();
 
-
--- ==============================================================================
--- 2. HELPER FUNCTIONS (_ablebiz_require_admin & _ablebiz_require_superadmin)
--- ==============================================================================
--- Retains existing return type "public.admin_users" to avoid 42P13
+-- Update _ablebiz_require_admin() retaining public.admin_users return type
 create or replace function public._ablebiz_require_admin()
 returns public.admin_users
 language plpgsql security definer set search_path = public
@@ -83,7 +83,7 @@ as $$
 declare
   v_admin public.admin_users;
 begin
-  -- 1. Direct match on auth_uid
+  -- 1. Match by authenticated auth_uid
   select * into v_admin
   from public.admin_users
   where auth_uid = auth.uid()
@@ -94,7 +94,7 @@ begin
     return v_admin;
   end if;
 
-  -- 2. Fallback: match by email via auth.jwt()
+  -- 2. Fallback: match by email via verified auth.jwt()
   select * into v_admin
   from public.admin_users
   where lower(email) = lower(auth.jwt()->>'email')
@@ -102,7 +102,6 @@ begin
   limit 1;
 
   if found then
-    -- Self-heal: link auth_uid if missing
     update public.admin_users set auth_uid = auth.uid() where id = v_admin.id;
     return v_admin;
   end if;
@@ -113,9 +112,9 @@ $$;
 
 
 -- ==============================================================================
--- 3. ZERO-DEPENDENCY PUBLIC SPIN RPC
+-- 2. ZERO-DEPENDENCY PUBLIC SPIN RPC
 -- ==============================================================================
--- Eliminates gen_random_bytes(int) runtime dependency using PostgreSQL random()
+-- Authoritative, secure calculation of prize and duplicate check.
 create or replace function public.ablebiz_create_spin_and_reward(
   p_name              text,
   p_email             text,
@@ -145,22 +144,20 @@ declare
   v_cumulative       int;
   v_try              int := 0;
 
-  -- For returning existing spin
   x_lead_id       uuid;
   x_referral_code text;
   x_reward_type   text;
   x_reward_title  text;
   x_reward_code   text;
 begin
-  -- Validations
+  -- Required field validation
   if coalesce(trim(p_name),  '') = '' then raise exception 'name_required';  end if;
   if coalesce(trim(p_email), '') = '' then raise exception 'email_required'; end if;
   if coalesce(trim(p_phone), '') = '' then raise exception 'phone_required'; end if;
 
-  -- Resolve referral
+  -- Resolve referrer
   v_valid_ref := public._ablebiz_resolve_referral(p_referred_by, p_email, p_phone);
 
-  -- Insert lead (with retry for referral_code collision)
   loop
     v_try := v_try + 1;
     if v_try > 10 then raise exception 'insert_failed_try_again'; end if;
@@ -182,10 +179,10 @@ begin
         'Spin & Earn Promotional Participant'
       ) returning id into v_lead_id;
 
-      exit; -- success
+      exit;
 
     exception when unique_violation then
-      -- User already spun? Return existing reward.
+      -- If email or phone already spun, retrieve the existing authoritative reward
       select l.id, l.referral_code, r.reward_type, r.reward_title, r.reward_code
         into x_lead_id, x_referral_code, x_reward_type, x_reward_title, x_reward_code
       from public.leads l
@@ -208,12 +205,10 @@ begin
           'note',          'existing_spin'
         );
       end if;
-
-      -- Otherwise referral_code collision; retry loop
     end;
   end loop;
 
-  -- Pick reward using weighted probability from spin_reward_configs
+  -- Select reward using authoritative weighted configuration
   select sum(weight) into v_total_weight
   from public.spin_reward_configs
   where is_active = true;
@@ -245,7 +240,7 @@ begin
     end if;
   end if;
 
-  -- Insert reward
+  -- Create exactly one authoritative reward record
   v_try := 0;
   loop
     v_try := v_try + 1;
@@ -262,19 +257,18 @@ begin
     end;
   end loop;
 
-  -- Update notes on lead for immediate diagnostic reference
+  -- Store note on lead
   update public.leads
   set notes = 'Spin & Earn Promotional Reward: ' || v_reward_title || ' | Code: ' || v_reward_code
   where id = v_lead_id;
 
-  -- Credit referrer if valid
+  -- Credit referral points if applicable
   if v_valid_ref is not null then
     insert into public.referral_events(referrer_code, referee_lead_id, points)
     values (v_valid_ref, v_lead_id, 50)
     on conflict do nothing;
   end if;
 
-  -- Bump engagement score on the lead
   update public.leads set engagement_score = engagement_score + 10 where id = v_lead_id;
 
   return jsonb_build_object(
@@ -289,8 +283,10 @@ $$;
 
 
 -- ==============================================================================
--- 4. SUITE REWARD FULFILLMENT (Decoupled from Lead Conversion)
+-- 3. REWARD FULFILLMENT (DECOUPLED FROM CLIENT CONVERSION)
 -- ==============================================================================
+-- Fulfilling a promotional reward marks spin_rewards.status = 'fulfilled'.
+-- It does NOT set leads.is_converted = true.
 create or replace function public.ablebiz_admin_fulfill_reward(
   p_reward_id       uuid,
   p_fulfillment_note text default null
@@ -311,13 +307,22 @@ begin
     return jsonb_build_object('success', true, 'status', 'already_fulfilled');
   end if;
 
+  -- Fulfill reward strictly on spin_rewards
   update public.spin_rewards
   set
     status           = 'fulfilled',
     fulfilled_at     = now(),
     fulfilled_by     = v_admin.id,
-    fulfillment_note = coalesce(p_fulfillment_note, 'Fulfilled by staff')
+    fulfillment_note = coalesce(p_fulfillment_note, 'Fulfilled by staff'),
+    updated_at       = now()
   where id = p_reward_id;
+
+  -- Audit log entry
+  insert into public.admin_audit_log(admin_id, admin_email, action, target_table, target_id, new_value)
+  values (
+    v_admin.id, v_admin.email, 'reward_fulfilled', 'spin_rewards', p_reward_id,
+    jsonb_build_object('note', p_fulfillment_note, 'reward_type', v_reward.reward_type)
+  );
 
   return jsonb_build_object('success', true, 'status', 'fulfilled');
 end;
@@ -325,48 +330,43 @@ $$;
 
 
 -- ==============================================================================
--- 5. PERMISSIONS, GRANTS & RLS POLICIES
+-- 4. ROW-LEVEL SECURITY & CANONICAL STAFF PERMISSIONS
 -- ==============================================================================
-grant execute on function public.ablebiz_create_spin_and_reward(text, text, text, text, boolean, text, text, text, text, text, text) to anon, authenticated;
-grant execute on function public.ablebiz_admin_get_rewards(text, int, int) to authenticated;
-grant execute on function public.ablebiz_admin_fulfill_reward(uuid, text) to authenticated;
-grant execute on function public._ablebiz_require_admin() to authenticated;
-
--- Direct table access for authenticated staff (for Suite frontend views)
-grant select, insert, update on public.leads to authenticated;
-grant select, insert, update on public.spin_rewards to authenticated;
+-- 1. Ensure table permissions are granted strictly to authenticated staff
+grant select, update on public.leads to authenticated;
+grant select, update on public.spin_rewards to authenticated;
 grant select, insert, update on public.referral_events to authenticated;
 grant select on public.spin_reward_configs to anon, authenticated;
 
--- Public insert permissions for website visitors
-grant insert on public.leads to anon;
+-- Direct write access from anon is REVOKED (anon writes only via validated SECURITY DEFINER RPCs)
+revoke insert, update, delete on public.spin_rewards from anon;
+revoke select, update, delete on public.leads from anon;
 
--- Ensure RLS policies exist on public.leads for authenticated staff
-do $$
-begin
-  if not exists (
-    select 1 from pg_policies
-    where schemaname='public' and tablename='leads' and policyname='authenticated_staff_leads'
-  ) then
-    create policy authenticated_staff_leads on public.leads
-      for all to authenticated
-      using (true)
-      with check (true);
-  end if;
-end $$;
+-- 2. Leads RLS: Active Staff Access Only
+drop policy if exists "authenticated_staff_leads" on public.leads;
+drop policy if exists "Active staff full access on leads" on public.leads;
+create policy "Active staff full access on leads"
+on public.leads for all
+to authenticated
+using (public.is_active_staff())
+with check (public.is_active_staff());
 
--- Ensure RLS policies exist on public.spin_rewards for authenticated staff
-do $$
-begin
-  if not exists (
-    select 1 from pg_policies
-    where schemaname='public' and tablename='spin_rewards' and policyname='authenticated_staff_spin_rewards'
-  ) then
-    create policy authenticated_staff_spin_rewards on public.spin_rewards
-      for all to authenticated
-      using (true)
-      with check (true);
-  end if;
-end $$;
+-- 3. Spin Rewards RLS: Active Staff Access Only
+drop policy if exists "authenticated_staff_spin_rewards" on public.spin_rewards;
+drop policy if exists "Active staff full access on spin_rewards" on public.spin_rewards;
+create policy "Active staff full access on spin_rewards"
+on public.spin_rewards for all
+to authenticated
+using (public.is_active_staff())
+with check (public.is_active_staff());
+
+-- 4. Referral Events RLS: Active Staff Access Only
+drop policy if exists "authenticated_staff_referral_events" on public.referral_events;
+drop policy if exists "Active staff full access on referral_events" on public.referral_events;
+create policy "Active staff full access on referral_events"
+on public.referral_events for all
+to authenticated
+using (public.is_active_staff())
+with check (public.is_active_staff());
 
 commit;
