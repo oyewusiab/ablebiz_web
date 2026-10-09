@@ -3,19 +3,28 @@
 -- File: implementation/MIGRATION_RECONCILE_SPIN_AND_SUITE_PERMISSIONS.sql
 -- ==============================================================================
 -- Target: Supabase production database (https://ksjphkqxudtkduuhnyvn.supabase.co)
--- Security Standard: Zero-Trust & Canonical Least-Privilege
+-- Security Standard: Zero-Trust & Canonical Role-Based Access Control (RBAC)
 --
--- Audit & Correction Summary:
---   1. REJECTS broad 'FOR ALL TO authenticated USING (true)' policies.
---   2. Enforces canonical public.is_active_staff() check for all staff read/write policies.
---   3. Keeps public.admin_users and public.staff_profiles role hierarchies distinct.
---      Does NOT promote operational roles to 'admin'.
---   4. Preserves public._ablebiz_require_admin() return type (public.admin_users)
---      and maps Super Admin / Admin roles strictly.
---   5. Fixes ablebiz_admin_fulfill_reward() to decouple promotional reward fulfillment
---      from lead-to-client conversion (leaves leads.is_converted = false).
---   6. Keeps public Spin & Win strictly behind the SECURITY DEFINER RPC
---      public.ablebiz_create_spin_and_reward. Direct table writes from anon remain REVOKED.
+-- Audit & Security Hardening Summary:
+--   1. REJECTS all blanket 'FOR ALL TO authenticated' and 'public.is_active_staff()' access.
+--   2. Enforces fine-grained, role-aware policies separated by operation (SELECT, INSERT, UPDATE).
+--      - Leads & Consultations: CRM authorized roles (super_admin, admin, operations_manager,
+--        client_service_officer, marketing_officer) have SELECT/UPDATE access.
+--        Accounts_officer, registration_officer, and viewer have read-only or no edit access.
+--      - Hard Deletes: NO DELETE policy granted to any staff role on operational records (preserves audit trail).
+--      - Spin Rewards & Referrals: Super Admin & Admin manage; CRM/Ops read.
+--   3. Hardens administrative identity resolution:
+--      - Eliminates insecure email matching fallback in _ablebiz_require_admin().
+--      - Authorizes staff strictly when auth.uid() is matched to an active administrator
+--        or an active staff profile with an executive role ('super_admin', 'admin').
+--      - Preserves public._ablebiz_require_admin() return type (public.admin_users).
+--   4. Decoupled Reward Fulfillment:
+--      - ablebiz_admin_fulfill_reward() enforces internal authorization (executives only).
+--      - Fulfills spin_rewards without converting the lead (leaves leads.is_converted = false).
+--      - Records fulfilled_by, fulfillment_note, fulfilled_at, and writes to public.admin_audit_log.
+--   5. Zero Direct Public Writes:
+--      - Direct table writes from anon/unauthenticated users are strictly REVOKED.
+--      - Public participation routes exclusively through validated SECURITY DEFINER RPCs.
 -- ==============================================================================
 
 begin;
@@ -23,7 +32,7 @@ begin;
 -- ==============================================================================
 -- 1. AUTHORIZATION & STAFF SYNCHRONIZATION (Zero Privilege Escalation)
 -- ==============================================================================
--- Mirror ONLY bona-fide executives ('super_admin' and 'admin') into public.admin_users
+-- Mirror ONLY bona-fide executives ('super_admin' and 'admin') into public.admin_users.
 -- Operational staff (registration officers, marketing, viewers) are NOT promoted to admin.
 insert into public.admin_users (auth_uid, email, name, role, is_active)
 select
@@ -45,27 +54,41 @@ on conflict (email) do update set
   is_active = excluded.is_active;
 
 -- Trigger to keep executive admin_users synchronized without promoting non-admins
+-- Handles email changes, deactivations, and role demotions safely
 create or replace function public.sync_executive_staff_to_admin_users()
 returns trigger language plpgsql security definer as $$
 begin
-  if new.auth_uid is not null and new.role in ('super_admin', 'admin') then
+  -- 1. If staff email changed, update existing admin_users record if present
+  if tg_op = 'UPDATE' and old.email is distinct from new.email then
+    update public.admin_users
+    set email = new.email, updated_at = now()
+    where email = old.email or auth_uid = new.auth_uid;
+  end if;
+
+  -- 2. If staff is active and has an executive role, upsert into admin_users
+  if new.auth_uid is not null and new.is_active = true and new.role in ('super_admin', 'admin') then
     insert into public.admin_users (auth_uid, email, name, role, is_active)
     values (
       new.auth_uid,
       new.email,
       new.full_name,
       (case when new.role::text = 'super_admin' then 'superadmin'::public.admin_role else 'admin'::public.admin_role end),
-      coalesce(new.is_active, true)
+      true
     )
     on conflict (email) do update set
       auth_uid  = excluded.auth_uid,
       name      = excluded.name,
       role      = excluded.role,
-      is_active = excluded.is_active;
-  elsif new.role not in ('super_admin', 'admin') then
-    -- If a staff member was demoted or is an operational role, deactivate in admin_users
-    update public.admin_users set is_active = false where email = new.email;
+      is_active = true,
+      updated_at = now();
+
+  -- 3. If staff was demoted to operational role or deactivated, deactivate in admin_users
+  elsif (new.role not in ('super_admin', 'admin') or new.is_active = false) then
+    update public.admin_users
+    set is_active = false, updated_at = now()
+    where (auth_uid = new.auth_uid or email = new.email);
   end if;
+
   return new;
 end;
 $$;
@@ -75,15 +98,22 @@ create trigger trg_sync_executive_staff_to_admin_users
 after insert or update on public.staff_profiles
 for each row execute function public.sync_executive_staff_to_admin_users();
 
--- Update _ablebiz_require_admin() retaining public.admin_users return type
+-- Hardened administrative identity resolution:
+-- Strictly checks auth.uid() linkage against active admin_users OR active executive staff_profiles.
+-- Zero unverified email-matching fallback. Preserves public.admin_users return type.
 create or replace function public._ablebiz_require_admin()
 returns public.admin_users
 language plpgsql security definer set search_path = public
 as $$
 declare
   v_admin public.admin_users;
+  v_staff public.staff_profiles;
 begin
-  -- 1. Match by authenticated auth_uid
+  if auth.uid() is null then
+    raise exception 'not_authorized';
+  end if;
+
+  -- 1. Match directly by verified auth_uid in public.admin_users
   select * into v_admin
   from public.admin_users
   where auth_uid = auth.uid()
@@ -94,15 +124,32 @@ begin
     return v_admin;
   end if;
 
-  -- 2. Fallback: match by email via verified auth.jwt()
-  select * into v_admin
-  from public.admin_users
-  where lower(email) = lower(auth.jwt()->>'email')
+  -- 2. Match verified auth_uid in canonical public.staff_profiles for executive roles
+  select * into v_staff
+  from public.staff_profiles
+  where auth_uid = auth.uid()
     and is_active = true
+    and role in ('super_admin', 'admin')
   limit 1;
 
   if found then
-    update public.admin_users set auth_uid = auth.uid() where id = v_admin.id;
+    -- Synchronize and return the canonical admin record
+    insert into public.admin_users (auth_uid, email, name, role, is_active)
+    values (
+      v_staff.auth_uid,
+      v_staff.email,
+      v_staff.full_name,
+      (case when v_staff.role = 'super_admin' then 'superadmin'::public.admin_role else 'admin'::public.admin_role end),
+      true
+    )
+    on conflict (email) do update set
+      auth_uid  = excluded.auth_uid,
+      name      = excluded.name,
+      role      = excluded.role,
+      is_active = true,
+      updated_at = now()
+    returning * into v_admin;
+
     return v_admin;
   end if;
 
@@ -262,7 +309,7 @@ begin
   set notes = 'Spin & Earn Promotional Reward: ' || v_reward_title || ' | Code: ' || v_reward_code
   where id = v_lead_id;
 
-  -- Credit referral points if applicable
+  -- Credit referral points if applicable (idempotent, once per referee)
   if v_valid_ref is not null then
     insert into public.referral_events(referrer_code, referee_lead_id, points)
     values (v_valid_ref, v_lead_id, 50)
@@ -286,7 +333,7 @@ $$;
 -- 3. REWARD FULFILLMENT (DECOUPLED FROM CLIENT CONVERSION)
 -- ==============================================================================
 -- Fulfilling a promotional reward marks spin_rewards.status = 'fulfilled'.
--- It does NOT set leads.is_converted = true.
+-- Leaves leads.is_converted = false. Only authorized executives can fulfill.
 create or replace function public.ablebiz_admin_fulfill_reward(
   p_reward_id       uuid,
   p_fulfillment_note text default null
@@ -298,6 +345,7 @@ declare
   v_admin  public.admin_users;
   v_reward public.spin_rewards;
 begin
+  -- Enforce executive authorization inside the function
   v_admin := public._ablebiz_require_admin();
 
   select * into v_reward from public.spin_rewards where id = p_reward_id;
@@ -307,7 +355,7 @@ begin
     return jsonb_build_object('success', true, 'status', 'already_fulfilled');
   end if;
 
-  -- Fulfill reward strictly on spin_rewards
+  -- Fulfill reward strictly on spin_rewards (leaves leads.is_converted = false)
   update public.spin_rewards
   set
     status           = 'fulfilled',
@@ -330,70 +378,141 @@ $$;
 
 
 -- ==============================================================================
--- 4. ROW-LEVEL SECURITY & CANONICAL STAFF PERMISSIONS
+-- 4. ROW-LEVEL SECURITY & CANONICAL ROLE-BASED ACCESS CONTROL (RBAC)
 -- ==============================================================================
--- 1. Ensure table permissions are granted strictly to authenticated staff
+
+-- 1. Table Grants: Restrict operations strictly by privilege
 grant select, update on public.leads to authenticated;
 grant select, update on public.spin_rewards to authenticated;
 grant select, insert, update on public.referral_events to authenticated;
+grant select on public.consultation_requests to authenticated;
+grant select on public.checklist_downloads to authenticated;
 grant select on public.spin_reward_configs to anon, authenticated;
 
--- Direct write and read access from anon is REVOKED across operational tables
--- All public visitor interactions MUST route through validated SECURITY DEFINER RPCs:
---   - ablebiz_create_spin_and_reward
---   - ablebiz_create_consultation_request
---   - ablebiz_create_checklist_download
+-- Direct write and read access from anon is REVOKED across operational tables.
+-- Public visitor interactions MUST route through validated SECURITY DEFINER RPCs:
 revoke insert, update, delete on public.spin_rewards from anon;
 revoke insert, select, update, delete on public.leads from anon;
 revoke insert, select, update, delete on public.consultation_requests from anon;
 revoke insert, select, update, delete on public.checklist_downloads from anon;
 
--- Drop obsolete open public insert policies if they exist
+-- Drop obsolete open public insert policies
 drop policy if exists "public_insert_leads" on public.leads;
 drop policy if exists "public_insert_consultation_requests" on public.consultation_requests;
 drop policy if exists "public_insert_checklist_downloads" on public.checklist_downloads;
 
--- 2. Leads RLS: Active Staff Access Only
+-- Drop legacy blanket active-staff policies
 drop policy if exists "authenticated_staff_leads" on public.leads;
 drop policy if exists "Active staff full access on leads" on public.leads;
-create policy "Active staff full access on leads"
-on public.leads for all
-to authenticated
-using (public.is_active_staff())
-with check (public.is_active_staff());
-
--- 3. Spin Rewards RLS: Active Staff Access Only
 drop policy if exists "authenticated_staff_spin_rewards" on public.spin_rewards;
 drop policy if exists "Active staff full access on spin_rewards" on public.spin_rewards;
-create policy "Active staff full access on spin_rewards"
-on public.spin_rewards for all
-to authenticated
-using (public.is_active_staff())
-with check (public.is_active_staff());
-
--- 4. Referral Events RLS: Active Staff Access Only
 drop policy if exists "authenticated_staff_referral_events" on public.referral_events;
 drop policy if exists "Active staff full access on referral_events" on public.referral_events;
-create policy "Active staff full access on referral_events"
-on public.referral_events for all
-to authenticated
-using (public.is_active_staff())
-with check (public.is_active_staff());
-
--- 5. Consultation Requests & Checklist Downloads: Active Staff Access Only
 drop policy if exists "Active staff full access on consultation_requests" on public.consultation_requests;
-create policy "Active staff full access on consultation_requests"
-on public.consultation_requests for all
-to authenticated
-using (public.is_active_staff())
-with check (public.is_active_staff());
-
 drop policy if exists "Active staff full access on checklist_downloads" on public.checklist_downloads;
-create policy "Active staff full access on checklist_downloads"
-on public.checklist_downloads for all
+
+
+-- ------------------------------------------------------------------------------
+-- A. LEADS TABLE (CRM Domain)
+-- ------------------------------------------------------------------------------
+-- SELECT: All active staff may view leads in the CRM pipeline and workbench.
+create policy "leads_select_active_staff"
+on public.leads for select
 to authenticated
-using (public.is_active_staff())
-with check (public.is_active_staff());
+using (public.is_active_staff());
+
+-- UPDATE: Only CRM operational staff can modify leads (qualification, assigned staff, notes).
+-- Viewers, accounts officers, and registration officers CANNOT update leads.
+create policy "leads_update_crm_staff"
+on public.leads for update
+to authenticated
+using (
+  public.is_active_staff() and
+  public.current_staff_role() in ('super_admin', 'admin', 'operations_manager', 'client_service_officer', 'marketing_officer')
+)
+with check (
+  public.is_active_staff() and
+  public.current_staff_role() in ('super_admin', 'admin', 'operations_manager', 'client_service_officer', 'marketing_officer')
+);
+
+-- NO DELETE policy on leads. Preserves complete customer acquisition history and audit trail.
+
+
+-- ------------------------------------------------------------------------------
+-- B. SPIN REWARDS TABLE (Promotions Domain)
+-- ------------------------------------------------------------------------------
+-- SELECT: All active staff may view reward redemptions.
+create policy "spin_rewards_select_active_staff"
+on public.spin_rewards for select
+to authenticated
+using (public.is_active_staff());
+
+-- UPDATE: Only executive management can directly update spin rewards.
+-- (Regular fulfillment routes via the audited RPC ablebiz_admin_fulfill_reward).
+create policy "spin_rewards_update_executives"
+on public.spin_rewards for update
+to authenticated
+using (
+  public.is_active_staff() and
+  public.current_staff_role() in ('super_admin', 'admin')
+)
+with check (
+  public.is_active_staff() and
+  public.current_staff_role() in ('super_admin', 'admin')
+);
+
+-- NO DELETE policy on spin_rewards.
+
+
+-- ------------------------------------------------------------------------------
+-- C. REFERRAL EVENTS TABLE (Growth & Partner Domain)
+-- ------------------------------------------------------------------------------
+-- SELECT: All active staff may view referral conversion history.
+create policy "referral_events_select_active_staff"
+on public.referral_events for select
+to authenticated
+using (public.is_active_staff());
+
+-- INSERT: Only executive and marketing staff may author manual referral linkages.
+create policy "referral_events_insert_authorized_staff"
+on public.referral_events for insert
+to authenticated
+with check (
+  public.is_active_staff() and
+  public.current_staff_role() in ('super_admin', 'admin', 'marketing_officer', 'operations_manager')
+);
+
+-- UPDATE: Only executive management can modify referral events.
+create policy "referral_events_update_executives"
+on public.referral_events for update
+to authenticated
+using (
+  public.is_active_staff() and
+  public.current_staff_role() in ('super_admin', 'admin')
+)
+with check (
+  public.is_active_staff() and
+  public.current_staff_role() in ('super_admin', 'admin')
+);
+
+-- NO DELETE policy on referral_events.
+
+
+-- ------------------------------------------------------------------------------
+-- D. CONSULTATION REQUESTS & CHECKLIST DOWNLOADS
+-- ------------------------------------------------------------------------------
+-- SELECT: All active staff can view consultation requests and lead download records.
+create policy "consultation_requests_select_active_staff"
+on public.consultation_requests for select
+to authenticated
+using (public.is_active_staff());
+
+create policy "checklist_downloads_select_active_staff"
+on public.checklist_downloads for select
+to authenticated
+using (public.is_active_staff());
+
+-- NO DIRECT INSERT/UPDATE/DELETE policies for authenticated staff on these intake records.
+-- Ingestion happens strictly via validated public RPCs.
 
 commit;
-
