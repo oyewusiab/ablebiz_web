@@ -46,20 +46,127 @@ export async function rpcCreateSpinAndReward(input: {
   utmCampaign?: string
 }): Promise<SpinRpcResult> {
   const sb = ensure()
-  const { data, error } = await sb.rpc('ablebiz_create_spin_and_reward', {
-    p_name: input.name,
-    p_email: input.email,
-    p_phone: input.phone,
-    p_referred_by: input.referredBy ?? null,
-    p_consent_marketing: input.consentMarketing ?? false,
-    p_page_path: input.pagePath ?? null,
-    p_utm_source: input.utmSource ?? null,
-    p_utm_medium: input.utmMedium ?? null,
-    p_utm_campaign: input.utmCampaign ?? null,
+
+  // First try RPC path if function exists and succeeds
+  try {
+    const { data, error } = await sb.rpc('ablebiz_create_spin_and_reward', {
+      p_name: input.name,
+      p_email: input.email,
+      p_phone: input.phone,
+      p_referred_by: input.referredBy ?? null,
+      p_consent_marketing: input.consentMarketing ?? false,
+      p_page_path: input.pagePath ?? null,
+      p_utm_source: input.utmSource ?? null,
+      p_utm_medium: input.utmMedium ?? null,
+      p_utm_campaign: input.utmCampaign ?? null,
+    })
+
+    if (!error && data) {
+      return data as unknown as SpinRpcResult
+    }
+  } catch {
+    // Fall through to authoritative direct table write
+  }
+
+  // Authoritative fallback: write lead directly to public.leads
+  // 1. Resolve referral code if provided
+  let validReferrer: string | null = null
+  if (input.referredBy && input.referredBy.trim()) {
+    try {
+      const { data: refCode } = await sb.rpc('_ablebiz_resolve_referral', {
+        p_referred_by: input.referredBy.trim(),
+        p_email: input.email.trim(),
+        p_phone: normalizePhoneDigits(input.phone),
+      })
+      if (refCode) validReferrer = refCode
+    } catch {
+      // Non-fatal if referral resolver fails
+    }
+  }
+
+  // 2. Generate referral code
+  let referralCode = ''
+  try {
+    const { data: genRef } = await sb.rpc('ablebiz_generate_referral_code')
+    if (genRef) referralCode = genRef
+  } catch {
+    // fallback alphanumeric generator
+  }
+  if (!referralCode) {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+    for (let i = 0; i < 10; i++) {
+      referralCode += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+  }
+
+  // 3. Generate reward code
+  let rewardCode = ''
+  try {
+    const { data: genReward } = await sb.rpc('ablebiz_generate_reward_code')
+    if (genReward) rewardCode = genReward
+  } catch {
+    // fallback
+  }
+  if (!rewardCode) {
+    rewardCode = 'ABLE-' + Math.random().toString(36).substring(2, 10).toUpperCase()
+  }
+
+  const rewardType: SpinRewardType = 'discount_1000'
+  const rewardTitle = '₦1,000 Discount'
+  const leadId = generateRandomUuid()
+
+  const { error: leadErr } = await sb.from('leads').insert({
+    id: leadId,
+    source: 'spin',
+    name: input.name.trim(),
+    email: input.email.trim(),
+    phone: input.phone.trim(),
+    referral_code: referralCode,
+    referred_by: validReferrer,
+    consent_marketing: input.consentMarketing ?? false,
+    page_path: input.pagePath ?? null,
+    utm_source: input.utmSource ?? null,
+    utm_medium: input.utmMedium ?? null,
+    utm_campaign: input.utmCampaign ?? null,
+    qualification_status: 'new',
+    priority: 'normal',
+    notes: `Spin & Earn Promotional Reward: ${rewardTitle} | Code: ${rewardCode}`,
   })
 
-  if (error) throw error
-  return data as unknown as SpinRpcResult
+  if (leadErr) {
+    // If unique constraint violation on spin email or phone, check if already spun
+    if (leadErr.code === '23505' || leadErr.message?.includes('duplicate key') || leadErr.message?.includes('unique constraint')) {
+      // Query existing spin lead via RPC or note
+      return {
+        lead_id: leadId,
+        referral_code: referralCode,
+        reward_type: rewardType,
+        reward_code: rewardCode,
+        note: 'existing_spin',
+      }
+    }
+    throw leadErr
+  }
+
+  // If valid referrer was provided, attempt referral_events logging
+  if (validReferrer) {
+    try {
+      await sb.from('referral_events').insert({
+        referrer_code: validReferrer,
+        referee_lead_id: leadId,
+        points: 50,
+      })
+    } catch {
+      // Handled
+    }
+  }
+
+  return {
+    lead_id: leadId,
+    referral_code: referralCode,
+    reward_type: rewardType,
+    reward_code: rewardCode,
+  }
 }
 
 function generateRandomUuid(): string {
@@ -728,13 +835,21 @@ export async function rpcAdminGetRewards(status?: string): Promise<AdminRewardRe
       }
     }
 
-    return rewards.map((r: any) => {
+    // Also check leads table directly for spin leads (ensures Suite visibility for Spin & Earn)
+    const { data: spinLeads } = await sb
+      .from('leads')
+      .select('id, name, email, phone, referral_code, notes, created_at, is_converted, converted_at')
+      .eq('source', 'spin')
+      .order('created_at', { ascending: false })
+
+    const existingRewardLeadIds = new Set(rewards.map((r: any) => r.lead_id))
+    const formattedRewards: AdminRewardRecord[] = rewards.map((r: any) => {
       const l = leadMap.get(r.lead_id) || {}
       return {
         id: r.id,
         created_at: r.created_at,
-        reward_type: r.reward_type || 'reward',
-        reward_title: r.reward_title || 'General Reward',
+        reward_type: r.reward_type || 'spin_prize',
+        reward_title: r.reward_title || 'Promotional Reward',
         reward_code: r.reward_code || '',
         status: r.status || 'pending',
         fulfilled_at: r.fulfilled_at,
@@ -745,6 +860,36 @@ export async function rpcAdminGetRewards(status?: string): Promise<AdminRewardRe
         referral_code: l.referral_code || null,
       }
     })
+
+    if (spinLeads && spinLeads.length > 0) {
+      for (const sl of spinLeads) {
+        if (!existingRewardLeadIds.has(sl.id)) {
+          // Extract reward code from notes if available
+          const codeMatch = sl.notes?.match(/Code:\s*([A-Z0-9\-]+)/i)
+          const titleMatch = sl.notes?.match(/Reward:\s*([^|]+)/i)
+          formattedRewards.push({
+            id: sl.id,
+            created_at: sl.created_at,
+            reward_type: 'spin_prize',
+            reward_title: titleMatch ? titleMatch[1].trim() : 'Spin & Earn Prize',
+            reward_code: codeMatch ? codeMatch[1].trim() : (sl.referral_code || '-'),
+            status: sl.is_converted ? 'fulfilled' : 'pending',
+            fulfilled_at: sl.converted_at,
+            fulfillment_note: sl.is_converted ? 'Fulfilled by staff' : null,
+            name: sl.name,
+            email: sl.email,
+            phone: sl.phone,
+            referral_code: sl.referral_code,
+          })
+        }
+      }
+    }
+
+    if (status) {
+      return formattedRewards.filter(r => r.status === status)
+    }
+
+    return formattedRewards
   } catch {
     return []
   }
@@ -769,9 +914,9 @@ export async function rpcAdminFulfillReward(
     // Fall back
   }
 
-  // Fallback direct table update
+  // Fallback direct table update (spin_rewards or leads table)
   try {
-    const { error } = await sb
+    const { error: spinErr } = await sb
       .from('spin_rewards')
       .update({
         status: 'fulfilled',
@@ -780,8 +925,24 @@ export async function rpcAdminFulfillReward(
       })
       .eq('id', rewardId)
 
-    if (error) throw error
-    return { success: true }
+    if (!spinErr) {
+      return { success: true }
+    }
+
+    const { error: leadErr } = await sb
+      .from('leads')
+      .update({
+        is_converted: true,
+        converted_at: new Date().toISOString(),
+        conversion_notes: fulfillmentNote,
+      })
+      .eq('id', rewardId)
+
+    if (!leadErr) {
+      return { success: true }
+    }
+
+    throw spinErr || leadErr
   } catch (err: any) {
     return { success: false, message: err?.message || 'Failed to fulfill reward.' }
   }

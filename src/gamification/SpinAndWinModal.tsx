@@ -15,6 +15,8 @@ import {
 
 import { downloadAblebizEbookPdf } from "../utils/ebookPdf";
 import { supabaseEnabled } from "../lib/supabaseClient";
+import { rpcCreateSpinAndReward } from "../lib/supabaseApi";
+import { getSessionReferralCode } from "../referrals/useReferralUrl";
 import { useSiteConfig } from "../referrals/siteConfig";
 
 type Props = {
@@ -51,6 +53,8 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
   const pendingRewardType = useRef<string | null>(null);
 
   const [justCopied, setJustCopied] = useState<string | null>(null);
+  const [spinError, setSpinError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Reset UI when modal opens
   useEffect(() => {
@@ -59,6 +63,8 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
     setRotation(0);
     pendingRewardType.current = null;
     setJustCopied(null);
+    setSpinError(null);
+    setIsSubmitting(false);
   }, [open]);
 
   // If user types phone/email that already exists, show existing reward (local mode only)
@@ -128,13 +134,45 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
     return `mailto:${site.email}?subject=${subject}&body=${body}`;
   }, [reward, name, phone, email, user, source, site.email]);
 
-  const onSpin = () => {
-    if (!canSpin) return;
+  const onSpin = async () => {
+    if (!canSpin || isSubmitting) return;
+    setSpinError(null);
+    setIsSubmitting(true);
 
+    let chosenRewardType: SpinRewardType = "discount_1000";
+    let rewardCode = "";
+    let rewardTitle = "₦1,000 Discount";
+
+    try {
+      if (supabaseEnabled) {
+        const refCode = getSessionReferralCode();
+        const res = await rpcCreateSpinAndReward({
+          name: name.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
+          referredBy: refCode,
+          consentMarketing: true,
+          pagePath: window.location.pathname,
+        });
+
+        if (res?.reward_type) chosenRewardType = res.reward_type;
+        if (res?.reward_code) rewardCode = res.reward_code;
+        const matchingConfig = spinRewards.find((r) => r.type === chosenRewardType);
+        if (matchingConfig?.title) rewardTitle = matchingConfig.title;
+      }
+    } catch (err: any) {
+      console.warn("[SpinAndWinModal] Supabase registration warning, continuing with client state:", err);
+    }
+
+    // Update local gamification state for offline recovery
     const created = getOrCreateSpinUser({ name, email, phone });
     setUser(created);
 
-    const r = awardRewardToUser(created.id);
+    const r = awardRewardToUser(created.id, chosenRewardType);
+    if (rewardCode) {
+      r.code = rewardCode;
+    }
+    r.title = rewardTitle;
     setReward(r);
 
     const idx = Math.max(0, spinRewards.findIndex((rew) => rew.type === r.type));
@@ -152,6 +190,7 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
     const next = rotation + baseSpins * 360 + stopAt + jitter;
 
     setSpinning(true);
+    setIsSubmitting(false);
     window.setTimeout(() => setRotation(next), 20);
   };
 
@@ -257,14 +296,20 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
                     Chat on WhatsApp automatically after spin
                   </label>
 
+                  {spinError && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700">
+                      {spinError}
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap items-center gap-4 pt-2">
                     <Button
                       type="button"
                       onClick={onSpin}
-                      disabled={!canSpin}
+                      disabled={!canSpin || isSubmitting}
                       className="h-14 px-8 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 shadow-xl shadow-amber-500/25 text-sm font-black uppercase tracking-wider border-0"
                     >
-                      <Gift className="h-5 w-5 mr-2" /> {reward ? "Reward claimed" : spinning ? "Spinning..." : "Spin Now"}
+                      <Gift className="h-5 w-5 mr-2" /> {reward ? "Reward claimed" : spinning || isSubmitting ? "Spinning..." : "Spin Now"}
                     </Button>
                   </div>
 

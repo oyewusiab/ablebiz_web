@@ -52,6 +52,7 @@ export function AdminReferrals() {
 
   // Filters & Form States
   const [search, setSearch] = useState("");
+  const [rewardTypeFilter, setRewardTypeFilter] = useState<"all" | "spin" | "referral">("all");
   const [refCode, setRefCode] = useState("");
   const [selectedReferrerCode, setSelectedReferrerCode] = useState("");
   const [selectedLeadId, setSelectedLeadId] = useState("");
@@ -462,12 +463,55 @@ export function AdminReferrals() {
               title="Reward redemptions"
               description="Audit and fulfill client and partner reward redemptions."
               actions={
-                <AdminBadge tone="warning">
-                  {rewards.filter((item) => item.status === "pending").length} pending
-                </AdminBadge>
+                <div className="flex items-center gap-2">
+                  <div className="inline-flex rounded-lg bg-slate-100 p-0.5 text-xs dark:bg-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setRewardTypeFilter("all")}
+                      className={`rounded-md px-2.5 py-1 font-medium transition ${
+                        rewardTypeFilter === "all"
+                          ? "bg-white text-slate-900 shadow-xs dark:bg-slate-700 dark:text-white"
+                          : "text-slate-600 dark:text-slate-400"
+                      }`}
+                    >
+                      All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRewardTypeFilter("spin")}
+                      className={`rounded-md px-2.5 py-1 font-medium transition ${
+                        rewardTypeFilter === "spin"
+                          ? "bg-white text-slate-900 shadow-xs dark:bg-slate-700 dark:text-white"
+                          : "text-slate-600 dark:text-slate-400"
+                      }`}
+                    >
+                      Spin & Earn
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRewardTypeFilter("referral")}
+                      className={`rounded-md px-2.5 py-1 font-medium transition ${
+                        rewardTypeFilter === "referral"
+                          ? "bg-white text-slate-900 shadow-xs dark:bg-slate-700 dark:text-white"
+                          : "text-slate-600 dark:text-slate-400"
+                      }`}
+                    >
+                      Referral Tiers
+                    </button>
+                  </div>
+                  <AdminBadge tone="warning">
+                    {rewards.filter((item) => item.status === "pending").length} pending
+                  </AdminBadge>
+                </div>
               }
             >
-              {rewards.length === 0 ? (
+              {rewards.filter((r) =>
+                rewardTypeFilter === "all"
+                  ? true
+                  : rewardTypeFilter === "spin"
+                  ? r.reward_type?.includes("spin")
+                  : !r.reward_type?.includes("spin")
+              ).length === 0 ? (
                 <AdminEmptyState
                   icon={Gift}
                   title="No rewards currently on record"
@@ -479,6 +523,7 @@ export function AdminReferrals() {
                     <thead>
                       <tr>
                         <th>Recipient</th>
+                        <th>Type</th>
                         <th>Reward</th>
                         <th>Code</th>
                         <th>Status</th>
@@ -486,13 +531,26 @@ export function AdminReferrals() {
                       </tr>
                     </thead>
                     <tbody>
-                      {rewards.map((reward) => (
+                      {rewards
+                        .filter((r) =>
+                          rewardTypeFilter === "all"
+                            ? true
+                            : rewardTypeFilter === "spin"
+                            ? r.reward_type?.includes("spin")
+                            : !r.reward_type?.includes("spin")
+                        )
+                        .map((reward) => (
                         <tr key={reward.id}>
                           <td>
                             <div className="space-y-1">
                               <p className="admin-title-sm">{reward.name}</p>
                               <p className="admin-meta">{reward.phone || reward.email || "-"}</p>
                             </div>
+                          </td>
+                          <td>
+                            <AdminBadge tone={reward.reward_type?.includes("spin") ? "info" : "default"}>
+                              {reward.reward_type?.includes("spin") ? "Spin & Earn" : "Referral Reward"}
+                            </AdminBadge>
                           </td>
                           <td>
                             <AdminBadge tone="warning">{reward.reward_title}</AdminBadge>
