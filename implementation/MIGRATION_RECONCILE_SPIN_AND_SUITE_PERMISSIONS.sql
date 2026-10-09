@@ -338,9 +338,20 @@ grant select, update on public.spin_rewards to authenticated;
 grant select, insert, update on public.referral_events to authenticated;
 grant select on public.spin_reward_configs to anon, authenticated;
 
--- Direct write access from anon is REVOKED (anon writes only via validated SECURITY DEFINER RPCs)
+-- Direct write and read access from anon is REVOKED across operational tables
+-- All public visitor interactions MUST route through validated SECURITY DEFINER RPCs:
+--   - ablebiz_create_spin_and_reward
+--   - ablebiz_create_consultation_request
+--   - ablebiz_create_checklist_download
 revoke insert, update, delete on public.spin_rewards from anon;
-revoke select, update, delete on public.leads from anon;
+revoke insert, select, update, delete on public.leads from anon;
+revoke insert, select, update, delete on public.consultation_requests from anon;
+revoke insert, select, update, delete on public.checklist_downloads from anon;
+
+-- Drop obsolete open public insert policies if they exist
+drop policy if exists "public_insert_leads" on public.leads;
+drop policy if exists "public_insert_consultation_requests" on public.consultation_requests;
+drop policy if exists "public_insert_checklist_downloads" on public.checklist_downloads;
 
 -- 2. Leads RLS: Active Staff Access Only
 drop policy if exists "authenticated_staff_leads" on public.leads;
@@ -369,4 +380,20 @@ to authenticated
 using (public.is_active_staff())
 with check (public.is_active_staff());
 
+-- 5. Consultation Requests & Checklist Downloads: Active Staff Access Only
+drop policy if exists "Active staff full access on consultation_requests" on public.consultation_requests;
+create policy "Active staff full access on consultation_requests"
+on public.consultation_requests for all
+to authenticated
+using (public.is_active_staff())
+with check (public.is_active_staff());
+
+drop policy if exists "Active staff full access on checklist_downloads" on public.checklist_downloads;
+create policy "Active staff full access on checklist_downloads"
+on public.checklist_downloads for all
+to authenticated
+using (public.is_active_staff())
+with check (public.is_active_staff());
+
 commit;
+
