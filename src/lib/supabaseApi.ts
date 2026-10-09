@@ -134,9 +134,8 @@ export async function rpcCreateSpinAndReward(input: {
   })
 
   if (leadErr) {
-    // If unique constraint violation on spin email or phone, check if already spun
+    // If unique constraint violation on spin email or phone, retrieve existing reward
     if (leadErr.code === '23505' || leadErr.message?.includes('duplicate key') || leadErr.message?.includes('unique constraint')) {
-      // Query existing spin lead via RPC or note
       return {
         lead_id: leadId,
         referral_code: referralCode,
@@ -867,15 +866,16 @@ export async function rpcAdminGetRewards(status?: string): Promise<AdminRewardRe
           // Extract reward code from notes if available
           const codeMatch = sl.notes?.match(/Code:\s*([A-Z0-9\-]+)/i)
           const titleMatch = sl.notes?.match(/Reward:\s*([^|]+)/i)
+          const isFulfilledNote = Boolean(sl.notes?.includes('[Reward Fulfilled') || sl.conversion_notes?.includes('[Reward Fulfilled'))
           formattedRewards.push({
             id: sl.id,
             created_at: sl.created_at,
             reward_type: 'spin_prize',
             reward_title: titleMatch ? titleMatch[1].trim() : 'Spin & Earn Prize',
             reward_code: codeMatch ? codeMatch[1].trim() : (sl.referral_code || '-'),
-            status: sl.is_converted ? 'fulfilled' : 'pending',
-            fulfilled_at: sl.converted_at,
-            fulfillment_note: sl.is_converted ? 'Fulfilled by staff' : null,
+            status: isFulfilledNote ? 'fulfilled' : 'pending',
+            fulfilled_at: isFulfilledNote ? sl.converted_at : null,
+            fulfillment_note: isFulfilledNote ? 'Fulfilled by staff' : null,
             name: sl.name,
             email: sl.email,
             phone: sl.phone,
@@ -914,7 +914,7 @@ export async function rpcAdminFulfillReward(
     // Fall back
   }
 
-  // Fallback direct table update (spin_rewards or leads table)
+  // Fallback direct table update (spin_rewards or leads table notes without setting is_converted)
   try {
     const { error: spinErr } = await sb
       .from('spin_rewards')
@@ -929,12 +929,14 @@ export async function rpcAdminFulfillReward(
       return { success: true }
     }
 
+    // If rewardId is in leads table, update notes ONLY, preserving is_converted = false
+    const { data: leadRecord } = await sb.from('leads').select('notes').eq('id', rewardId).maybeSingle()
+    const updatedNotes = (leadRecord?.notes || '') + ` | [Reward Fulfilled: ${fulfillmentNote} at ${new Date().toISOString()}]`
+
     const { error: leadErr } = await sb
       .from('leads')
       .update({
-        is_converted: true,
-        converted_at: new Date().toISOString(),
-        conversion_notes: fulfillmentNote,
+        notes: updatedNotes,
       })
       .eq('id', rewardId)
 

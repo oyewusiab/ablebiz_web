@@ -157,6 +157,9 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
 
         if (res?.reward_type) chosenRewardType = res.reward_type;
         if (res?.reward_code) rewardCode = res.reward_code;
+        if (res?.note === 'existing_spin') {
+          setSpinError("A promotional reward code is already active for this email/phone. Your existing reward details are shown below.");
+        }
         const matchingConfig = spinRewards.find((r) => r.type === chosenRewardType);
         if (matchingConfig?.title) rewardTitle = matchingConfig.title;
       }
