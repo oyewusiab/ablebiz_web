@@ -490,7 +490,7 @@ export function InvoicesPage() {
               <Receipt className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-900">Tax Invoices & Billing</h1>
+              <h1 className="text-xl font-bold text-slate-900">Invoices & Billing</h1>
               <p className="text-xs text-slate-500">
                 Official billing records, payment reconciliation, and immutable financial history
               </p>
@@ -686,7 +686,7 @@ export function InvoicesPage() {
           <div className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
               <div>
-                <h2 className="text-base font-bold text-slate-900">Issue Direct Tax Invoice</h2>
+                <h2 className="text-base font-bold text-slate-900">Issue Direct Invoice</h2>
                 <p className="text-xs text-slate-500">
                   Generate official invoice with immutable transaction snapshot
                 </p>
@@ -933,7 +933,7 @@ export function InvoicesPage() {
             {/* Printable Document */}
             <div className="print-document p-4 border border-slate-200 rounded-xl bg-white space-y-6 print:border-none print:p-0">
               <DocumentHeader
-                title="TAX INVOICE"
+                title="INVOICE"
                 documentNumber={selectedInvoice.invoice_number}
                 date={selectedInvoice.issue_date}
                 dueDate={selectedInvoice.due_date}

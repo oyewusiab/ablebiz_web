@@ -200,7 +200,7 @@ The following items are flagged for official input by ABLEBIZ management:
 1. **Moniepoint NUBAN Account Number:** Provide the 10-digit account number to replace dynamic billing prompts on invoices and quotations.
 2. **Official CAC Agent Accreditation Number:** Provide accredited agent number for automatic display on formal status reports and consultation briefs.
 3. **Physical Office Street Address:** Provide detailed office address in Abeokuta to complement the general "Abeokuta, Ogun State" location.
-4. **Company Tax Identification Number (TIN):** Provide corporate TIN for official tax invoices.
+4. **Company Tax Identification Number (TIN):** Provide corporate TIN for official invoices.
 
 ---
 

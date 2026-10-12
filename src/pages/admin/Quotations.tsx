@@ -411,7 +411,7 @@ export function QuotationsPage() {
       alert("This quotation has already been converted to an invoice.");
       return;
     }
-    if (!confirm(`Convert Quotation ${quote.quotation_number} into an official Tax Invoice?`)) {
+    if (!confirm(`Convert Quotation ${quote.quotation_number} into an official Invoice?`)) {
       return;
     }
 

@@ -91,7 +91,7 @@ Inspected all core administrative modules:
 ## 5. Enterprise Document QA
 
 Inspected all generated and printable documents:
-1. **Tax Invoice (`/admin/invoices`):**
+1. **Invoice (`/admin/invoices`):**
    - Header: Rendered via `<DocumentHeader />` with landscape logo, official company name ("ABLEBIZ Business Services"), contact info, invoice number, issue date, due date, status, and client details ("BILLED TO").
    - Remittance: Official Moniepoint MFB payment remittance instructions rendered dynamically without hardcoded fake data.
    - Line items: Clean tabular breakdown with unit price, quantity, tax amount, and balance due.

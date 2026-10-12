@@ -9,7 +9,7 @@
 ## 1. Problem Summary & Root Cause Analysis
 
 ### Identified Issue
-When printing or saving as PDF for **Tax Invoices**, **Official Quotations**, **Payment Receipts**, or **Executive Management Reports**, the browser print engine was rendering a **two-layer screenshot-like layout**:
+When printing or saving as PDF for **Invoices**, **Official Quotations**, **Payment Receipts**, or **Executive Management Reports**, the browser print engine was rendering a **two-layer screenshot-like layout**:
 - The underlying dashboard content (page headers, search/filter bars, metric summary cards, and data tables) was bleeding onto page 1 or overlapping before the modal document.
 - The document preview modal, which uses `fixed inset-0` on screen, was unconstrained statically during print flow, but the underlying page container was still present in the DOM print tree.
 - Some non-semantic emerald/green brand styling persisted across internal actions and progress elements.

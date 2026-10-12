@@ -21,7 +21,7 @@ export interface BankPaymentDetails {
 
 export interface DocumentHeaderProps {
   /**
-   * Title of the document: e.g. "TAX INVOICE", "QUOTATION", "OFFICIAL RECEIPT", "EXECUTIVE REPORT"
+   * Title of the document: e.g. "INVOICE", "QUOTATION", "OFFICIAL RECEIPT", "EXECUTIVE REPORT"
    */
   title: string;
   /**

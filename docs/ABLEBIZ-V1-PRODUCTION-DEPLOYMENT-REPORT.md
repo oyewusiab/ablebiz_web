@@ -120,7 +120,7 @@ All application routes and aliases verified against React Router:
 9. `/admin/tasks` — Operations Task Management (**PASS**)
 10. `/admin/documents` — Operations Document Vault (**PASS**)
 11. `/admin/quotations` — Quotation Management & Calculations (**PASS**)
-12. `/admin/invoices` — Tax Invoice Lifecycle & Conversion (**PASS**)
+12. `/admin/invoices` — Invoice Lifecycle & Conversion (**PASS**)
 13. `/admin/payments` — Payment Reconciliation & Audit (**PASS**)
 14. `/admin/expenses` — Operational Expense & Disbursement Tracking (**PASS**)
 15. `/admin/vendors` — Statutory Authorities & Vendor Registry (**PASS**)
@@ -157,7 +157,7 @@ All application routes and aliases verified against React Router:
 
 ## 9. Document Smoke Test
 
-Document generation, preview, and print layout verified across Tax Invoices, Quotations, Official Receipts, and Executive Reports:
+Document generation, preview, and print layout verified across Invoices, Quotations, Official Receipts, and Executive Reports:
 
 - **Dual-Layer Print Isolation Engine:**
   - Component-level isolation: Root dashboard containers tagged with `${isPrintModalOpen ? "print:hidden" : ""}` or `.no-print`.
