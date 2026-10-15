@@ -364,25 +364,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    // 1. Initial Session Check on mount/reload
+    // 1. Initial Session Check on mount/reload with invalid token recovery
     supabase.auth
       .getSession()
       .then(({ data: { session: initSession }, error }) => {
         if (!mounted) return;
         if (error) {
-          console.error("[Auth] Initial session error:", error.message);
+          console.warn("[Auth] Initial session resolution:", error.message);
+          // If refresh token is expired, revoked, or missing, purge stale local session
+          if (
+            error.message?.includes("Refresh Token") ||
+            error.message?.includes("refresh_token_not_found") ||
+            error.message?.includes("Invalid Refresh Token")
+          ) {
+            supabase.auth.signOut({ scope: "local" }).catch(() => {});
+          }
+          resolvedUidRef.current = null;
           setSession(null);
           setProfile(null);
+          setPermissionsList([]);
           setIsLoading(false);
           return;
         }
         syncSession(initSession);
       })
       .catch((err) => {
-        console.error("[Auth] Unexpected getSession rejection:", err);
+        console.warn("[Auth] Unexpected getSession rejection:", err?.message || err);
+        if (
+          err?.message?.includes("Refresh Token") ||
+          err?.message?.includes("refresh_token_not_found") ||
+          err?.message?.includes("Invalid Refresh Token")
+        ) {
+          supabase.auth.signOut({ scope: "local" }).catch(() => {});
+        }
         if (mounted) {
+          resolvedUidRef.current = null;
           setSession(null);
           setProfile(null);
+          setPermissionsList([]);
           setIsLoading(false);
         }
       });

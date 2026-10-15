@@ -343,13 +343,23 @@ export async function rpcGetMonthlyLeaderboard(limit = 5): Promise<LeaderboardRo
   }
 }
 
+export interface ReferralHistoryItem {
+  created_at: string
+  display_name: string
+  status: string
+  is_converted: boolean
+  points: number
+}
+
 export interface ReferralStatsRpcResult {
   referral_code: string
   display_name: string
   total_referrals: number
   total_points: number
+  conversions_count?: number
   current_tier: { title: string; note: string } | null
   next_tier: { title: string; referrals_required: number; note?: string } | null
+  recent_referrals?: ReferralHistoryItem[]
 }
 
 export async function rpcGetReferralStats(code: string): Promise<ReferralStatsRpcResult | null> {
@@ -372,33 +382,8 @@ export async function rpcGetReferralStats(code: string): Promise<ReferralStatsRp
     if (err?.message?.includes('referral_code_not_found')) {
       return null
     }
-    // Fallback: check leads table directly if possible
-    try {
-      const { data: leadData } = await sb
-        .from('leads')
-        .select('name, referral_code')
-        .eq('referral_code', cleanCode)
-        .maybeSingle()
-
-      if (!leadData) return null
-
-      // Mask name
-      const nameParts = (leadData.name || '').trim().split(' ')
-      const maskedName = nameParts.length > 1
-        ? `${nameParts[0]} ${nameParts[1].charAt(0)}.`
-        : nameParts[0] || 'Partner'
-
-      return {
-        referral_code: leadData.referral_code,
-        display_name: maskedName,
-        total_referrals: 0,
-        total_points: 0,
-        current_tier: null,
-        next_tier: { title: 'Bronze Advocate', referrals_required: 3, note: '₦5,000 off any filing service' },
-      }
-    } catch {
-      return null
-    }
+    console.warn('[supabaseApi] ablebiz_get_referral_stats error:', err?.message || err)
+    return null
   }
 }
 
@@ -406,6 +391,8 @@ export interface ReferralPartnerResult {
   lead_id: string
   referral_code: string
   display_name: string
+  is_existing?: boolean
+  message?: string
 }
 
 export async function rpcCreateReferralPartner(input: {
@@ -417,75 +404,89 @@ export async function rpcCreateReferralPartner(input: {
 }): Promise<ReferralPartnerResult> {
   const sb = ensure()
 
-  // Validate and resolve referrer if provided (blocks self-referral)
-  let validReferrer: string | null = null
-  if (input.referredBy && input.referredBy.trim()) {
-    try {
-      const { data: refCode } = await sb.rpc('_ablebiz_resolve_referral', {
-        p_referred_by: input.referredBy.trim(),
-        p_email: input.email.trim(),
-        p_phone: normalizePhoneDigits(input.phone),
-      })
-      if (refCode) validReferrer = refCode
-    } catch {
-      // ignore
-    }
-  }
-
-  // Generate unique code
-  let referralCode = ''
-  try {
-    const { data: genRef } = await sb.rpc('ablebiz_generate_referral_code')
-    if (genRef) referralCode = genRef
-  } catch {
-    // fallback
-  }
-  if (!referralCode) {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-    for (let i = 0; i < 10; i++) {
-      referralCode += chars.charAt(Math.floor(Math.random() * chars.length))
-    }
-  }
-
-  const leadId = generateRandomUuid()
-
-  const { error: leadErr } = await sb.from('leads').insert({
-    id: leadId,
-    source: 'referral_signup',
-    name: input.name.trim(),
-    email: input.email.trim(),
-    phone: input.phone.trim(),
-    referral_code: referralCode,
-    referred_by: validReferrer,
-    page_path: input.pagePath ?? null,
-    qualification_status: 'new',
-    priority: 'normal',
-    notes: 'Referral Partner signup via website /refer-and-earn',
+  // Invoke authoritative backend RPC: ablebiz_register_referral_partner
+  const { data, error } = await sb.rpc('ablebiz_register_referral_partner', {
+    p_name: input.name.trim(),
+    p_email: input.email.trim(),
+    p_phone: input.phone.trim(),
+    p_referred_by: input.referredBy ? input.referredBy.trim() : null,
+    p_page_path: input.pagePath ?? null,
   })
 
-  if (leadErr) {
-    throw leadErr
+  if (error) {
+    console.error('[supabaseApi] ablebiz_register_referral_partner RPC error:', error)
+    throw error
   }
 
-  // If referred by someone, record referral event if permissions permit
-  if (validReferrer) {
-    try {
-      await sb.from('referral_events').insert({
-        referrer_code: validReferrer,
-        referee_lead_id: leadId,
-        points: 50,
-      })
-    } catch {
-      // Silently handled: the authoritative attribution is already in leads.referred_by
-    }
+  if (!data) {
+    throw new Error('Authoritative referral registration returned empty response.')
   }
 
-  return {
-    lead_id: leadId,
-    referral_code: referralCode,
-    display_name: input.name.trim(),
-  }
+  return data as unknown as ReferralPartnerResult
 }
+
+export interface SubmitReferralResult {
+  success: boolean
+  is_duplicate: boolean
+  message: string
+  lead_id?: string
+  referral_code?: string
+}
+
+export async function rpcSubmitReferral(input: {
+  referrerCode: string
+  refereeName: string
+  refereePhone: string
+  refereeEmail?: string
+  serviceInterest?: string
+  notes?: string
+}): Promise<SubmitReferralResult> {
+  const sb = ensure()
+
+  const { data, error } = await sb.rpc('ablebiz_submit_referral', {
+    p_referrer_code: input.referrerCode.trim().toUpperCase(),
+    p_referee_name: input.refereeName.trim(),
+    p_referee_phone: input.refereePhone.trim(),
+    p_referee_email: input.refereeEmail ? input.refereeEmail.trim() : null,
+    p_service_interest: input.serviceInterest ? input.serviceInterest.trim() : null,
+    p_notes: input.notes ? input.notes.trim() : null,
+  })
+
+  if (error) {
+    console.error('[supabaseApi] ablebiz_submit_referral RPC error:', error)
+    throw error
+  }
+
+  if (!data) {
+    throw new Error('Authoritative referral submission failed.')
+  }
+
+  return data as unknown as SubmitReferralResult
+}
+
+export interface RecoverReferralResult {
+  found: boolean
+  referral_code?: string
+  display_name?: string
+}
+
+export async function rpcRecoverReferralCode(identifier: string): Promise<RecoverReferralResult> {
+  const sb = ensure()
+  const clean = identifier.trim()
+  if (!clean) return { found: false }
+
+  const { data, error } = await sb.rpc('ablebiz_recover_referral_code', {
+    p_identifier: clean,
+  })
+
+  if (error) {
+    console.error('[supabaseApi] ablebiz_recover_referral_code RPC error:', error)
+    throw error
+  }
+
+  return (data || { found: false }) as unknown as RecoverReferralResult
+}
+
 
 export interface AdminReferrerItem {
   referral_code: string

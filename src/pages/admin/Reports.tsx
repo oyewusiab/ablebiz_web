@@ -18,6 +18,7 @@ import {
   ChevronRight,
   ArrowUpRight,
   Filter,
+  RefreshCw,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
@@ -245,6 +246,16 @@ export function AdminReports() {
               <option value="all">All Time</option>
             </select>
           </div>
+
+          <button
+            onClick={() => fetchReportData()}
+            disabled={loading}
+            title="Refresh Metrics"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-xs disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 text-slate-500 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
 
           <button
             onClick={() => window.print()}
