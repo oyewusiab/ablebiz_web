@@ -382,8 +382,8 @@ export async function rpcGetReferralStats(code: string): Promise<ReferralStatsRp
     if (err?.message?.includes('referral_code_not_found')) {
       return null
     }
-    console.warn('[supabaseApi] ablebiz_get_referral_stats error:', err?.message || err)
-    return null
+    console.error('[supabaseApi] ablebiz_get_referral_stats error:', err?.message || err)
+    throw err
   }
 }
 

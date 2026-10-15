@@ -499,6 +499,16 @@ begin
 end;
 $$;
 
+-- Seed default referral tiers if table is empty
+insert into public.referral_tier_configs (referrals_required, title, note, sort_order)
+select * from (values
+  (3,  'Bronze Referrer', 'Unlock a free business name search',           0),
+  (5,  'Silver Referrer', 'Unlock a free 30-minute consultation session', 1),
+  (10, 'Gold Referrer',   'Unlock a ₦5,000 discount on any service',      2),
+  (20, 'Platinum Referrer','Unlock a full free CAC registration package', 3)
+) as t(referrals_required, title, note, sort_order)
+where not exists (select 1 from public.referral_tier_configs limit 1);
+
 
 -- ==============================================================================
 -- 6. RPC EXECUTION GRANTS
