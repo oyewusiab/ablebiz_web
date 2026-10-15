@@ -603,3 +603,6 @@ create policy "Active staff can insert activity timeline"
   with check (public.is_active_staff());
 
 commit;
+
+-- Force PostgREST to reload its schema cache immediately
+notify pgrst, 'reload schema';
