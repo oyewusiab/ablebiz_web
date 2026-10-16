@@ -25,7 +25,7 @@ export interface LeadRecord {
   source: string;
   service_needed?: string | null;
   notes?: string | null;
-  status: string;
+  status?: string;
   qualification_status: string;
   priority: string;
   assigned_staff_id?: string | null;
@@ -144,13 +144,12 @@ export function LeadsPipelinePage() {
         }
       }
 
-      // Update lead record with converted link, timestamp, and status without deleting it
+      // Update lead record with converted link, timestamp, and qualification_status without deleting it
       const { error: leadErr } = await supabase
         .from("leads")
         .update({
           converted_client_id: targetClientId,
           qualification_status: "converted",
-          status: "converted",
           is_converted: true,
           converted_at: new Date().toISOString(),
         })
