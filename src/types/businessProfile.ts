@@ -48,7 +48,7 @@ export interface BusinessProfile {
 export interface BusinessBankAccount {
   id?: string;
   business_profile_id?: number;
-  account_slot: 1 | 2; // Slot 1 (Required/Primary), Slot 2 (Optional/Secondary)
+  account_slot: 1 | 2 | 3; // Slot 1 (Primary), Slot 2 (Secondary), Slot 3 (Tertiary)
   bank_name: string;
   account_name: string;
   account_number: string;
@@ -139,6 +139,16 @@ export const DEFAULT_BANK_ACCOUNTS: BusinessBankAccount[] = [
     is_active: false,
     is_default: false,
     notes: "Secondary / reserve account",
+  },
+  {
+    account_slot: 3,
+    bank_name: "",
+    account_name: "",
+    account_number: "",
+    account_type: "Corporate Current",
+    is_active: false,
+    is_default: false,
+    notes: "Tertiary / auxiliary account",
   },
 ];
 

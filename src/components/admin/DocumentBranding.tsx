@@ -51,6 +51,14 @@ export interface DocumentHeaderProps {
    */
   paymentDetails?: BankPaymentDetails;
   /**
+   * Optional label for the payment details box (defaults to 'PAYMENT REMITTANCE')
+   */
+  remittanceLabel?: string;
+  /**
+   * If true, suppresses the 'pending configuration' warning box when paymentDetails is absent
+   */
+  hidePaymentPending?: boolean;
+  /**
    * Extra content to render inside the header grid
    */
   extraMeta?: ReactNode;
@@ -67,6 +75,8 @@ export function DocumentHeader({
   recipient,
   recipientLabel = "BILLED TO",
   paymentDetails,
+  remittanceLabel = "PAYMENT REMITTANCE",
+  hidePaymentPending = false,
   extraMeta,
   className,
 }: DocumentHeaderProps) {
@@ -183,7 +193,7 @@ export function DocumentHeader({
           {paymentDetails && (paymentDetails.bankName || paymentDetails.accountNumber) ? (
             <div className="rounded-lg border border-amber-200/60 bg-amber-50/30 p-3.5 space-y-1 sm:text-right">
               <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
-                PAYMENT REMITTANCE
+                {remittanceLabel}
               </span>
               {paymentDetails.bankName ? (
                 <p className="font-bold text-slate-900">{paymentDetails.bankName}</p>
@@ -200,10 +210,10 @@ export function DocumentHeader({
                 <p className="text-[11px] text-slate-500">{paymentDetails.notes}</p>
               ) : null}
             </div>
-          ) : (
+          ) : hidePaymentPending ? null : (
             <div className="rounded-lg border border-amber-200/60 bg-amber-50/30 p-3.5 space-y-1 sm:text-right">
               <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
-                PAYMENT REMITTANCE
+                {remittanceLabel}
               </span>
               <p className="text-xs text-amber-700 italic">
                 Official bank settlement account details pending configuration in Settings → Business Profile.

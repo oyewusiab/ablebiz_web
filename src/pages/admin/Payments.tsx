@@ -47,10 +47,22 @@ export interface PaymentRecord {
 
 export function PaymentsPage() {
   const { profile, hasPermission } = useAuth();
-  const { profile: bizProfile, defaultBankAccount } = useBusinessProfile();
+  const { profile: bizProfile, defaultBankAccount, bankAccounts } = useBusinessProfile();
   const defaultBankLabel = defaultBankAccount
     ? `${defaultBankAccount.bank_name} (${defaultBankAccount.account_number})`
     : bizProfile.legal_name || "Official Account";
+
+  const activeBankOptions = bankAccounts
+    .filter((b) => b.is_active && b.account_number)
+    .map((b) => ({
+      value: `${b.bank_name} (${b.account_number})`,
+      label: `${b.bank_name} - ${b.account_number} (${b.account_name})`,
+      isDefault: b.is_default,
+    }));
+
+  const bankOptionsList = activeBankOptions.length > 0
+    ? activeBankOptions
+    : [{ value: defaultBankLabel, label: defaultBankLabel, isDefault: true }];
 
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -420,7 +432,7 @@ export function PaymentsPage() {
           <div className="print-modal-content w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl max-h-[95vh] overflow-y-auto">
             <div className="no-print flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
               <span className="font-mono text-xs font-bold text-[#0A2558] bg-blue-50 border border-blue-200 px-2 py-1 rounded">
-                Official Receipt: {selectedPayment.receipt_number}
+                Payment Receipt: {selectedPayment.receipt_number}
               </span>
               <div className="flex items-center gap-2">
                 <button
@@ -439,20 +451,39 @@ export function PaymentsPage() {
               </div>
             </div>
 
-            {/* Official Receipt Printable Card */}
-            <div className="print-document border border-slate-200 rounded-xl p-6 bg-white space-y-5 print:border-none print:p-0">
-              <DocumentHeader
-                title="OFFICIAL PAYMENT RECEIPT"
-                documentNumber={selectedPayment.receipt_number}
-                date={selectedPayment.payment_date}
-                status="CONFIRMED"
-                recipient={{
-                  name: selectedPayment.client?.full_name,
-                  phone: selectedPayment.client?.phone,
-                  email: selectedPayment.client?.email,
-                }}
-                recipientLabel="RECEIVED FROM"
-              />
+            {/* Payment Receipt Printable Card */}
+            {(() => {
+              const creditedBank = bankAccounts.find(
+                (b) =>
+                  b.is_active &&
+                  selectedPayment.bank_account_credited &&
+                  (selectedPayment.bank_account_credited.includes(b.account_number) ||
+                    selectedPayment.bank_account_credited.toLowerCase().includes(b.bank_name.toLowerCase()))
+              ) || defaultBankAccount;
+
+              const receiptPaymentDetails = creditedBank && creditedBank.account_number ? {
+                bankName: creditedBank.bank_name,
+                accountName: creditedBank.account_name,
+                accountNumber: creditedBank.account_number,
+                notes: creditedBank.notes || undefined,
+              } : undefined;
+
+              return (
+                <div className="print-document border border-slate-200 rounded-xl p-6 bg-white space-y-5 print:border-none print:p-0">
+                  <DocumentHeader
+                    title="PAYMENT RECEIPT"
+                    documentNumber={selectedPayment.receipt_number}
+                    date={selectedPayment.payment_date}
+                    status="CONFIRMED"
+                    recipient={{
+                      name: selectedPayment.client?.full_name,
+                      phone: selectedPayment.client?.phone,
+                      email: selectedPayment.client?.email,
+                    }}
+                    recipientLabel="RECEIVED FROM"
+                    paymentDetails={receiptPaymentDetails}
+                    remittanceLabel="PAYMENT REMITTANCE"
+                  />
 
               {/* Receipt Body */}
               <div className="space-y-3 text-xs">
@@ -528,6 +559,8 @@ export function PaymentsPage() {
                 notes="Computer-generated official receipt. Valid when referenced with verified bank transaction ID."
               />
             </div>
+          );
+        })()}
           </div>
         </div>
       )}
@@ -618,13 +651,18 @@ export function PaymentsPage() {
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700">Bank Account Credited</label>
-                <input
-                  type="text"
+                <label className="font-semibold text-slate-700">Bank Account Credited *</label>
+                <select
                   value={formData.bank_account_credited}
                   onChange={(e) => setFormData({ ...formData, bank_account_credited: e.target.value })}
-                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600"
-                />
+                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600 bg-white"
+                >
+                  {bankOptionsList.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label} {opt.isDefault ? "(Default Settlement)" : ""}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>

@@ -131,7 +131,18 @@ export function AdminSettings() {
       notes: "Secondary reserve account",
     };
 
-    setBankFormData([slot1, slot2]);
+    const slot3 = bizBankAccounts.find((a) => a.account_slot === 3) || {
+      account_slot: 3,
+      bank_name: "",
+      account_name: "",
+      account_number: "",
+      account_type: "Corporate Current",
+      is_active: false,
+      is_default: false,
+      notes: "Tertiary auxiliary account",
+    };
+
+    setBankFormData([slot1, slot2, slot3]);
   }, [bizBankAccounts]);
 
   // Notifications state
@@ -723,7 +734,13 @@ export function AdminSettings() {
                       <div className="flex items-center gap-2">
                         <Landmark className="h-5 w-5 text-[#0A2558]" />
                         <h3 className="text-sm font-bold text-slate-900">
-                          Bank Account Slot {acc.account_slot} {isSlot1 ? "(Primary / Required)" : "(Secondary / Optional)"}
+                          Bank Account Slot {acc.account_slot} {
+                            acc.account_slot === 1
+                              ? "(Primary / Required)"
+                              : acc.account_slot === 2
+                              ? "(Secondary / Optional)"
+                              : "(Tertiary / Optional)"
+                          }
                         </h3>
                         {acc.is_default && acc.is_active && (
                           <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800">
@@ -748,9 +765,9 @@ export function AdminSettings() {
                               next[index] = { ...next[index], is_active: e.target.checked };
                               if (!e.target.checked && next[index].is_default) {
                                 next[index].is_default = false;
-                                // If deactivating default slot 2, fallback slot 1 to default
-                                const other = next[index === 0 ? 1 : 0];
-                                if (other) other.is_default = true;
+                                // If deactivating default slot, fallback slot 1 to default
+                                const slot1 = next.find((b) => b.account_slot === 1);
+                                if (slot1) slot1.is_default = true;
                               }
                               setBankFormData(next);
                               setHasUnsavedBiz(true);

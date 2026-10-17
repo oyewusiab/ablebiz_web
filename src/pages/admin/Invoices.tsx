@@ -39,6 +39,7 @@ export interface InvoiceRecord {
   balance_due: number;
   status: "draft" | "sent" | "partially_paid" | "paid" | "overdue" | "cancelled" | "refunded";
   payment_terms?: string | null;
+  bank_account_credited?: string | null;
   notes?: string | null;
   created_by?: string | null;
   created_at: string;
@@ -82,12 +83,24 @@ export function InvoicesPage() {
   const [serviceRequests, setServiceRequests] = useState<{ id: string; tracking_code: string; client_id: string }[]>([]);
   const [services, setServices] = useState<{ id: string; name: string; default_fee_ngn: number }[]>([]);
 
-  const { profile: bizProfile, defaultBankAccount } = useBusinessProfile();
+  const { profile: bizProfile, defaultBankAccount, bankAccounts } = useBusinessProfile();
 
   // Create Form State
   const defaultBankLabel = defaultBankAccount
     ? `${defaultBankAccount.bank_name} (${defaultBankAccount.account_number})`
     : bizProfile.legal_name || "Official Account";
+
+  const activeBankOptions = bankAccounts
+    .filter((b) => b.is_active && b.account_number)
+    .map((b) => ({
+      value: `${b.bank_name} (${b.account_number})`,
+      label: `${b.bank_name} - ${b.account_number} (${b.account_name})`,
+      isDefault: b.is_default,
+    }));
+
+  const bankOptionsList = activeBankOptions.length > 0
+    ? activeBankOptions
+    : [{ value: defaultBankLabel, label: defaultBankLabel, isDefault: true }];
 
   const defaultInvoiceTerms = bizProfile.default_payment_terms || "Payment due within 7 days of invoice issuance. Remit to designated official settlement account.";
 
@@ -99,6 +112,7 @@ export function InvoicesPage() {
     discount: 0,
     tax_percent: 0,
     payment_terms: defaultInvoiceTerms,
+    bank_account_credited: defaultBankLabel,
     notes: "",
   });
 
@@ -304,30 +318,49 @@ export function InvoicesPage() {
       dueDate.setDate(dueDate.getDate() + Number(formData.due_days));
 
       // 1. Insert invoice header
-      const { data: inv, error: invErr } = await supabase
+      const invoicePayload: any = {
+        invoice_number: invNumber,
+        client_id: formData.client_id,
+        business_id: formData.business_id || null,
+        service_request_id: formData.service_request_id || null,
+        issue_date: new Date().toISOString().split("T")[0],
+        due_date: dueDate.toISOString().split("T")[0],
+        subtotal: calculatedSubtotal,
+        discount: Number(formData.discount) || 0,
+        tax: calculatedTax,
+        total_amount: calculatedTotal,
+        amount_paid: 0.0,
+        balance_due: calculatedTotal,
+        status: "draft",
+        payment_terms: formData.payment_terms,
+        bank_account_credited: formData.bank_account_credited,
+        notes: formData.notes || null,
+        created_by: profile?.id || null,
+      };
+
+      let inv: any;
+      const { data: insertedInv, error: invErr } = await supabase
         .from("invoices")
-        .insert({
-          invoice_number: invNumber,
-          client_id: formData.client_id,
-          business_id: formData.business_id || null,
-          service_request_id: formData.service_request_id || null,
-          issue_date: new Date().toISOString().split("T")[0],
-          due_date: dueDate.toISOString().split("T")[0],
-          subtotal: calculatedSubtotal,
-          discount: Number(formData.discount) || 0,
-          tax: calculatedTax,
-          total_amount: calculatedTotal,
-          amount_paid: 0.0,
-          balance_due: calculatedTotal,
-          status: "draft",
-          payment_terms: formData.payment_terms,
-          notes: formData.notes || null,
-          created_by: profile?.id || null,
-        })
+        .insert(invoicePayload)
         .select()
         .single();
 
-      if (invErr) throw invErr;
+      if (invErr) {
+        if (invErr.message?.includes("bank_account_credited")) {
+          delete invoicePayload.bank_account_credited;
+          const { data: retryInv, error: retryErr } = await supabase
+            .from("invoices")
+            .insert(invoicePayload)
+            .select()
+            .single();
+          if (retryErr) throw retryErr;
+          inv = retryInv;
+        } else {
+          throw invErr;
+        }
+      } else {
+        inv = insertedInv;
+      }
 
       // 2. Insert invoice items (frozen prices)
       const itemsPayload = formItems.map((item) => ({
@@ -353,6 +386,7 @@ export function InvoicesPage() {
         metadata: {
           invoice_number: invNumber,
           client_id: formData.client_id,
+          bank_account_credited: formData.bank_account_credited,
           total_amount: calculatedTotal,
         },
       });
@@ -367,6 +401,7 @@ export function InvoicesPage() {
         discount: 0,
         tax_percent: 0,
         payment_terms: defaultInvoiceTerms,
+        bank_account_credited: defaultBankLabel,
         notes: "",
       });
       fetchInvoices();
@@ -660,7 +695,7 @@ export function InvoicesPage() {
                                   amount: Number(inv.balance_due),
                                   payment_method: "bank_transfer",
                                   transaction_reference: "",
-                                  bank_account_credited: defaultBankLabel,
+                                  bank_account_credited: inv.bank_account_credited || defaultBankLabel,
                                   notes: "",
                                 });
                               }}
@@ -703,7 +738,7 @@ export function InvoicesPage() {
             )}
 
             <form onSubmit={handleCreateInvoice} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <div>
                   <label className="font-semibold text-slate-700">Client *</label>
                   <select
@@ -750,6 +785,21 @@ export function InvoicesPage() {
                     <option value={14}>14 Days Net</option>
                     <option value={30}>30 Days Net</option>
                     <option value={0}>Immediate / Due on Receipt</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-700">Bank Account to be Credited *</label>
+                  <select
+                    value={formData.bank_account_credited}
+                    onChange={(e) => setFormData({ ...formData, bank_account_credited: e.target.value })}
+                    className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600 bg-white"
+                  >
+                    {bankOptionsList.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label} {opt.isDefault ? "(Default Settlement)" : ""}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -946,12 +996,22 @@ export function InvoicesPage() {
                   businessName: selectedInvoice.business?.name,
                 }}
                 paymentDetails={
-                  defaultBankAccount && defaultBankAccount.account_number ? {
-                    bankName: defaultBankAccount.bank_name,
-                    accountName: defaultBankAccount.account_name,
-                    accountNumber: defaultBankAccount.account_number,
-                    notes: defaultBankAccount.notes,
-                  } : undefined
+                  (() => {
+                    const invBank = bankAccounts.find(
+                      (b) =>
+                        b.is_active &&
+                        selectedInvoice.bank_account_credited &&
+                        (selectedInvoice.bank_account_credited.includes(b.account_number) ||
+                          selectedInvoice.bank_account_credited.toLowerCase().includes(b.bank_name.toLowerCase()))
+                    ) || defaultBankAccount;
+
+                    return invBank && invBank.account_number ? {
+                      bankName: invBank.bank_name,
+                      accountName: invBank.account_name,
+                      accountNumber: invBank.account_number,
+                      notes: invBank.notes || undefined,
+                    } : undefined;
+                  })()
                 }
               />
 
@@ -1056,7 +1116,7 @@ export function InvoicesPage() {
                       amount: Number(selectedInvoice.balance_due),
                       payment_method: "bank_transfer",
                       transaction_reference: "",
-                      bank_account_credited: defaultBankLabel,
+                      bank_account_credited: selectedInvoice.bank_account_credited || defaultBankLabel,
                       notes: "",
                     });
                   }}
@@ -1128,13 +1188,19 @@ export function InvoicesPage() {
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700">Bank Account Credited</label>
-                <input
-                  type="text"
+                <label className="font-semibold text-slate-700">Bank Account Credited *</label>
+                <select
                   value={paymentData.bank_account_credited}
                   onChange={(e) => setPaymentData({ ...paymentData, bank_account_credited: e.target.value })}
-                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-[#0A2558] focus:ring-1 focus:ring-[#0A2558]/20"
-                />
+                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-[#0A2558] focus:ring-1 focus:ring-[#0A2558]/20 bg-white"
+                >
+                  {bankOptionsList.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label} {opt.isDefault ? "(Default Settlement)" : ""}
+                    </option>
+                  ))}
+                  <option value="Cash / POS / Other">Cash / POS / Other</option>
+                </select>
               </div>
 
               <div>

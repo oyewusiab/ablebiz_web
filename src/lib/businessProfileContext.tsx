@@ -132,7 +132,7 @@ export function BusinessProfileProvider({ children }: { children: ReactNode }) {
 
       const recordsToSave = accounts.map((acc, idx) => ({
         business_profile_id: 1,
-        account_slot: (idx + 1) as 1 | 2,
+        account_slot: ((acc.account_slot && acc.account_slot >= 1 && acc.account_slot <= 3 ? acc.account_slot : idx + 1) as 1 | 2 | 3),
         bank_name: acc.bank_name.trim(),
         account_name: acc.account_name.trim(),
         account_number: acc.account_number.trim(),
