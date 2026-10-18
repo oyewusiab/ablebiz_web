@@ -27,6 +27,7 @@ import {
   ChevronDown,
   Search,
   Sparkles,
+  UserCheck,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { getRoleTitle, getRoleConfig } from "../auth/roleConfig";
@@ -123,6 +124,7 @@ export function AdminPortalLayout() {
     {
       title: "TEAM",
       items: [
+        { name: "HR & Staff Portal", path: "/admin/hr", icon: UserCheck, module: "hr" },
         { name: "Staff & RBAC", path: "/admin/team", icon: ShieldCheck, superOnly: true },
         { name: "Audit Trail", path: "/admin/audit-logs", icon: FileCheck2, superOnly: true },
       ],

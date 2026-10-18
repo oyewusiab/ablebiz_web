@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   ShieldCheck,
   Search,
@@ -953,7 +954,14 @@ export function StaffRbacPage() {
         </div>
 
         {/* Global Action / Add Staff */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            to="/admin/hr/directory"
+            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 shadow-2xs transition"
+          >
+            <UserCheck className="h-4 w-4 text-[#0A2558]" />
+            <span>HR Workspace & Directory</span>
+          </Link>
           <button
             onClick={() => {
               setIsAddStaffOpen(true);

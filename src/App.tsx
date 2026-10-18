@@ -44,6 +44,7 @@ import { AiSecretaryPage } from "./pages/admin/AiSecretary";
 import { NotificationsPage } from "./pages/admin/Notifications";
 import { ClientCommunicationsPage } from "./pages/admin/Communications";
 import { StaffRbacPage } from "./pages/admin/Team";
+import { HrWorkspacePage } from "./pages/admin/HrWorkspace";
 import { BusinessProfileProvider } from "./lib/businessProfileContext";
 
 export default function App() {
@@ -99,7 +100,9 @@ export default function App() {
             <Route path="notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
             {/* Communications */}
             <Route path="communications" element={<ProtectedRoute requiredModule="crm"><ClientCommunicationsPage /></ProtectedRoute>} />
-            {/* Team / Staff & RBAC */}
+            {/* Team / Staff & RBAC & HR Workspace */}
+            <Route path="hr" element={<ProtectedRoute requiredModule="hr"><HrWorkspacePage /></ProtectedRoute>} />
+            <Route path="hr/:section" element={<ProtectedRoute requiredModule="hr"><HrWorkspacePage /></ProtectedRoute>} />
             <Route path="team" element={<ProtectedRoute requiredRole={["super_admin", "admin"]}><StaffRbacPage /></ProtectedRoute>} />
             {/* Referrals & Reports */}
             <Route path="referrals" element={<ProtectedRoute><AdminReferrals /></ProtectedRoute>} />

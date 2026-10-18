@@ -29,6 +29,13 @@ export interface StaffProfile {
   phone?: string | null;
   is_active: boolean;
   must_change_password?: boolean;
+  auth_status?: string | null;
+  job_title?: string | null;
+  employment_type?: "full_time" | "part_time" | "contract" | "intern" | string | null;
+  employment_status?: "active" | "probation" | "on_leave" | "suspended" | "deprovisioned" | string | null;
+  reporting_manager_id?: string | null;
+  hire_date?: string | null;
+  work_location?: string | null;
   avatar_url?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -89,6 +96,7 @@ const DEFAULT_ROLE_MODULES: Record<string, Record<string, string[]>> = {
     operations: ["view", "create", "edit", "delete", "approve", "export"],
     finance: ["view", "create", "edit", "delete", "approve", "export"],
     team: ["view", "create", "edit", "delete", "approve", "export"],
+    hr: ["view", "create", "edit", "delete", "approve", "export"],
     settings: ["view", "create", "edit", "delete", "approve", "export"],
     reports: ["view", "export"],
   },
@@ -98,6 +106,7 @@ const DEFAULT_ROLE_MODULES: Record<string, Record<string, string[]>> = {
     operations: ["view", "create", "edit", "delete", "approve", "export"],
     finance: ["view", "create", "edit", "delete", "approve", "export"],
     team: ["view", "create", "edit", "delete", "approve", "export"],
+    hr: ["view", "create", "edit", "delete", "approve", "export"],
     settings: ["view", "create", "edit", "delete", "approve", "export"],
     reports: ["view", "export"],
   },
@@ -107,6 +116,7 @@ const DEFAULT_ROLE_MODULES: Record<string, Record<string, string[]>> = {
     operations: ["view", "create", "edit", "approve", "export"],
     finance: ["view", "create", "edit", "approve", "export"],
     team: ["view", "export"],
+    hr: ["view", "create", "edit", "approve", "export"],
     settings: ["view", "edit"],
     reports: ["view", "export"],
   },
@@ -115,53 +125,63 @@ const DEFAULT_ROLE_MODULES: Record<string, Record<string, string[]>> = {
     crm: ["view", "create", "edit"],
     operations: ["view", "create", "edit", "approve", "export"],
     finance: ["view"],
+    hr: ["view", "approve"],
     reports: ["view"],
   },
   registration_officer: {
     workbench: ["view", "edit"],
     operations: ["view", "create", "edit"],
+    hr: ["view", "create"],
   },
   compliance_officer: {
     workbench: ["view", "edit"],
     operations: ["view", "create", "edit"],
     crm: ["view"],
+    hr: ["view", "create"],
   },
   legal_officer: {
     workbench: ["view", "edit"],
     operations: ["view", "create", "edit"],
     crm: ["view"],
+    hr: ["view", "create"],
   },
   accounts_officer: {
     workbench: ["view", "edit", "export"],
     finance: ["view", "create", "edit", "approve", "export"],
     operations: ["view"],
+    hr: ["view", "create"],
     reports: ["view", "export"],
   },
   accountant: {
     workbench: ["view", "edit", "export"],
     finance: ["view", "create", "edit", "approve", "export"],
     operations: ["view"],
+    hr: ["view", "create"],
     reports: ["view", "export"],
   },
   client_service_officer: {
     workbench: ["view", "edit"],
     crm: ["view", "create", "edit"],
     operations: ["view", "create"],
+    hr: ["view", "create"],
   },
   receptionist_support: {
     workbench: ["view", "edit"],
     crm: ["view", "create", "edit"],
     operations: ["view", "create"],
+    hr: ["view", "create"],
   },
   marketing_officer: {
     workbench: ["view"],
     crm: ["view", "create", "edit", "export"],
+    hr: ["view", "create"],
   },
   viewer: {
     workbench: ["view"],
     crm: ["view"],
     operations: ["view"],
     finance: ["view"],
+    hr: ["view", "create"],
   },
   customer: {},
 };
@@ -231,7 +251,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       const fetchPromise = (async () => {
-        let { data, error } = await supabase
+        const { data, error } = await supabase
           .from("staff_profiles")
           .select("*")
           .eq("auth_uid", authUser.id)
@@ -242,28 +262,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return { profile: null, permissions: [], error: error.message };
         }
 
-        // If not matched by auth_uid, fallback to matching by email and link auth_uid
-        if (!data && authUser.email) {
-          const { data: emailData, error: emailErr } = await supabase
-            .from("staff_profiles")
-            .select("*")
-            .ilike("email", authUser.email.trim())
-            .maybeSingle();
-
-          if (!emailErr && emailData) {
-            data = emailData;
-            if (data.auth_uid !== authUser.id) {
-              await supabase
-                .from("staff_profiles")
-                .update({ auth_uid: authUser.id })
-                .eq("id", data.id);
-              data.auth_uid = authUser.id;
-            }
-          }
+        // Strict canonical identity resolution: Never match accounts by email alone or fabricate auth_uid.
+        if (!data) {
+          return {
+            profile: null,
+            permissions: [],
+            error:
+              "Access Denied: Your authenticated identity is not linked to a provisioned ABLEBIZ SUITE staff profile. Please ask a Super Administrator to provision or reconcile your account in Staff & RBAC.",
+          };
         }
 
-        if (!data) {
-          return { profile: null, permissions: [] };
+        if (data.auth_status === "not_provisioned") {
+          return {
+            profile: null,
+            permissions: [],
+            error:
+              "Access Denied: Your staff profile is marked as not provisioned. Please contact a Super Administrator to complete Auth reconciliation.",
+          };
         }
 
         const prof = data as StaffProfile;
