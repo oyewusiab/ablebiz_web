@@ -1,5 +1,6 @@
 import {
   AssistantCallerContext,
+  AssistantTopicFilterId,
   ConversationContext,
   SuiteModuleId,
   SuggestedQuestionChip,
@@ -253,21 +254,18 @@ export function getRoleAwareSuggestionGroups(
 ): SuggestedQuestionGroup[] {
   return ALL_SUGGESTION_GROUPS.map((group) => {
     const filteredQuestions = group.questions.filter((q) => {
-      // Permission explanation and troubleshooting are available to all authenticated staff
       if (
         q.intentType === "permission_explanation" ||
         q.intentType === "troubleshooting"
       ) {
         return true;
       }
-      // Finance operational reports and finance guides are only shown to roles with finance.view
-      if (group.id === "finance" && !caller.permissions.includes("finance.view")) {
+      if (group.id === "finance" && !caller.hasPermission("finance", "view")) {
         return false;
       }
-      // Management executive summary requires reports.view or management role
       if (
         q.id === "mgmt_summary" &&
-        !caller.permissions.includes("reports.view") &&
+        !caller.hasPermission("reports", "view") &&
         !caller.isManagement
       ) {
         return false;
@@ -280,6 +278,42 @@ export function getRoleAwareSuggestionGroups(
       questions: filteredQuestions,
     };
   }).filter((group) => group.questions.length > 0);
+}
+
+/**
+ * Returns the compact topic selector options with "All topics" first as the default.
+ */
+export function getTopicSelectorOptions(
+  caller: AssistantCallerContext
+): Array<{ id: AssistantTopicFilterId; label: string }> {
+  const groups = getRoleAwareSuggestionGroups(caller);
+  return [
+    { id: "all", label: "All topics" },
+    ...groups.map((g) => ({ id: g.id, label: g.label })),
+  ];
+}
+
+/**
+ * Returns starter prompt chips for the selected topic (or a balanced cross-suite mix for "All topics").
+ */
+export function getStarterPromptsForTopic(
+  caller: AssistantCallerContext,
+  topicId: AssistantTopicFilterId = "all"
+): SuggestedQuestionChip[] {
+  const groups = getRoleAwareSuggestionGroups(caller);
+  if (topicId !== "all") {
+    const matched = groups.find((g) => g.id === topicId);
+    if (matched) return matched.questions;
+  }
+
+  // For "All topics", pick the top prompt from each accessible category (up to 5 chips)
+  const mixed: SuggestedQuestionChip[] = [];
+  for (const group of groups) {
+    if (group.questions[0]) {
+      mixed.push(group.questions[0]);
+    }
+  }
+  return mixed.slice(0, 5);
 }
 
 /**
@@ -322,6 +356,7 @@ export function getContextualFollowUpQuestions(
       );
       break;
     case "hr":
+    case "hr_workspace":
       candidates.push(
         { prompt: "Which staff will be on leave in the next three weeks?", moduleId: "hr" },
         { prompt: "How do I submit a leave request?", moduleId: "hr" },
@@ -355,6 +390,7 @@ export function getContextualFollowUpQuestions(
       );
       break;
     case "team":
+    case "staff_rbac":
     case "audit_logs":
       candidates.push(
         { prompt: "Are there any pending staff approval requests?", moduleId: "team" },
@@ -374,7 +410,7 @@ export function getContextualFollowUpQuestions(
 
   return candidates
     .filter((item) => {
-      if (item.requiresFinance && !caller.permissions.includes("finance.view")) {
+      if (item.requiresFinance && !caller.hasPermission("finance", "view")) {
         return false;
       }
       if (context?.lastQueryText && item.prompt.toLowerCase() === context.lastQueryText.toLowerCase()) {

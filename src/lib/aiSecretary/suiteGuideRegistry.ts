@@ -723,14 +723,67 @@ export const SUITE_GUIDE_TOPICS: GuideTopicEntry[] = [
 /**
  * Builds a tailored explanation when a user asks why a button, feature, or module is unavailable to their role.
  */
+function cleanBusinessText(raw: string, includeTechnical = false): string {
+  if (includeTechnical) return raw;
+  return raw
+    .replace(/\(`public\.[a-z0-9_]+`\)/gi, "")
+    .replace(/`public\.clients`/gi, "Client records")
+    .replace(/`public\.businesses`/gi, "Business records")
+    .replace(/`public\.leads`/gi, "Lead records")
+    .replace(/`public\.follow_ups`/gi, "Follow-up schedule")
+    .replace(/`public\.client_communications`/gi, "Client communication logs")
+    .replace(/`public\.service_requests`/gi, "Service Request records")
+    .replace(/`public\.services_catalog`/gi, "Services Catalogue")
+    .replace(/`public\.cac_applications`/gi, "CAC application records")
+    .replace(/`public\.tasks`/gi, "Task records")
+    .replace(/`public\.documents`/gi, "Document Vault records")
+    .replace(/`public\.quotations`/gi, "Quotation records")
+    .replace(/`public\.invoices`/gi, "Invoice records")
+    .replace(/`public\.payments`/gi, "Payment records")
+    .replace(/`public\.expenses`/gi, "Expense records")
+    .replace(/`public\.vendors`/gi, "Vendor records")
+    .replace(/`public\.referrals`/gi, "Referral records")
+    .replace(/`public\.spin_rewards`/gi, "Spin & Earn reward records")
+    .replace(/`public\.hr_leave_requests`/gi, "Leave records")
+    .replace(/`public\.hr_attendance_logs`/gi, "Attendance logs")
+    .replace(/`public\.staff_profiles`/gi, "Staff Directory records")
+    .replace(/`public\.staff_change_requests`/gi, "Staff approval requests")
+    .replace(/`public\.roles_permissions`/gi, "Role permission rules")
+    .replace(/`public\.activity_timeline`/gi, "the Activity Timeline")
+    .replace(/`public\.audit_logs`/gi, "the Security Audit Trail")
+    .replace(/`public\.[a-z0-9_]+`/gi, "system records")
+    .replace(/\bRow-Level Security \(RLS\)/gi, "role-based security controls")
+    .replace(/\bRLS\b/g, "access security")
+    .replace(/\bRPC\b/g, "system service")
+    .replace(/`super_admin`/gi, "Managing Director")
+    .replace(/`admin`/gi, "System Administrator")
+    .replace(/`operations_manager`/gi, "Operations Manager")
+    .replace(/`registration_officer`/gi, "Compliance & Registration Officer")
+    .replace(/`accounts_officer`/gi, "Accountant / Finance Officer")
+    .replace(/`client_service_officer`/gi, "Receptionist / Client Support")
+    .replace(/`marketing_officer`/gi, "Marketing Officer")
+    .replace(/`viewer`/gi, "Staff Observer")
+    .replace(/`pending_review`/gi, "Pending Review")
+    .replace(/`in_progress`/gi, "In Progress")
+    .replace(/`awaiting_client`/gi, "Awaiting Client")
+    .replace(/`under_review`/gi, "Under Review")
+    .replace(/`correction_requested`/gi, "Correction Requested")
+    .replace(/`partially_paid`/gi, "Partially Paid")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 export function buildRolePermissionResponse(
-  query: string,
-  caller: AssistantCallerContext
+  firstArg: string | AssistantCallerContext,
+  secondArg: AssistantCallerContext | string,
+  includeTechnical = false
 ): AssistantResponsePayload {
+  const caller = (typeof firstArg === "string" ? secondArg : firstArg) as AssistantCallerContext;
+  const query = (typeof firstArg === "string" ? firstArg : secondArg) as string;
   const role = caller.canonicalRole;
-  const roleConfig = ROLE_DEFINITIONS[role];
+  const roleConfig = ROLE_DEFINITIONS[role] || ROLE_DEFINITIONS.viewer;
   const hrPerms = getHrPermissions(role);
-  const q = query.toLowerCase();
+  const q = String(query || "").toLowerCase();
 
   const modules: Array<{ label: string; module: string; route: string }> = [
     { label: "Manager Workbench", module: "workbench", route: "/admin/dashboard" },
@@ -748,68 +801,69 @@ export function buildRolePermissionResponse(
     const canApprove = role === "super_admin" || caller.hasPermission(m.module, "approve");
     return [
       m.label,
-      canView ? "Yes" : "No",
-      canCreate ? "Yes" : "No",
-      canEdit ? "Yes" : "No",
-      canApprove ? "Yes" : "No",
+      canView ? "Allowed" : "Restricted",
+      canCreate ? "Allowed" : "Restricted",
+      canEdit ? "Allowed" : "Restricted",
+      canApprove ? "Allowed" : "Restricted",
     ];
   });
 
-  // Add governance modules
   rows.push([
-    "Staff & RBAC (/admin/team)",
-    role === "super_admin" || role === "admin" ? "Yes" : "No",
-    role === "super_admin" ? "Direct" : role === "admin" ? "Maker Request" : "No",
-    role === "super_admin" ? "Direct" : role === "admin" ? "Maker Request" : "No",
-    role === "super_admin" ? "Yes (Checker)" : "No",
+    "Staff & Access Control (/admin/team)",
+    role === "super_admin" || role === "admin" ? "Allowed" : "Restricted",
+    role === "super_admin" ? "Direct" : role === "admin" ? "Submit Request" : "Restricted",
+    role === "super_admin" ? "Direct" : role === "admin" ? "Submit Request" : "Restricted",
+    role === "super_admin" ? "Allowed" : "Restricted",
   ]);
   rows.push([
-    "Security Audit Logs (/admin/audit-logs)",
-    role === "super_admin" || role === "admin" ? "Yes (Read-Only)" : "No",
-    "Immutable",
-    "Immutable",
+    "Security Audit Trail (/admin/audit-logs)",
+    role === "super_admin" || role === "admin" ? "View Only" : "Restricted",
+    "Read-Only",
+    "Read-Only",
     "N/A",
   ]);
 
   let specificExplanation = "";
   if (q.includes("finance") || q.includes("invoice") || q.includes("payment") || q.includes("quotation") || q.includes("expense")) {
     specificExplanation =
-      "Financial creation and editing actions (**New Quotation**, **Issue Direct Invoice**, **Record Payment**, **Record Disbursement**) are restricted to **Accounts Officers**, **System Administrators**, and **Super Administrators** (`finance.create` / `finance.edit`).";
+      "Financial actions (**New Quotation**, **Issue Direct Invoice**, **Record Payment**, and **Record Expense**) are available to **Accountant / Finance Officer**, **System Administrator**, and **Managing Director**.";
   } else if (q.includes("staff") || q.includes("team") || q.includes("role") || q.includes("provision") || q.includes("deprovision")) {
     specificExplanation =
-      "Staff account provisioning and role mutations in **Staff & RBAC** (`/admin/team`) are governed by **Maker-Checker Security**: **System Administrators (`admin`)** can submit change requests, while only a **Super Administrator (`super_admin`)** can directly mutate staff profiles or approve pending requests.";
+      "Staff account creation and role changes in [Staff & RBAC](/admin/team) follow dual-control approval: **System Administrators** submit a change request, and the **Managing Director** reviews and approves it.";
   } else if (q.includes("leave") || q.includes("attendance") || q.includes("hr")) {
-    specificExplanation = `In **HR & Staff Portal** (\`/admin/hr\`), your role (**${caller.roleTitle}**) has **${canAccessHrManagementWorkspace(role) ? "HR Management + My Staff Portal" : "Self-Service (My Staff Portal)"}** access. Note that **Separation of Duties** prohibits any staff member from approving their own leave or attendance correction request.`;
+    specificExplanation = `In [HR & Staff Portal](/admin/hr), your account (**${caller.roleTitle}**) has **${canAccessHrManagementWorkspace(role) ? "HR Management & Personal Portal" : "Personal Staff Portal"}** access. Under separation-of-duties rules, no staff member can approve their own leave request.`;
   } else if (q.includes("cac") || q.includes("stage") || q.includes("service request")) {
     specificExplanation =
-      "Operational creation and stage transition buttons in **CAC Operations** (`/admin/cac-operations`) and **Service Requests** (`/admin/service-requests`) require `operations.create` / `operations.edit` permissions (`Super Admin`, `Admin`, `Operations Manager`, `Registration Officer`, and `Client Service Officer` for intake).";
+      "Creating requests and advancing filing stages in [CAC Operations](/admin/cac-operations) and [Service Requests](/admin/service-requests) are available to **Managing Director**, **System Administrator**, **Operations Manager**, **Compliance & Registration Officer**, and **Receptionist / Client Support** (for intake).";
   }
 
+  const jobTitleLine =
+    caller.jobTitle && caller.jobTitle.toLowerCase() !== caller.roleTitle.toLowerCase()
+      ? ` (Job Title: **${caller.jobTitle}**)`
+      : "";
+
   const markdown = [
-    `### 🔐 Role & Permission Scope for ${caller.roleTitle} (\`${role}\`)`,
+    `### Role & Permission Guide — ${caller.roleTitle}${jobTitleLine}`,
     "",
-    `**Executive Summary:** Your authenticated session is bound to the canonical role **${caller.roleTitle}** in the **${roleConfig.department}** department (*${roleConfig.description}*). ABLEBIZ SUITE hides or disables action buttons when your role does not hold the required module action permission (` +
-      "`view`, `create`, `edit`, `approve`, `export`" +
-      `) or when **Maker-Checker Separation of Duties** applies.`,
-    specificExplanation ? `\n> **Specific Context:** ${specificExplanation}` : "",
+    `Your account is signed in with the **${caller.roleTitle}** authorization role in **${roleConfig.department}** (*${roleConfig.description}*). Action buttons are hidden or disabled when an action is outside your role's permissions or requires approval from another officer.`,
+    specificExplanation ? `\n> **Why this action is restricted:** ${specificExplanation}` : "",
     "",
-    "#### Why a Button or Action May Be Unavailable",
-    "1. **Module Action Gate:** Each route and modal button checks `hasPermission(module, action)` from `public.roles_permissions`.",
-    "2. **Maker-Checker Governance (`/admin/team`):** Only `super_admin` can execute direct staff role/status changes or approve `staff_change_requests`. `admin` sees **Request Role Change / Request New Staff** instead of direct mutation buttons.",
-    "3. **HR Separation of Duties (`/admin/hr`):** Even if you are an `Admin` or `Operations Manager`, you cannot click **Approve** on your own leave request or on a request from a higher role tier.",
-    "4. **Workflow State Preconditions:** Some buttons only appear when a record reaches a specific status (for example, **Convert to Invoice** on `/admin/quotations` requires the quotation status to be `accepted`, and **Record Payment** requires `balance_due > 0`).",
+    "#### Common Reasons a Button Is Unavailable",
+    "1. **Role Permission Scope:** Your role may have view-only access to the page while creation, editing, or approval is assigned to a specialist or management role.",
+    "2. **Dual-Control Approval (Staff & HR):** Staff role changes in [Staff & RBAC](/admin/team) and leave approvals in [HR & Staff Portal](/admin/hr) require a separate approver. You cannot approve your own request.",
+    "3. **Workflow Stage Requirements:** Certain actions only unlock when a record reaches the required status — for example, **Convert to Invoice** in [Quotations](/admin/quotations) requires the quotation to be marked **Accepted**, and **Record Payment** in [Payments](/admin/payments) requires an unpaid invoice balance.",
     "",
-    "#### What You Should Do Next",
-    "- Check the **Role Permission Matrix** below to confirm which actions your role supports.",
-    "- If you need a restricted action executed (such as a fee floor override, invoice issuance, or role update), route the request to an authorized officer or **Super Administrator**.",
+    "#### Recommended Next Step",
+    "- Review the summary table below to see which workspaces your role can view, create, edit, or approve.",
+    "- If you need an action completed in a restricted workspace, assign a task or forward the item to an authorized officer or manager.",
   ]
     .filter(Boolean)
     .join("\n");
 
   const rawLinks: SuiteLinkItem[] = [
-    { label: "Manager Workbench", path: "/admin/dashboard" },
-    { label: "HR & My Staff Portal", path: "/admin/hr" },
-    { label: "Staff & RBAC Matrix", path: "/admin/team" },
+    { label: "Manager Workbench", path: "/admin/dashboard", route: "/admin/dashboard" },
+    { label: "HR & Staff Portal", path: "/admin/hr", route: "/admin/hr" },
+    { label: "Staff & RBAC", path: "/admin/team", route: "/admin/team" },
   ];
 
   return {
@@ -818,31 +872,35 @@ export function buildRolePermissionResponse(
     moduleId: "staff_rbac",
     status: "ok",
     headline: `Role & Permission Scope: ${caller.roleTitle}`,
-    markdown,
+    markdown: cleanBusinessText(markdown, includeTechnical),
     metrics: [
-      { label: "Your Canonical Role", value: caller.roleTitle, sublabel: role, tone: "purple" },
-      { label: "Department", value: roleConfig.department, tone: "blue" },
-      { label: "Finance Access", value: caller.hasPermission("finance", "view") ? "Authorized" : "Restricted", tone: caller.hasPermission("finance", "view") ? "emerald" : "amber" },
-      { label: "HR Scope", value: hrPerms.view_hr_overview ? "Management + Portal" : "My Staff Portal", tone: "emerald" },
-    ],
-    expandableSections: [
+      { label: "Authorization Role", value: caller.roleTitle, tone: "purple" },
+      ...(caller.jobTitle
+        ? [{ label: "Job Title", value: caller.jobTitle, tone: "blue" as const }]
+        : [{ label: "Department", value: roleConfig.department, tone: "blue" as const }]),
       {
-        title: `Permission Matrix for ${caller.roleTitle} (${role})`,
-        badge: "RBAC Policy",
-        defaultOpen: true,
-        table: {
-          headers: ["Suite Domain / Module", "View", "Create", "Edit", "Approve"],
-          rows,
-        },
+        label: "Finance Access",
+        value: caller.hasPermission("finance", "view") ? "Authorized" : "Restricted",
+        tone: caller.hasPermission("finance", "view") ? "emerald" : "amber",
+      },
+      {
+        label: "HR Access",
+        value: hrPerms.view_hr_overview ? "Management & Portal" : "Personal Portal",
+        tone: "emerald",
       },
     ],
+    table: {
+      caption: `Workspace Permissions for ${caller.roleTitle}`,
+      headers: ["Workspace / Domain", "View", "Create", "Edit", "Approve"],
+      rows,
+    },
     links: resolveAuthorizedLinks(caller, rawLinks),
     freshness: {
       queriedAtIso: new Date().toISOString(),
       queriedAtFormatted: formatDateTimeLagos(),
       timezone: "Africa/Lagos",
-      dateRangeLabel: "Current Authenticated Session Policy",
-      sources: ["auth.users", "public.staff_profiles", "public.roles_permissions"],
+      dateRangeLabel: "Active Session Permissions",
+      sources: ["Verified Staff Role & Permission Rules"],
     },
     followUpSuggestions: [
       { label: "How do I submit a request for approval?", prompt: "How do I submit a request for approval?" },
@@ -853,69 +911,70 @@ export function buildRolePermissionResponse(
 }
 
 /**
- * Builds an actionable troubleshooting guide when a user asks how to fix an error or failed operation.
+ * Builds an actionable, business-friendly troubleshooting guide when a user asks how to fix an error or failed operation.
  */
 export function buildTroubleshootingResponse(
-  query: string,
-  caller: AssistantCallerContext
+  firstArg: string | AssistantCallerContext,
+  secondArg: AssistantCallerContext | string,
+  includeTechnical = false
 ): AssistantResponsePayload {
-  const q = query.toLowerCase();
+  const caller = (typeof firstArg === "string" ? secondArg : firstArg) as AssistantCallerContext;
+  const query = (typeof firstArg === "string" ? firstArg : secondArg) as string;
+  const q = String(query || "").toLowerCase();
 
   let targetedSection = "";
-  if (q.includes("leave") || q.includes("overlap") || q.includes("hr") || q.includes("migration")) {
+  if (q.includes("leave") || q.includes("overlap") || q.includes("hr")) {
     targetedSection = [
-      "#### Targeted Diagnosis: HR / Leave Operation Error",
-      "- **`OVERLAPPING_LEAVE_REQUEST`:** You already have a `pending`, `approved`, or `correction_requested` leave application whose date range overlaps your selected dates. Open **HR & Staff Portal → My Leave** (`/admin/hr/portal`), cancel or revise the existing request, and try again.",
-      "- **`MAKER_CHECKER_VIOLATION` / `UNAUTHORIZED_LEAVE_SCOPE`:** Separation of duties prevents you from approving your own leave request or approving leave for a role above your tier. Ask another authorized manager or `Super Admin` to review it.",
-      "- **`Database migration required (MIGRATION_HR_WORKSPACE.sql)`:** The extended HR tables are not yet applied in Supabase. A `Super Admin` should execute `implementation/MIGRATION_HR_WORKSPACE.sql` in the Supabase SQL Editor.",
+      "#### Resolving HR & Leave Issues",
+      "- **Overlapping Leave Dates:** You already have a pending or approved leave request covering one or more of those dates. Open [HR & Staff Portal](/admin/hr), cancel or update the existing request, and submit again.",
+      "- **Cannot Approve Leave Request:** You cannot approve your own leave request or a request for a senior role tier. Ask another authorized manager or the **Managing Director** to review it.",
     ].join("\n");
   } else if (q.includes("cac") || q.includes("certificate") || q.includes("stage")) {
     targetedSection = [
-      "#### Targeted Diagnosis: CAC Stage Transition Error",
-      "- **Missing Certificate / RC / BN Number:** Moving a CAC filing to `approved`, `documents_received`, or `completed` requires `certificate_number` to be filled in.",
-      "- **Missing Rejection Reason:** Moving a CAC filing to `rejected` requires a non-empty `rejection_reason` explaining the CAC query.",
+      "#### Resolving CAC Filing Issues",
+      "- **Cannot Mark Application Approved or Completed:** Enter the official **RC or BN Certificate Number** on the application before moving it to the final stage.",
+      "- **Responding to a CAC Query:** Upload the supporting document in [Documents](/admin/documents), record the query notes in [CAC Operations](/admin/cac-operations), and move the stage back to active processing.",
     ].join("\n");
-  } else if (q.includes("quotation") || q.includes("invoice") || q.includes("payment") || q.includes("min_fee")) {
+  } else if (q.includes("quotation") || q.includes("invoice") || q.includes("payment")) {
     targetedSection = [
-      "#### Targeted Diagnosis: Quotation / Invoice / Payment Error",
-      "- **Unit Price Below Minimum Fee (`min_fee_ngn`):** Non-executive staff cannot price a quotation item below `services_catalog.min_fee_ngn`. Request a `Super Admin` or `Admin` to issue or approve the discounted quotation.",
-      "- **Invoice Not Selectable in Record Payment:** Only invoices with `balance_due > 0` appear in `/admin/payments`. Verify the invoice in `/admin/invoices`.",
+      "#### Resolving Billing & Payment Issues",
+      "- **Cannot Convert Quotation to Invoice:** Mark the quotation as **Accepted** in [Quotations](/admin/quotations) first, then click **Convert to Invoice**.",
+      "- **Price Below Minimum Service Fee:** Discounts below the standard minimum service fee require approval from a **System Administrator** or **Managing Director**.",
+      "- **Invoice Not Listed When Recording Payment:** Confirm in [Invoices](/admin/invoices) that the invoice still has an unpaid balance greater than ₦0.",
     ].join("\n");
   } else if (q.includes("login") || q.includes("password") || q.includes("session") || q.includes("provision")) {
     targetedSection = [
-      "#### Targeted Diagnosis: Login, Provisioning, or Password Change Error",
-      "- **Redirected to `/admin/change-password`:** Your account has `must_change_password = true` (mandatory first-login security guard). Enter your 14-character temporary password and set a new password of at least 8 characters (do not use `Welcome1` or `password123`).",
-      "- **`Access Denied: not linked to a provisioned staff profile`:** Ask a `Super Admin` to open **TEAM → Staff & RBAC** (`/admin/team`) and provision or reconcile your email via the `staff-provision` workflow.",
+      "#### Resolving Sign-In & Account Issues",
+      "- **Prompted to Change Password:** New accounts must set a personal password (at least 8 characters) on first sign-in at [Change Password](/admin/change-password).",
+      "- **Account Not Linked to a Staff Profile:** Ask the **Managing Director** or **System Administrator** to verify your profile status in [Staff & RBAC](/admin/team).",
     ].join("\n");
   }
 
   const markdown = [
-    "### 🛠️ Troubleshooting Failed Operations & Recovery Steps",
+    "### How to Resolve a Failed Operation",
     "",
-    "**Executive Summary:** In ABLEBIZ SUITE, failed operations are protected by PostgreSQL constraints, Row-Level Security (RLS), and pre-submission validation so partial or corrupted data is never written to Browser `localStorage`.",
+    "When an action cannot be completed in ABLEBIZ SUITE, no partial changes are saved so your records remain accurate. Follow these steps to resolve the issue:",
     targetedSection ? `\n${targetedSection}` : "",
     "",
     "#### Step-by-Step Recovery Checklist",
-    "1. **Check the Validation Banner:** Read the exact red alert banner inside the form modal (for example, missing required fields, NUBAN 10-digit check, 20 MB file size cap, or overlapping leave dates).",
-    "2. **Verify Role & Maker-Checker Boundaries:** Confirm your role (**" +
-      caller.roleTitle +
-      "**) holds `create`, `edit`, or `approve` permission for that module, and that you are not attempting to approve your own request.",
-    "3. **Verify Record Preconditions:**",
-    "   - **CAC Operations (`/admin/cac-operations`):** Enter the **Certificate / RC / BN Number** before marking `approved`/`completed`, or the **Rejection Reason** before marking `rejected`.",
-    "   - **Quotations (`/admin/quotations`):** Mark the quotation `accepted` before clicking **Convert to Invoice**.",
-    "   - **Payments (`/admin/payments`):** Select an invoice with `balance_due > 0` and enter an amount `> 0` after verifying settlement in Moniepoint.",
-    "   - **Staff & RBAC (`/admin/team`):** If a `staff_change_requests` item shows `status = 'failed'`, inspect the `execution_error` message in **Pending Approvals** and re-run provisioning or reconciliation as `Super Admin`.",
-    "4. **Network / Session Timeout Recovery:** If a query times out, click the **Retry** button or refresh your session via **Sign Out → Sign In** (`/admin/login`).",
+    "1. **Check the Message Shown on Screen:** Review the alert message at the top of the form for any missing required fields, invalid phone or 10-digit account numbers, file size limits (up to 20 MB), or overlapping dates.",
+    `2. **Confirm Your Role Permissions:** Verify that your role (**${caller.roleTitle}**) is authorized to perform the action and that the item does not require approval from another manager.`,
+    "3. **Check Workflow Prerequisites:**",
+    "   - **CAC Operations:** An RC/BN Certificate Number is required before marking a filing completed, and a reason is required when marking a filing queried or rejected.",
+    "   - **Quotations & Invoices:** A quotation must be marked **Accepted** before converting it to an invoice.",
+    "   - **Payments:** Only invoices with an outstanding balance can receive new payment entries.",
+    "   - **Staff Approvals:** If a staff change request failed in [Staff & RBAC](/admin/team), open the request details and ask the **Managing Director** to retry or complete the update.",
+    "4. **Retry After Connection Timeouts:** If the system took too long to respond, click **Retry** or refresh your session.",
   ]
     .filter(Boolean)
     .join("\n");
 
   const rawLinks: SuiteLinkItem[] = [
-    { label: "Manager Workbench", path: "/admin/dashboard" },
-    { label: "Service Requests", path: "/admin/service-requests" },
-    { label: "CAC Operations", path: "/admin/cac-operations" },
-    { label: "HR & Staff Portal", path: "/admin/hr" },
-    { label: "Staff & RBAC", path: "/admin/team" },
+    { label: "Manager Workbench", path: "/admin/dashboard", route: "/admin/dashboard" },
+    { label: "Service Requests", path: "/admin/service-requests", route: "/admin/service-requests" },
+    { label: "CAC Operations", path: "/admin/cac-operations", route: "/admin/cac-operations" },
+    { label: "HR & Staff Portal", path: "/admin/hr", route: "/admin/hr" },
+    { label: "Staff & RBAC", path: "/admin/team", route: "/admin/team" },
   ];
 
   return {
@@ -924,14 +983,14 @@ export function buildTroubleshootingResponse(
     moduleId: "general",
     status: "ok",
     headline: "Troubleshooting & Error Recovery Guide",
-    markdown,
+    markdown: cleanBusinessText(markdown, includeTechnical),
     links: resolveAuthorizedLinks(caller, rawLinks),
     freshness: {
       queriedAtIso: new Date().toISOString(),
       queriedAtFormatted: formatDateTimeLagos(),
       timezone: "Africa/Lagos",
-      dateRangeLabel: `Suite Architecture v${SUITE_CAPABILITY_INVENTORY.general ? "2026.10.2" : "1.2"}`,
-      sources: ["ABLEBIZ Operational SOP v1", "Database Constraints & RLS Rules"],
+      dateRangeLabel: "Suite Workflow Guide",
+      sources: ["ABLEBIZ Operational Guide"],
     },
     followUpSuggestions: [
       { label: "Why is a button unavailable to my role?", prompt: "Why is a button unavailable to my role?" },
@@ -942,14 +1001,20 @@ export function buildTroubleshootingResponse(
 }
 
 /**
- * Formats a matched GuideTopicEntry into a structured AssistantResponsePayload,
- * including role-specific authorization notes for the current user.
+ * Formats a matched GuideTopicEntry into a structured, plain-language AssistantResponsePayload
+ * using the 6-part numbered Suite Guide format:
+ * 1. Where to go
+ * 2. What to select
+ * 3. What information is needed
+ * 4. What happens after submission
+ * 5. Who can approve or complete the action
+ * 6. What to do if the expected action is unavailable
  */
 export function formatGuideTopicResponse(
   topic: GuideTopicEntry,
-  caller: AssistantCallerContext
+  caller: AssistantCallerContext,
+  includeTechnical = false
 ): AssistantResponsePayload {
-  const canView = canCallerAccessModule(caller, topic.moduleId, "view");
   const canCreateOrEdit =
     canCallerAccessModule(caller, topic.moduleId, "create") ||
     canCallerAccessModule(caller, topic.moduleId, "edit");
@@ -957,42 +1022,46 @@ export function formatGuideTopicResponse(
 
   const roleStatusLine = canOpenRoute
     ? canCreateOrEdit
-      ? `✅ **Your Role Access (${caller.roleTitle}):** You are authorized to open **${topic.routeLabel}** (\`${topic.route}\`) and perform create/edit actions subject to validation and maker-checker rules.`
-      : `👁️ **Your Role Access (${caller.roleTitle}):** You have **read-only / self-service** access to **${topic.routeLabel}** (\`${topic.route}\`). Creation or approval actions require an authorized officer or manager.`
-    : `🔒 **Your Role Access (${caller.roleTitle}):** Your role does not have direct route access to \`${topic.route}\`. The workflow steps below explain how authorized officers execute this process.`;
+      ? `**Your Access (${caller.roleTitle}):** You can open **${topic.routeLabel}** and complete this workflow.`
+      : `**Your Access (${caller.roleTitle}):** You have view/self-service access to **${topic.routeLabel}**. Creating or approving records in this workspace is handled by an authorized officer or manager.`
+    : `**Your Access (${caller.roleTitle}):** This workspace is restricted for your role. The steps below explain how authorized team members complete this task.`;
 
   const markdown = [
-    `### 📘 ${topic.title}`,
+    `### ${cleanBusinessText(topic.title, includeTechnical)}`,
     "",
-    topic.summary,
+    cleanBusinessText(topic.summary, includeTechnical),
     "",
     `> ${roleStatusLine}`,
     "",
-    `#### 1. Page & Route`,
-    `- **Workspace:** **${topic.routeLabel}** (\`${topic.route}\`)`,
+    `#### 1. Where to Go`,
+    `- Open **[${topic.routeLabel}](${topic.route})** from the left navigation menu.`,
+    ...(topic.prerequisites.length > 0
+      ? [
+          `- **Before you start:** ${topic.prerequisites
+            .map((p) => cleanBusinessText(p, includeTechnical))
+            .join(" ")}`,
+        ]
+      : []),
     "",
-    `#### 2. Prerequisites Before Starting`,
-    ...topic.prerequisites.map((p) => `- ${p}`),
+    `#### 2. What to Select`,
+    ...topic.steps.map((s, idx) => `${idx + 1}. ${cleanBusinessText(s, includeTechnical)}`),
     "",
-    `#### 3. Step-by-Step UI Navigation & Actions`,
-    ...topic.steps.map((s, idx) => `${idx + 1}. ${s}`),
+    `#### 3. What Information Is Needed`,
+    ...topic.requiredFieldsAndValidation.map((r) => `- ${cleanBusinessText(r, includeTechnical)}`),
     "",
-    `#### 4. Required Fields & Validation Rules`,
-    ...topic.requiredFieldsAndValidation.map((r) => `- ${r}`),
+    `#### 4. What Happens After Submission`,
+    ...topic.postSubmissionBehavior.map((b) => `- ${cleanBusinessText(b, includeTechnical)}`),
     "",
-    `#### 5. What Happens After Submission`,
-    ...topic.postSubmissionBehavior.map((b) => `- ${b}`),
+    `#### 5. Who Can Approve or Complete the Action`,
+    ...topic.roleAndApprovalRules.map((a) => `- ${cleanBusinessText(a, includeTechnical)}`),
     "",
-    `#### 6. Role Permissions & Approval Requirements`,
-    ...topic.roleAndApprovalRules.map((a) => `- ${a}`),
-    "",
-    `#### 7. If an Expected Button or Record Is Missing`,
-    ...topic.troubleshootingMissingOrFailed.map((t) => `- ${t}`),
+    `#### 6. What to Do if the Expected Action Is Unavailable`,
+    ...topic.troubleshootingMissingOrFailed.map((t) => `- ${cleanBusinessText(t, includeTechnical)}`),
   ].join("\n");
 
   const links = resolveAuthorizedLinks(caller, [
-    { label: `Open ${topic.routeLabel}`, path: topic.route },
-    { label: "Manager Workbench", path: "/admin/dashboard" },
+    { label: `Open ${topic.routeLabel}`, path: topic.route, route: topic.route },
+    { label: "Manager Workbench", path: "/admin/dashboard", route: "/admin/dashboard" },
   ]);
 
   return {
@@ -1007,8 +1076,8 @@ export function formatGuideTopicResponse(
       queriedAtIso: new Date().toISOString(),
       queriedAtFormatted: formatDateTimeLagos(),
       timezone: "Africa/Lagos",
-      dateRangeLabel: "Verified Suite Workflow Guide",
-      sources: [`Route: ${topic.route}`, "ABLEBIZ Operational SOP v1"],
+      dateRangeLabel: "Suite Workflow Guide",
+      sources: [topic.routeLabel],
     },
     followUpSuggestions: topic.relatedPrompts,
   };

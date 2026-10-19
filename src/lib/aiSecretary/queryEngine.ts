@@ -2,6 +2,7 @@ import { supabase } from "../supabaseClient";
 import {
   AssistantCallerContext,
   AssistantResponsePayload,
+  AssistantTopicFilterId,
   ClassifiedIntent,
   ConversationContext,
   ParsedDateRange,
@@ -21,6 +22,7 @@ import {
   CAPABILITY_CATALOGUE,
   CAPABILITY_CATALOGUE_VERSION,
   canCallerAccessModule,
+  formatFriendlySourceNames,
   getModuleSpec,
   resolveAuthorizedLinks,
 } from "./capabilityCatalogue";
@@ -76,6 +78,26 @@ function isPermissionDeniedError(error: { code?: string; message?: string } | nu
   );
 }
 
+function isTimeoutError(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  const code = String(error.code || "");
+  const msg = String(error.message || "").toLowerCase();
+  return (
+    code === "57014" ||
+    msg.includes("timed out") ||
+    msg.includes("timeout") ||
+    msg.includes("statement timeout")
+  );
+}
+
+function formatReadableLabel(value: unknown, fallback = "—"): string {
+  const raw = String(value || "").trim();
+  if (!raw) return fallback;
+  return raw
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 export const defaultSupabaseAdapter: AssistantDataAdapter = {
   async queryTable<T = Record<string, any>>(
     tableName: string,
@@ -99,14 +121,14 @@ export const defaultSupabaseAdapter: AssistantDataAdapter = {
       if (error) {
         return {
           data: null,
-          error: { code: (error as any).code, message: error.message || "Database query failed" },
+          error: { code: (error as any).code, message: error.message || "The request could not be completed" },
         };
       }
       return { data: (data as T[]) || [], error: null };
     } catch (err: any) {
       return {
         data: null,
-        error: { message: err?.message || "Unexpected network or database error" },
+        error: { message: err?.message || "The request could not be completed" },
       };
     }
   },
@@ -116,12 +138,12 @@ function buildSpoofAndMutationPrefix(intent: ClassifiedIntent, caller: Assistant
   const notices: string[] = [];
   if (intent.isRoleSpoofingAttempt) {
     notices.push(
-      `> **Security & Role Verification Notice:** Your authenticated session role is **${caller.roleLabel}** (\`${caller.role}\`). Role overrides or permission bypass instructions in chat text are ignored. All responses and queries strictly follow your verified session permissions.`
+      `> **Role Verification Notice:** Your signed-in role is **${caller.roleLabel}**. Requests in chat text to change or bypass your role are ignored, and all answers strictly follow your verified account permissions.`
     );
   }
   if (intent.isWriteMutationAttempt) {
     notices.push(
-      `> **Read-Only Assistant Boundary:** ABLEBIZ AI Secretary does not execute direct database mutations (create, approve, reject, or delete records) on your behalf. Below is the verified status and step-by-step guidance so you can perform the action safely in the authorized workspace.`
+      `> **Read-Only Assistant Notice:** ABLEBIZ AI Secretary does not create, approve, reject, or delete records directly on your behalf. Below is the current status and step-by-step guidance so you can complete the action safely in the appropriate workspace.`
     );
   }
   return notices.length > 0 ? notices.join("\n\n") + "\n\n" : "";
@@ -143,39 +165,56 @@ function buildPermissionDeniedPayload(
     "hr",
   ]).slice(0, 3);
 
-  const markdown = [
+  const lines: string[] = [
     prefix + `### Access Restricted — ${spec.displayName}`,
-    `Your current role (**${caller.roleLabel}**, \`${caller.role}\`) does not include permission to access **${spec.displayName}** (\`${spec.route}\`).`,
-    `#### Required Authorization`,
-    `- **Required Permission(s):** ${spec.requiredPermissions.length > 0 ? spec.requiredPermissions.map((p) => `\`${p}\``).join(", ") : "Role-scoped access"}`,
+    `Your account does not have permission to view **${spec.displayName}**. Your signed-in role is **${caller.roleLabel}**.`,
+    `#### Who Can Access This Area`,
     `- **Authorized Roles:** ${spec.allowedRolesSummary}`,
-    `- **Your Current Permissions:** ${caller.permissions.map((p) => `\`${p}\``).join(", ")}`,
     `#### Recommended Next Step`,
-    `If you need information from **${spec.displayName}**, request assistance from an authorized officer or contact **Super Admin / Managing Director / Operations Admin** if your role assignment in [Staff & RBAC](/admin/team) needs adjustment.`,
-  ].join("\n\n");
+    `If you need information from **${spec.displayName}**, please request assistance from an authorized team member or contact your **Managing Director** or **Operations Admin** if your role assignment in [Staff & RBAC](/admin/team) needs to be updated.`,
+  ];
+
+  const technicalDetails = `Module: ${spec.id} (${spec.route}) | Caller role: ${caller.role} | Required permissions: ${
+    spec.requiredPermissions.join(", ") || "role-scoped"
+  }`;
+
+  if (intent.wantsTechnicalDiagnostics) {
+    lines.push(
+      `#### Technical Diagnostics`,
+      `- **Canonical Role:** \`${caller.role}\``,
+      `- **Required Permission(s):** ${
+        spec.requiredPermissions.length > 0
+          ? spec.requiredPermissions.map((p) => `\`${p}\``).join(", ")
+          : "Role-scoped access"
+      }`,
+      `- **Target Tables:** ${spec.tables.map((t) => `\`${t}\``).join(", ")}`
+    );
+  }
 
   return {
     status: "permission_denied",
     intentType: intent.intentType,
     moduleId,
     title: `Access Restricted: ${spec.displayName}`,
-    summary: `Role ${caller.roleLabel} is not authorized to view ${spec.displayName}.`,
-    markdown,
+    summary: `Your role (${caller.roleLabel}) does not have permission to view ${spec.displayName}.`,
+    markdown: lines.join("\n\n"),
     metrics: [
       { label: "Your Role", value: caller.roleLabel, tone: "amber" },
-      { label: "Target Module", value: spec.displayName, tone: "slate" },
+      { label: "Workspace", value: spec.displayName, tone: "slate" },
       { label: "Access Status", value: "Restricted", tone: "rose" },
     ],
     links: authorizedFallbackLinks,
     followUpSuggestions: getContextualFollowUpQuestions(caller, "dashboard"),
     sourceMeta: {
       tablesQueried: [],
+      sourcesLabel: spec.displayName,
       reportingPeriodLabel: intent.dateRange.label,
       timezone: ABILITY_TIMEZONE,
       fetchedAtIso: now.toISOString(),
       fetchedAtFormatted: formatDateTimeLagos(now),
       roleApplied: caller.role,
-      scopeDescription: `Blocked by RBAC check prior to querying ${spec.tables.join(", ")}`,
+      scopeDescription: `Access restricted for ${caller.roleLabel}`,
+      technicalDetails: intent.wantsTechnicalDiagnostics ? technicalDetails : undefined,
     },
   };
 }
@@ -191,59 +230,100 @@ function buildErrorOrSchemaPayload(
   const spec = getModuleSpec(moduleId);
   const isSchema = isMissingSchemaError(error);
   const isRls = isPermissionDeniedError(error);
+  const isTimeout = isTimeoutError(error);
+
   const status: QueryResultStatus = isRls
     ? "permission_denied"
     : isSchema
     ? "schema_pending"
     : "query_error";
 
-  const title = isRls
-    ? `Database Access Restricted (${tableName})`
-    : isSchema
-    ? `Database Schema Pending Migration (${tableName})`
-    : `Query Failed (${tableName})`;
+  const friendlySource = formatFriendlySourceNames([tableName]);
 
-  const markdown = isSchema
-    ? [
-        `### ${title}`,
-        `The assistant attempted to query \`${tableName}\` for **${spec.displayName}**, but the table is not yet present in the active Supabase schema cache.`,
-        `#### Why This Happened`,
-        `- **Diagnostic Details:** \`${error.message}\``,
-        `- This is **not** reported as zero records because the underlying table has not been provisioned yet.`,
-        `#### Recommended Next Step`,
-        `- Apply the corresponding migration script in \`implementation/\` (for example \`implementation/MIGRATION_HR_WORKSPACE.sql\` for HR tables or \`implementation/FULL_SYSTEM_INSTALL.sql\` for core tables) in the Supabase SQL Editor, then click **Retry**.`,
-      ].join("\n\n")
-    : [
-        `### ${title}`,
-        `The assistant could not verify records from \`${tableName}\` due to a database query error. To preserve data accuracy, failed queries are never reported as \`0\` records.`,
-        `#### Diagnostic Details`,
-        `- **Table:** \`${tableName}\``,
-        `- **Reason:** \`${error.message}\``,
-        `#### Recommended Next Step`,
-        `- Verify your network connection and session status, or open [${spec.displayName}](${spec.route}) directly and click **Retry**.`,
-      ].join("\n\n");
+  const title = isRls
+    ? `Access Restricted — ${spec.displayName}`
+    : isSchema
+    ? `${spec.displayName} Setup Pending`
+    : isTimeout
+    ? `Request Timed Out — ${spec.displayName}`
+    : `Unable to Retrieve ${spec.displayName} Records`;
+
+  const lines: string[] = [`### ${title}`];
+
+  if (isRls) {
+    lines.push(
+      `Your account does not have permission to perform this action or view these records in **${spec.displayName}**.`,
+      `#### What Requires Attention`,
+      `- Your current role (**${caller.roleLabel}**) is restricted from reading this set of records.`,
+      `#### Recommended Next Step`,
+      `- Contact your **Managing Director**, **Operations Admin**, or **HR Manager** if you require access to **${spec.displayName}**.`
+    );
+  } else if (isSchema) {
+    lines.push(
+      `The **${spec.displayName}** records are not yet active in this environment. To keep reporting accurate, this is shown as a setup notice rather than zero records.`,
+      `#### What Requires Attention`,
+      `- The data storage for **${friendlySource}** has not finished initial setup by the system administrator.`,
+      `#### Recommended Next Step`,
+      `- Ask your system administrator to complete the **${spec.displayName}** workspace setup, then click **Retry**.`
+    );
+  } else if (isTimeout) {
+    lines.push(
+      `The system took too long to retrieve the information from **${spec.displayName}**. To keep reporting accurate, timed-out requests are never shown as zero records.`,
+      `#### Recommended Next Step`,
+      `- Click **Retry** below, or narrow your question to a shorter date range (for example, *this week* or *this month*).`
+    );
+  } else {
+    lines.push(
+      `The request could not be completed while retrieving records from **${spec.displayName}**. To keep reporting accurate, failed requests are never shown as zero records.`,
+      `#### Recommended Next Step`,
+      `- Check your connection and click **Retry**, or open [${spec.displayName}](${spec.route}) directly.`
+    );
+  }
+
+  const technicalDetails = `Source: ${tableName} | Code: ${error.code || "N/A"} | Message: ${error.message}`;
+
+  if (intent.wantsTechnicalDiagnostics) {
+    lines.push(
+      `#### Technical Diagnostics`,
+      `- **Table:** \`${tableName}\``,
+      `- **Code:** \`${error.code || "N/A"}\``,
+      `- **Diagnostic Message:** \`${error.message}\``
+    );
+  }
 
   return {
     status,
     intentType: intent.intentType,
     moduleId,
     title,
-    summary: error.message,
-    markdown,
+    summary: isRls
+      ? "Your account does not have permission to perform this action."
+      : isTimeout
+      ? "The system took too long to retrieve the information."
+      : isSchema
+      ? `${spec.displayName} setup is pending in this environment.`
+      : "The request could not be completed.",
+    markdown: lines.join("\n\n"),
     metrics: [
-      { label: "Module", value: spec.displayName, tone: "slate" },
-      { label: "Verification Status", value: isSchema ? "Migration Pending" : "Query Error", tone: "rose" },
+      { label: "Workspace", value: spec.displayName, tone: "slate" },
+      {
+        label: "Status",
+        value: isRls ? "Access Restricted" : isSchema ? "Setup Pending" : isTimeout ? "Timed Out" : "Unavailable",
+        tone: "rose",
+      },
     ],
     links: resolveAuthorizedLinks(caller, [moduleId, "dashboard"]),
     followUpSuggestions: getContextualFollowUpQuestions(caller, moduleId),
     sourceMeta: {
       tablesQueried: [tableName],
+      sourcesLabel: friendlySource,
       reportingPeriodLabel: intent.dateRange.label,
       timezone: ABILITY_TIMEZONE,
       fetchedAtIso: now.toISOString(),
       fetchedAtFormatted: formatDateTimeLagos(now),
       roleApplied: caller.role,
-      scopeDescription: `Query error on ${tableName}: ${error.message}`,
+      scopeDescription: `${spec.displayName} verification status`,
+      technicalDetails: intent.wantsTechnicalDiagnostics ? technicalDetails : undefined,
     },
   };
 }
@@ -258,6 +338,7 @@ export async function executeAssistantQuery(
   options?: {
     adapter?: AssistantDataAdapter;
     now?: Date;
+    topicHint?: AssistantTopicFilterId;
   }
 ): Promise<{
   payload: AssistantResponsePayload;
@@ -265,7 +346,13 @@ export async function executeAssistantQuery(
 }> {
   const now = options?.now ? new Date(options.now.getTime()) : new Date();
   const adapter = options?.adapter || defaultSupabaseAdapter;
-  const intent = classifyAssistantIntent(rawQuery, caller, context, now);
+  const intent = classifyAssistantIntent(
+    rawQuery,
+    caller,
+    context,
+    now,
+    options?.topicHint
+  );
   const prefix = buildSpoofAndMutationPrefix(intent, caller);
 
   const updatedContext: ConversationContext = {
@@ -282,13 +369,13 @@ export async function executeAssistantQuery(
     const spec = getModuleSpec(intent.primaryModule);
     const links = resolveAuthorizedLinks(caller, [intent.primaryModule, "dashboard"]);
     const markdown = [
-      prefix + `### Feature Not Implemented in ABLEBIZ SUITE`,
+      prefix + `### Feature Not Available in ABLEBIZ SUITE`,
       intent.unsupportedReason ||
-        `The requested capability is not currently implemented in **${spec.displayName}**.`,
-      `#### What Is Supported in ${spec.displayName}`,
-      `- **Route:** \`${spec.route}\``,
-      `- **Supported Operations:** ${spec.supportedOperations.join("; ")}`,
-      `- **Known Limitations:** ${spec.knownLimitations.join(" ")}`,
+        `The requested capability is not currently available in **${spec.displayName}**.`,
+      `#### What You Can Do in ${spec.displayName}`,
+      ...spec.supportedOperations.map((op) => `- ${op}`),
+      `#### Recommended Next Step`,
+      `- Open [${spec.displayName}](${spec.route}) to use the supported tools available for your role.`,
     ].join("\n\n");
 
     return {
@@ -297,23 +384,24 @@ export async function executeAssistantQuery(
         status: "unsupported",
         intentType: "unsupported_feature",
         moduleId: intent.primaryModule,
-        title: "Unsupported Capability",
-        summary: intent.unsupportedReason || "Feature not implemented.",
+        title: "Feature Not Available",
+        summary: intent.unsupportedReason || "Feature not available in ABLEBIZ SUITE.",
         markdown,
         metrics: [
-          { label: "Module", value: spec.displayName, tone: "amber" },
-          { label: "Feature Status", value: "Not Implemented", tone: "rose" },
+          { label: "Workspace", value: spec.displayName, tone: "amber" },
+          { label: "Availability", value: "Not Available", tone: "rose" },
         ],
         links,
         followUpSuggestions: getContextualFollowUpQuestions(caller, intent.primaryModule, updatedContext),
         sourceMeta: {
           tablesQueried: [],
+          sourcesLabel: spec.displayName,
           reportingPeriodLabel: intent.dateRange.label,
           timezone: ABILITY_TIMEZONE,
           fetchedAtIso: now.toISOString(),
           fetchedAtFormatted: formatDateTimeLagos(now),
           roleApplied: caller.role,
-          scopeDescription: `Capability check against Catalogue v${CAPABILITY_CATALOGUE_VERSION}`,
+          scopeDescription: `${spec.displayName} capability guide`,
         },
       },
     };
@@ -329,24 +417,24 @@ export async function executeAssistantQuery(
     );
 
     const markdown = [
-      prefix + `### ABLEBIZ AI Secretary — Full-Suite Capability Inventory (v${CAPABILITY_CATALOGUE_VERSION})`,
-      `I am your role-aware operational intelligence and Suite Guide assistant. For your current role (**${caller.roleLabel}**, \`${caller.role}\`), you have authorized access to **${accessibleModules.length} of ${Object.keys(CAPABILITY_CATALOGUE).length} modules**.`,
-      `#### 1. Verified Operational Reports`,
-      `Ask about live records, SLA deadlines, overdue items, or date-scoped summaries (in \`${ABILITY_TIMEZONE}\`) across your authorized modules:\n` +
+      prefix + `### How ABLEBIZ AI Secretary Can Help You`,
+      `Signed in as **${caller.userName}** (**${caller.roleLabel}**). You have access to **${accessibleModules.length} of ${Object.keys(CAPABILITY_CATALOGUE).length} Suite workspaces**.`,
+      `#### 1. Live Operational Reports`,
+      `Ask questions in plain English about current workloads, deadlines, approvals, or financial summaries across your authorized workspaces:\n` +
         accessibleModules
-          .map((m) => `- **${m.displayName}** (\`${m.route}\`): ${m.purpose}`)
+          .map((m) => `- **[${m.displayName}](${m.route}):** ${m.purpose}`)
           .join("\n"),
-      `#### 2. Interactive Suite Guide & Workflow Help`,
-      `Ask step-by-step *"How do I..."* questions grounded in actual Suite screens, required fields, and maker-checker rules:\n` +
+      `#### 2. Step-by-Step Suite Guide & Workflow Help`,
+      `Ask *"How do I..."* or *"Why is this button disabled?"* for guided walkthroughs on daily tasks:\n` +
         SUITE_GUIDE_TOPICS.slice(0, 8)
-          .map((t) => `- *${t.title}* (\`${t.route}\`)`)
+          .map((t) => `- **${t.title}** ([Open Workspace](${t.route}))`)
           .join("\n"),
       restrictedModules.length > 0
-        ? `#### 3. Modules Restricted for ${caller.roleLabel}\n` +
+        ? `#### 3. Workspaces Restricted for ${caller.roleLabel}\n` +
           restrictedModules
             .map(
               (m) =>
-                `- **${m.displayName}** (\`${m.route}\`) — requires ${m.requiredPermissions.map((p) => `\`${p}\``).join(", ") || m.allowedRolesSummary}`
+                `- **${m.displayName}** — available to ${m.allowedRolesSummary}`
             )
             .join("\n")
         : "",
@@ -360,24 +448,25 @@ export async function executeAssistantQuery(
         status: "ok",
         intentType: "capability_overview",
         moduleId: "dashboard",
-        title: "Suite Capability Inventory",
-        summary: `${accessibleModules.length} authorized modules available for ${caller.roleLabel}.`,
+        title: "ABLEBIZ AI Secretary Guide & Capabilities",
+        summary: `${accessibleModules.length} authorized workspaces available for ${caller.roleLabel}.`,
         markdown,
         metrics: [
           { label: "Your Role", value: caller.roleLabel, tone: "emerald" },
-          { label: "Authorized Modules", value: String(accessibleModules.length), tone: "blue" },
-          { label: "Guide Workflows", value: String(SUITE_GUIDE_TOPICS.length), tone: "slate" },
+          { label: "Authorized Workspaces", value: String(accessibleModules.length), tone: "blue" },
+          { label: "Guided Workflows", value: String(SUITE_GUIDE_TOPICS.length), tone: "slate" },
         ],
         links: resolveAuthorizedLinks(caller, ["dashboard", "cac_operations", "service_requests", "hr", "tasks"]).slice(0, 4),
         followUpSuggestions: getContextualFollowUpQuestions(caller, "dashboard", updatedContext),
         sourceMeta: {
           tablesQueried: [],
+          sourcesLabel: "ABLEBIZ Suite Directory",
           reportingPeriodLabel: "Current Configuration",
           timezone: ABILITY_TIMEZONE,
           fetchedAtIso: now.toISOString(),
           fetchedAtFormatted: formatDateTimeLagos(now),
           roleApplied: caller.role,
-          scopeDescription: `Capability Catalogue v${CAPABILITY_CATALOGUE_VERSION}`,
+          scopeDescription: `Authorized workspaces for ${caller.roleLabel}`,
         },
       },
     };
@@ -385,7 +474,7 @@ export async function executeAssistantQuery(
 
   // 3. Handle Permission Explanation ("Why is a button unavailable to my role?")
   if (intent.intentType === "permission_explanation") {
-    const built = buildRolePermissionResponse(caller, rawQuery);
+    const built = buildRolePermissionResponse(caller, rawQuery, intent.wantsTechnicalDiagnostics);
     const markdown = prefix + (typeof built === "string" ? built : built.markdown);
     return {
       updatedContext,
@@ -393,24 +482,24 @@ export async function executeAssistantQuery(
         status: "ok",
         intentType: "permission_explanation",
         moduleId: intent.primaryModule,
-        title: `Role & Permission Guide (${caller.roleLabel})`,
-        summary: `Explanation of role permissions and maker-checker controls for ${caller.roleLabel}.`,
+        title: `Role & Approval Guide (${caller.roleLabel})`,
+        summary: `Explanation of role access and approval rules for ${caller.roleLabel}.`,
         markdown,
         metrics: [
-          { label: "Active Role", value: caller.roleLabel, tone: "blue" },
-          { label: "Granted Permissions", value: String(caller.permissions.length), tone: "emerald" },
-          { label: "Management Tier", value: caller.isManagement ? "Yes" : "Standard / Scoped", tone: "slate" },
+          { label: "Your Role", value: caller.roleLabel, tone: "blue" },
+          { label: "Approval Tier", value: caller.isManagement ? "Management Approver" : "Standard Staff", tone: "emerald" },
         ],
         links: resolveAuthorizedLinks(caller, [intent.primaryModule, "dashboard", "hr", "team"]).slice(0, 3),
         followUpSuggestions: getContextualFollowUpQuestions(caller, intent.primaryModule, updatedContext),
         sourceMeta: {
           tablesQueried: [],
-          reportingPeriodLabel: "Live Session RBAC",
+          sourcesLabel: "Role & Approval Rules",
+          reportingPeriodLabel: "Active Session",
           timezone: ABILITY_TIMEZONE,
           fetchedAtIso: now.toISOString(),
           fetchedAtFormatted: formatDateTimeLagos(now),
           roleApplied: caller.role,
-          scopeDescription: "Canonical role permissions from src/auth/roleConfig.ts and src/lib/hrPermissions.ts",
+          scopeDescription: `Access rules for ${caller.roleLabel}`,
         },
       },
     };
@@ -418,7 +507,7 @@ export async function executeAssistantQuery(
 
   // 4. Handle Troubleshooting ("How do I correct a failed operation?")
   if (intent.intentType === "troubleshooting") {
-    const built = buildTroubleshootingResponse(caller, rawQuery);
+    const built = buildTroubleshootingResponse(caller, rawQuery, intent.wantsTechnicalDiagnostics);
     const markdown = prefix + (typeof built === "string" ? built : built.markdown);
     return {
       updatedContext,
@@ -426,23 +515,24 @@ export async function executeAssistantQuery(
         status: "ok",
         intentType: "troubleshooting",
         moduleId: intent.primaryModule,
-        title: "Workflow Troubleshooting & Recovery Guide",
-        summary: "Actionable steps to diagnose and recover from failed or rejected operations.",
+        title: "Workflow Troubleshooting & Next Steps",
+        summary: "Clear steps to resolve rejected, queried, or unavailable actions.",
         markdown,
         metrics: [
           { label: "Your Role", value: caller.roleLabel, tone: "blue" },
-          { label: "Mode", value: "Troubleshooting", tone: "amber" },
+          { label: "Support Mode", value: "Troubleshooting Guide", tone: "amber" },
         ],
         links: resolveAuthorizedLinks(caller, [intent.primaryModule, "dashboard", "cac_operations", "hr"]).slice(0, 4),
         followUpSuggestions: getContextualFollowUpQuestions(caller, intent.primaryModule, updatedContext),
         sourceMeta: {
           tablesQueried: [],
+          sourcesLabel: "ABLEBIZ Workflow Guide",
           reportingPeriodLabel: "Current Workflow Rules",
           timezone: ABILITY_TIMEZONE,
           fetchedAtIso: now.toISOString(),
           fetchedAtFormatted: formatDateTimeLagos(now),
           roleApplied: caller.role,
-          scopeDescription: `Suite Guide & Troubleshooting Registry (v${CAPABILITY_CATALOGUE_VERSION})`,
+          scopeDescription: "Operational troubleshooting guide",
         },
       },
     };
@@ -456,7 +546,7 @@ export async function executeAssistantQuery(
 
     if (topic) {
       const canAccessTopicModule = canCallerAccessModule(caller, topic.moduleId);
-      const built = formatGuideTopicResponse(topic, caller);
+      const built = formatGuideTopicResponse(topic, caller, intent.wantsTechnicalDiagnostics);
       const markdown = prefix + (typeof built === "string" ? built : built.markdown);
       const links = resolveAuthorizedLinks(caller, [
         topic.moduleId,
@@ -478,10 +568,10 @@ export async function executeAssistantQuery(
           summary: topic.summary,
           markdown,
           metrics: [
-            { label: "Target Workspace", value: getModuleSpec(topic.moduleId).displayName, tone: "blue" },
+            { label: "Workspace", value: getModuleSpec(topic.moduleId).displayName, tone: "blue" },
             {
-              label: "Your Role Access",
-              value: canAccessTopicModule ? "Authorized" : "Read / Restricted",
+              label: "Your Access",
+              value: canAccessTopicModule ? "Authorized" : "Restricted",
               tone: canAccessTopicModule ? "emerald" : "amber",
             },
           ],
@@ -489,32 +579,37 @@ export async function executeAssistantQuery(
           followUpSuggestions: getContextualFollowUpQuestions(caller, topic.moduleId, updatedContext),
           sourceMeta: {
             tablesQueried: getModuleSpec(topic.moduleId).tables,
+            sourcesLabel: `${getModuleSpec(topic.moduleId).displayName} Guide`,
             reportingPeriodLabel: "Suite Workflow Guide",
             timezone: ABILITY_TIMEZONE,
             fetchedAtIso: now.toISOString(),
             fetchedAtFormatted: formatDateTimeLagos(now),
             roleApplied: caller.role,
-            scopeDescription: `Verified UI workflow specification (${topic.route})`,
+            scopeDescription: `Step-by-step guide for ${getModuleSpec(topic.moduleId).displayName}`,
           },
         },
       };
     }
 
-    // Fallback module-level guide from capability catalogue if no specific topic matched
+    // Fallback module-level guide in 6-part structure
     const spec = getModuleSpec(intent.primaryModule);
     const canAccess = canCallerAccessModule(caller, intent.primaryModule);
     const markdown = [
       prefix + `### How to Use ${spec.displayName}`,
       spec.purpose,
-      `#### 1. Workspace Route & Access`,
-      `- **Route:** \`${spec.route}\``,
+      `#### 1. Where to Go`,
+      `- Open **[${spec.displayName}](${spec.route})** from the left navigation sidebar.`,
+      `#### 2. What to Select`,
+      ...spec.supportedOperations.map((op, i) => `${i + 1}. ${op}`),
+      `#### 3. What Information Is Needed`,
+      `- Complete all required fields on the form before clicking **Save** or **Submit**.`,
+      `#### 4. What Happens After Submission`,
+      `- Your updates are saved immediately to **${spec.displayName}** and logged in the activity history.`,
+      `#### 5. Who Can Approve or Complete the Action`,
       `- **Authorized Roles:** ${spec.allowedRolesSummary}`,
       `- **Your Access (${caller.roleLabel}):** ${canAccess ? "Authorized" : "Restricted for your role"}`,
-      `#### 2. Supported Operations in ${spec.displayName}`,
-      ...spec.supportedOperations.map((op, i) => `${i + 1}. ${op}`),
-      `#### 3. Underlying Tables & Governance`,
-      `- **Tables:** ${spec.tables.map((t) => `\`${t}\``).join(", ")}`,
-      `- **Known Limitations:** ${spec.knownLimitations.join(" ")}`,
+      `#### 6. What to Do if the Expected Action Is Unavailable`,
+      `- ${spec.knownLimitations.join(" ")}`,
     ].join("\n\n");
 
     return {
@@ -530,12 +625,13 @@ export async function executeAssistantQuery(
         followUpSuggestions: getContextualFollowUpQuestions(caller, intent.primaryModule, updatedContext),
         sourceMeta: {
           tablesQueried: spec.tables,
+          sourcesLabel: `${spec.displayName} Guide`,
           reportingPeriodLabel: "Suite Workflow Guide",
           timezone: ABILITY_TIMEZONE,
           fetchedAtIso: now.toISOString(),
           fetchedAtFormatted: formatDateTimeLagos(now),
           roleApplied: caller.role,
-          scopeDescription: `Capability Catalogue v${CAPABILITY_CATALOGUE_VERSION}`,
+          scopeDescription: `Workspace guide for ${spec.displayName}`,
         },
       },
     };
@@ -648,7 +744,6 @@ async function handleHrOperationalReport(
     (staffRes.data || []).forEach((s: any) => staffMap.set(s.id, s));
 
     let rows = attRes.data || [];
-    // Apply HR scope: non-management staff only see their own attendance logs
     if (!caller.hrAccess.canViewAllAttendance && caller.userId) {
       const ownProfile = (staffRes.data || []).find((s: any) => s.user_id === caller.userId);
       rows = ownProfile ? rows.filter((r: any) => r.staff_profile_id === ownProfile.id) : [];
@@ -671,20 +766,20 @@ async function handleHrOperationalReport(
 
     const status: QueryResultStatus = rows.length === 0 ? "empty" : "ok";
     const scopeNote = caller.hrAccess.canViewAllAttendance
-      ? "Organization-wide HR attendance scope"
-      : "Personal attendance scope (your staff profile)";
+      ? "Organization-wide attendance records"
+      : "Your personal attendance records";
 
     const markdown = [
-      prefix + `### HR Attendance Summary (${intent.dateRange.label})`,
+      prefix + `### Staff Attendance Summary (${intent.dateRange.label})`,
       rows.length === 0
-        ? `The query against \`hr_attendance_logs\` succeeded and returned **0 attendance records** matching **${intent.dateRange.label}** under your current scope (${scopeNote}).`
-        : `Verified **${formatCount(rows.length)}** attendance log(s) for **${intent.dateRange.label}** (${scopeNote}).`,
-      `#### Verified Figures`,
+        ? `No matching attendance records were found for **${intent.dateRange.label}** (${scopeNote}).`
+        : `Found **${formatCount(rows.length)}** attendance record(s) for **${intent.dateRange.label}** (${scopeNote}).`,
+      `#### Key Figures`,
       `- **Present / Remote:** ${formatCount(presentCount)}`,
-      `- **Late Check-ins:** ${formatCount(lateCount)}`,
+      `- **Late Check-Ins:** ${formatCount(lateCount)}`,
       `- **Absent / On Leave:** ${formatCount(absentOrLeaveCount)}`,
-      `#### Recommended Next Step`,
-      `- Open [HR & Staff Portal](/admin/hr) and select the **Attendance** tab to record daily check-in/check-out or review shift logs.`,
+      `#### Recommended Next Action`,
+      `- Open [HR & Staff Portal](/admin/hr) and select the **Attendance** tab to record daily check-in/check-out or review staff attendance logs.`,
     ].join("\n\n");
 
     return {
@@ -692,7 +787,7 @@ async function handleHrOperationalReport(
       intentType: "operational_report",
       moduleId: "hr",
       title: `Attendance Report (${intent.dateRange.label})`,
-      summary: `${rows.length} attendance records verified.`,
+      summary: `${rows.length} attendance records found.`,
       markdown,
       metrics: [
         { label: "Total Logs", value: formatCount(rows.length), tone: "blue" },
@@ -710,8 +805,8 @@ async function handleHrOperationalReport(
                 return [
                   formatShortDate(r.attendance_date),
                   st?.full_name || "Staff Member",
-                  String(r.status || "present").toUpperCase(),
-                  String(r.work_mode || "office"),
+                  formatReadableLabel(r.status, "Present"),
+                  formatReadableLabel(r.work_mode, "Office"),
                   r.check_in_at ? formatDateTimeLagos(r.check_in_at) : "—",
                 ];
               }),
@@ -721,6 +816,7 @@ async function handleHrOperationalReport(
       followUpSuggestions: getContextualFollowUpQuestions(caller, "hr", context),
       sourceMeta: {
         tablesQueried: ["hr_attendance_logs", "staff_profiles"],
+        sourcesLabel: formatFriendlySourceNames(["hr_attendance_logs", "staff_profiles"]),
         reportingPeriodLabel: intent.dateRange.label,
         timezone: ABILITY_TIMEZONE,
         fetchedAtIso: now.toISOString(),
@@ -731,7 +827,7 @@ async function handleHrOperationalReport(
     };
   }
 
-  // Default HR Report: Leave Schedule & Staff Leave Status (e.g. "staff on leave in the next three weeks")
+  // Default HR Report: Leave Schedule & Staff Leave Status
   const [leaveRes, staffRes] = await Promise.all([
     adapter.queryTable("hr_leave_requests", {
       orderBy: { column: "start_date", ascending: true },
@@ -751,7 +847,6 @@ async function handleHrOperationalReport(
   const staffMap = new Map<string, any>();
   allStaff.forEach((s: any) => staffMap.set(s.id, s));
 
-  // Determine date window: if user didn't specify a window on a leave query, default to next 21 days from today in Africa/Lagos
   const effectiveRange: ParsedDateRange =
     intent.dateRange.preset === "all_time" && /\b(who is|which staff|upcoming|on leave)\b/.test(q)
       ? {
@@ -792,16 +887,14 @@ async function handleHrOperationalReport(
     (r: any) => r.status === "rejected" || r.status === "cancelled"
   );
 
-  // Also check staff_profiles currently flagged with employment_status = 'on_leave'
   const currentlyOnLeaveProfiles = canViewAllLeave
     ? allStaff.filter((s: any) => s.employment_status === "on_leave")
     : [];
 
   const scopeDescription = canViewAllLeave
-    ? "Organization-wide HR leave visibility (Management / HR Manager)"
-    : "Personal HR leave scope (your role only permits viewing your own leave requests; organization-wide leave schedules require HR Manager, Operations Admin, MD, or Super Admin)";
+    ? "Organization-wide staff leave schedule"
+    : "Your personal leave records (organization-wide leave schedules are restricted to HR Manager, Operations Admin, Managing Director, and Super Admin)";
 
-  const totalMatching = approvedLeaves.length + pendingLeaves.length;
   const status: QueryResultStatus =
     leaveRows.length === 0 && currentlyOnLeaveProfiles.length === 0 ? "empty" : "ok";
 
@@ -811,30 +904,30 @@ async function handleHrOperationalReport(
 
   if (status === "empty") {
     markdownLines.push(
-      `The query against \`hr_leave_requests\` and \`staff_profiles\` succeeded and found **0 approved or pending leave records** overlapping **${effectiveRange.startDate || "start"} to ${effectiveRange.endDate || "end"}** (${ABILITY_TIMEZONE}).`
+      `No matching approved or pending leave records were found between **${effectiveRange.startDate || "the start date"}** and **${effectiveRange.endDate || "the end date"}**.`
     );
     if (!canViewAllLeave) {
       markdownLines.push(
-        `> **Scope Note:** Because your role is **${caller.roleLabel}** (\`${caller.role}\`), this check covers your personal leave records only. Organization-wide staff leave schedules are restricted to **Super Admin, Managing Director, Operations Admin, and HR Manager**.`
+        `> **Access Scope Note:** Your role (**${caller.roleLabel}**) only allows viewing your personal leave requests. Organization-wide staff leave schedules are available to **Managing Director, Super Admin, Operations Admin, and HR Manager**.`
       );
     }
   } else {
     markdownLines.push(
-      `Found **${formatCount(approvedLeaves.length)} approved** leave record(s) and **${formatCount(pendingLeaves.length)} pending / awaiting-review** request(s) overlapping **${effectiveRange.startDate || "all dates"} to ${effectiveRange.endDate || "all dates"}** (\`${ABILITY_TIMEZONE}\`).`
+      `Found **${formatCount(approvedLeaves.length)} approved** leave record(s) and **${formatCount(pendingLeaves.length)} pending** request(s) overlapping **${effectiveRange.startDate || "all dates"} to ${effectiveRange.endDate || "all dates"}**.`
     );
   }
 
   markdownLines.push(
-    `#### Verified Breakdown`,
-    `- **Approved Leave in Window:** ${formatCount(approvedLeaves.length)}`,
-    `- **Pending / Correction Requested:** ${formatCount(pendingLeaves.length)}`,
-    `- **Rejected / Cancelled in Window:** ${formatCount(rejectedOrCancelledLeaves.length)}`,
-    `- **Staff Profiles Marked \`on_leave\`:** ${formatCount(currentlyOnLeaveProfiles.length)}`,
-    `- **Visibility Scope Applied:** ${scopeDescription}`,
-    `#### Recommended Next Step`,
+    `#### Key Figures & Findings`,
+    `- **Approved Leave in Period:** ${formatCount(approvedLeaves.length)}`,
+    `- **Pending Review / Correction Requested:** ${formatCount(pendingLeaves.length)}`,
+    `- **Declined / Cancelled in Period:** ${formatCount(rejectedOrCancelledLeaves.length)}`,
+    `- **Staff Currently Marked On Leave:** ${formatCount(currentlyOnLeaveProfiles.length)}`,
+    `- **Access Scope:** ${scopeDescription}`,
+    `#### Recommended Next Action`,
     canViewAllLeave
-      ? `- Open [HR & Staff Portal](/admin/hr) → **Leave Management** to review pending requests or verify relief officer coverage.`
-      : `- Open [HR & Staff Portal](/admin/hr) → **Leave Management** to submit or track your personal leave requests.`
+      ? `- Open [HR & Staff Portal](/admin/hr) and select **Leave Management** to review pending requests or verify relief officer coverage.`
+      : `- Open [HR & Staff Portal](/admin/hr) and select **Leave Management** to submit or track your personal leave requests.`
   );
 
   const combinedForTable = [...approvedLeaves, ...pendingLeaves];
@@ -844,7 +937,7 @@ async function handleHrOperationalReport(
     intentType: "operational_report",
     moduleId: "hr",
     title: `Staff Leave Schedule (${effectiveRange.label})`,
-    summary: `${approvedLeaves.length} approved, ${pendingLeaves.length} pending leave requests in window.`,
+    summary: `${approvedLeaves.length} approved, ${pendingLeaves.length} pending leave requests in period.`,
     markdown: markdownLines.join("\n\n"),
     metrics: [
       { label: "Approved Leave", value: formatCount(approvedLeaves.length), tone: "emerald" },
@@ -854,12 +947,12 @@ async function handleHrOperationalReport(
         tone: pendingLeaves.length > 0 ? "amber" : "slate",
       },
       {
-        label: "Profiles On Leave",
+        label: "Currently On Leave",
         value: formatCount(currentlyOnLeaveProfiles.length),
         tone: "blue",
       },
       {
-        label: "Window",
+        label: "Period",
         value:
           effectiveRange.startDate && effectiveRange.endDate
             ? `${effectiveRange.startDate} → ${effectiveRange.endDate}`
@@ -870,17 +963,17 @@ async function handleHrOperationalReport(
     table:
       combinedForTable.length > 0
         ? {
-            caption: `Verified Leave Requests (${effectiveRange.label})`,
+            caption: `Staff Leave Requests (${effectiveRange.label})`,
             headers: ["Staff Member", "Leave Type", "Start Date", "End Date", "Days", "Status"],
             rows: combinedForTable.slice(0, 15).map((r: any) => {
               const st = staffMap.get(r.staff_profile_id);
               return [
                 st?.full_name || "Staff Member",
-                String(r.leave_type || "annual").replace(/_/g, " "),
+                formatReadableLabel(r.leave_type, "Annual"),
                 formatShortDate(r.start_date),
                 formatShortDate(r.end_date),
                 String(r.days_count ?? 1),
-                String(r.status || "pending").toUpperCase(),
+                formatReadableLabel(r.status, "Pending"),
               ];
             }),
           }
@@ -889,6 +982,7 @@ async function handleHrOperationalReport(
     followUpSuggestions: getContextualFollowUpQuestions(caller, "hr", context),
     sourceMeta: {
       tablesQueried: ["hr_leave_requests", "staff_profiles"],
+      sourcesLabel: formatFriendlySourceNames(["hr_leave_requests", "staff_profiles"]),
       reportingPeriodLabel: effectiveRange.label,
       timezone: ABILITY_TIMEZONE,
       fetchedAtIso: now.toISOString(),
@@ -970,18 +1064,18 @@ async function handleCacOperationalReport(
   const markdown = [
     prefix + `### CAC Filing & Incorporation Report (${intent.dateRange.label})`,
     filteredCac.length === 0
-      ? `The query against \`cac_applications\` succeeded and returned **0 matching CAC records** for **${intent.dateRange.label}**. (Total records in table across all dates: **${formatCount(allCac.length)}**).`
-      : `Verified **${formatCount(filteredCac.length)}** CAC application(s) in \`cac_applications\` for **${intent.dateRange.label}**.`,
-    `#### Pipeline Breakdown`,
+      ? `No matching CAC filing records were found for **${intent.dateRange.label}**. (Total filings across all dates: **${formatCount(allCac.length)}**).`
+      : `Found **${formatCount(filteredCac.length)}** CAC filing application(s) for **${intent.dateRange.label}**.`,
+    `#### Key Figures & Findings`,
     `- **Active / In-Progress Filings:** ${formatCount(activeFilings.length)}`,
-    `- **Waiting for Internal Review / Prep:** ${formatCount(waitingReviewFilings.length)} (\`intake\`, \`docs_collected\`, \`availability_check\`, \`name_reservation\`, \`internal_review\`)`,
-    `- **Submitted to CAC / Processing:** ${formatCount(submittedToCacFilings.length)} (\`submitted_to_cac\`, \`under_processing\`, \`certificate_issued\`)`,
-    `- **Queried by CAC (Requires Intervention):** ${formatCount(queriedFilings.length)}`,
-    `- **Overdue Past SLA Due Date:** ${formatCount(overdueFilings.length)}`,
-    `- **Approved / Completed:** ${formatCount(completedFilings.length)}`,
-    `#### Recommended Next Step`,
+    `- **Waiting for Internal Review & Preparation:** ${formatCount(waitingReviewFilings.length)} (Intake, Document Collection, Name Availability, Name Reservation, or Internal Review)`,
+    `- **Submitted to CAC / Under Processing:** ${formatCount(submittedToCacFilings.length)}`,
+    `- **Queried by CAC (Requires Immediate Attention):** ${formatCount(queriedFilings.length)}`,
+    `- **Overdue Past Target Due Date:** ${formatCount(overdueFilings.length)}`,
+    `- **Approved & Completed:** ${formatCount(completedFilings.length)}`,
+    `#### Recommended Next Action`,
     queriedFilings.length > 0 || overdueFilings.length > 0
-      ? `- Prioritize the **${formatCount(queriedFilings.length)} queried** and **${formatCount(overdueFilings.length)} overdue** application(s) in [CAC Operations](/admin/cac-operations) by uploading query response documents and advancing their stage.`
+      ? `- Prioritize the **${formatCount(queriedFilings.length)} queried** and **${formatCount(overdueFilings.length)} overdue** application(s) in [CAC Operations](/admin/cac-operations) by uploading supporting documents and updating their filing stage.`
       : `- Review the **${formatCount(waitingReviewFilings.length)}** application(s) in internal preparation in [CAC Operations](/admin/cac-operations).`,
   ].join("\n\n");
 
@@ -1008,7 +1102,7 @@ async function handleCacOperationalReport(
         tone: queriedFilings.length > 0 ? "rose" : "emerald",
       },
       {
-        label: "Overdue SLA",
+        label: "Overdue Target",
         value: formatCount(overdueFilings.length),
         tone: overdueFilings.length > 0 ? "amber" : "emerald",
       },
@@ -1016,13 +1110,13 @@ async function handleCacOperationalReport(
     table:
       focusList.length > 0
         ? {
-            caption: "CAC Applications Snapshot",
-            headers: ["Business / Proposed Name", "Service Type", "Current Stage", "Status", "SLA Due Date"],
+            caption: "CAC Filing Applications Snapshot",
+            headers: ["Business / Proposed Name", "Service Type", "Current Stage", "Status", "Target Due Date"],
             rows: focusList.slice(0, 12).map((c: any) => [
               c.business_name || c.proposed_name_1 || "Unnamed Application",
               c.service_type || "CAC Registration",
-              String(c.stage || "intake").replace(/_/g, " ").toUpperCase(),
-              String(c.status || "in_progress").replace(/_/g, " "),
+              formatReadableLabel(c.stage, "Intake"),
+              formatReadableLabel(c.status, "In Progress"),
               formatShortDate(c.sla_due_date),
             ]),
           }
@@ -1031,12 +1125,13 @@ async function handleCacOperationalReport(
     followUpSuggestions: getContextualFollowUpQuestions(caller, "cac_operations", context),
     sourceMeta: {
       tablesQueried: ["cac_applications"],
+      sourcesLabel: formatFriendlySourceNames(["cac_applications"]),
       reportingPeriodLabel: intent.dateRange.label,
       timezone: ABILITY_TIMEZONE,
       fetchedAtIso: now.toISOString(),
       fetchedAtFormatted: formatDateTimeLagos(now),
       roleApplied: caller.role,
-      scopeDescription: "Verified CAC pipeline query across all 11 stages and terminal statuses",
+      scopeDescription: "CAC filing pipeline across all stages",
     },
   };
 }
@@ -1087,15 +1182,15 @@ async function handleServiceRequestsReport(
   const markdown = [
     prefix + `### Service Requests Pipeline (${intent.dateRange.label})`,
     filtered.length === 0
-      ? `The query against \`service_requests\` succeeded and returned **0 service requests** for **${intent.dateRange.label}**.`
-      : `Verified **${formatCount(filtered.length)}** service request(s) for **${intent.dateRange.label}**.`,
-    `#### Status Summary`,
+      ? `No matching service requests were found for **${intent.dateRange.label}**.`
+      : `Found **${formatCount(filtered.length)}** client service request(s) for **${intent.dateRange.label}**.`,
+    `#### Key Figures & Findings`,
     `- **Awaiting Action / In Review / Queried:** ${formatCount(pendingOrReview.length)}`,
     `- **In Progress:** ${formatCount(inProgress.length)}`,
     `- **Overdue Past Due Date:** ${formatCount(overdue.length)}`,
     `- **Completed:** ${formatCount(completed.length)}`,
-    `#### Recommended Next Step`,
-    `- Open [Service Requests](/admin/service-requests) to assign unassigned requests, resolve queried items, or convert approved CAC requests into CAC applications.`,
+    `#### Recommended Next Action`,
+    `- Open [Service Requests](/admin/service-requests) to assign unassigned requests, resolve queried items, or convert approved CAC requests into active filings.`,
   ].join("\n\n");
 
   return {
@@ -1108,7 +1203,7 @@ async function handleServiceRequestsReport(
     metrics: [
       { label: "Total Requests", value: formatCount(filtered.length), tone: "blue" },
       {
-        label: "Needs Intervention",
+        label: "Needs Attention",
         value: formatCount(pendingOrReview.length),
         tone: pendingOrReview.length > 0 ? "amber" : "slate",
       },
@@ -1121,10 +1216,10 @@ async function handleServiceRequestsReport(
             caption: "Service Requests Snapshot",
             headers: ["Service Name", "Stage", "Status", "Priority", "Due Date"],
             rows: filtered.slice(0, 10).map((r: any) => [
-              r.custom_service_name || "Catalog Service Request",
-              String(r.progress_stage || "Intake"),
-              String(r.status || "pending").replace(/_/g, " "),
-              String(r.priority || "medium").toUpperCase(),
+              r.custom_service_name || "Catalogue Service Request",
+              formatReadableLabel(r.progress_stage, "Intake"),
+              formatReadableLabel(r.status, "Pending"),
+              formatReadableLabel(r.priority, "Medium"),
               formatShortDate(r.due_date),
             ]),
           }
@@ -1133,12 +1228,13 @@ async function handleServiceRequestsReport(
     followUpSuggestions: getContextualFollowUpQuestions(caller, "service_requests", context),
     sourceMeta: {
       tablesQueried: ["service_requests"],
+      sourcesLabel: formatFriendlySourceNames(["service_requests"]),
       reportingPeriodLabel: intent.dateRange.label,
       timezone: ABILITY_TIMEZONE,
       fetchedAtIso: now.toISOString(),
       fetchedAtFormatted: formatDateTimeLagos(now),
       roleApplied: caller.role,
-      scopeDescription: "Service requests intake and execution tracker",
+      scopeDescription: "Client service request pipeline",
     },
   };
 }
@@ -1170,9 +1266,9 @@ async function handleServicesCatalogReport(
   const markdown = [
     prefix + `### Service Catalogue Summary`,
     rows.length === 0
-      ? `The query against \`services_catalog\` succeeded and returned **0 configured services**.`
-      : `Verified **${formatCount(rows.length)}** service offering(s) in \`services_catalog\` (**${formatCount(activeRows.length)} active**).`,
-    `#### Recommended Next Step`,
+      ? `No matching services were found in the Service Catalogue.`
+      : `Found **${formatCount(rows.length)}** service offering(s) in the Service Catalogue (**${formatCount(activeRows.length)} active**).`,
+    `#### Recommended Next Action`,
     `- Open [Services Catalogue](/admin/services-catalog) to review base pricing, required document checklists, and turnaround times.`,
   ].join("\n\n");
 
@@ -1197,7 +1293,7 @@ async function handleServicesCatalogReport(
               s.category || "General",
               formatNgn(Number(s.base_price || 0)),
               s.estimated_turnaround || "Standard",
-              s.is_active !== false ? "ACTIVE" : "INACTIVE",
+              s.is_active !== false ? "Active" : "Inactive",
             ]),
           }
         : undefined,
@@ -1205,19 +1301,19 @@ async function handleServicesCatalogReport(
     followUpSuggestions: getContextualFollowUpQuestions(caller, "services_catalog", context),
     sourceMeta: {
       tablesQueried: ["services_catalog"],
+      sourcesLabel: formatFriendlySourceNames(["services_catalog"]),
       reportingPeriodLabel: "Current Catalogue",
       timezone: ABILITY_TIMEZONE,
       fetchedAtIso: now.toISOString(),
       fetchedAtFormatted: formatDateTimeLagos(now),
       roleApplied: caller.role,
-      scopeDescription: "Master service definitions",
+      scopeDescription: "Service Catalogue offerings",
     },
   };
 }
 
 /**
  * Finance Operational Report (Invoices, Payments, Quotations, Expenses, Vendors)
- * Strictly gated by finance.view and aggregates each table independently to prevent join fan-out double-counting.
  */
 async function handleFinanceOperationalReport(
   intent: ClassifiedIntent,
@@ -1257,7 +1353,6 @@ async function handleFinanceOperationalReport(
   const expenses = filterByRange(expRes.data || [], "expense_date");
   const vendors = venRes.data || [];
 
-  // Aggregate independently per table (zero join fan-out)
   const validInvoices = invoices.filter((i: any) => i.status !== "cancelled");
   const totalInvoicedNgn = validInvoices.reduce((sum: number, i: any) => sum + Number(i.total_amount || 0), 0);
   const outstandingInvoices = validInvoices.filter((i: any) =>
@@ -1286,21 +1381,21 @@ async function handleFinanceOperationalReport(
   const status: QueryResultStatus = totalRecordsCount === 0 ? "empty" : "ok";
 
   const markdown = [
-    prefix + `### Financial & Billing Intelligence (${intent.dateRange.label})`,
+    prefix + `### Financial & Billing Summary (${intent.dateRange.label})`,
     totalRecordsCount === 0
-      ? `The query across \`invoices\`, \`payments\`, \`quotations\`, and \`expenses\` succeeded and found **0 financial records** for **${intent.dateRange.label}**.`
-      : `Verified financial ledger summary for **${intent.dateRange.label}** (each ledger table aggregated independently to prevent join double-counting).`,
-    `#### Verified Figures`,
+      ? `No matching invoices, payments, quotations, or expenses were found for **${intent.dateRange.label}**.`
+      : `Financial summary for **${intent.dateRange.label}** across Invoices, Payments, Quotations, and Expenses.`,
+    `#### Key Figures & Findings`,
     `- **Total Invoiced (${formatCount(validInvoices.length)} active invoices):** ${formatNgn(totalInvoicedNgn)}`,
     `- **Verified Payments Collected (${formatCount(verifiedPayments.length)} receipts):** ${formatNgn(totalCollectedNgn)}`,
-    `- **Outstanding Receivables (${formatCount(outstandingInvoices.length)} unpaid/partial/overdue invoices):** ${formatNgn(totalOutstandingNgn)}`,
-    `- **Payments Pending Reconciliation (${formatCount(pendingReconciliationPayments.length)} receipts):** ${formatNgn(pendingReconciliationNgn)}`,
-    `- **Approved / Paid Expenses (${formatCount(approvedExpenses.length)} vouchers):** ${formatNgn(totalExpensesNgn)}`,
-    `- **Net Verified Cash Position (Collections minus Expenses):** ${formatNgn(netCashflowNgn)}`,
-    `- **Quotations (${formatCount(quotations.length)}) & Active Vendors (${formatCount(vendors.filter((v: any) => v.is_active !== false).length)}):** Tracked in [Quotations](/admin/quotations) and [Vendors](/admin/vendors).`,
-    `#### Recommended Next Step`,
+    `- **Outstanding Balance Due (${formatCount(outstandingInvoices.length)} unpaid, partial, or overdue invoices):** ${formatNgn(totalOutstandingNgn)}`,
+    `- **Payments Pending Verification (${formatCount(pendingReconciliationPayments.length)} receipts):** ${formatNgn(pendingReconciliationNgn)}`,
+    `- **Approved & Paid Expenses (${formatCount(approvedExpenses.length)} vouchers):** ${formatNgn(totalExpensesNgn)}`,
+    `- **Net Cash Position (Verified Collections minus Approved Expenses):** ${formatNgn(netCashflowNgn)}`,
+    `- **Quotations (${formatCount(quotations.length)}) & Active Vendors (${formatCount(vendors.filter((v: any) => v.is_active !== false).length)}):** Available in [Quotations](/admin/quotations) and [Vendors](/admin/vendors).`,
+    `#### Recommended Next Action`,
     pendingReconciliationPayments.length > 0
-      ? `- Reconcile the **${formatCount(pendingReconciliationPayments.length)} pending payment(s)** (${formatNgn(pendingReconciliationNgn)}) in [Payments](/admin/payments) and follow up on **${formatCount(outstandingInvoices.length)} outstanding invoice(s)** in [Invoices](/admin/invoices).`
+      ? `- Verify the **${formatCount(pendingReconciliationPayments.length)} pending payment receipt(s)** (${formatNgn(pendingReconciliationNgn)}) in [Payments](/admin/payments) and follow up on **${formatCount(outstandingInvoices.length)} outstanding invoice(s)** in [Invoices](/admin/invoices).`
       : `- Review the **${formatCount(outstandingInvoices.length)} outstanding invoice(s)** (${formatNgn(totalOutstandingNgn)}) in [Invoices](/admin/invoices).`,
   ].join("\n\n");
 
@@ -1323,7 +1418,7 @@ async function handleFinanceOperationalReport(
         tone: totalOutstandingNgn > 0 ? "amber" : "slate",
       },
       {
-        label: "Pending Reconciliation",
+        label: "Pending Verification",
         value: formatCount(pendingReconciliationPayments.length),
         subtext: formatNgn(pendingReconciliationNgn),
         tone: pendingReconciliationPayments.length > 0 ? "rose" : "emerald",
@@ -1338,9 +1433,9 @@ async function handleFinanceOperationalReport(
             rows: payments.slice(0, 10).map((p: any) => [
               formatShortDate(p.payment_date || p.created_at),
               p.reference_number || "—",
-              String(p.payment_method || "bank_transfer").replace(/_/g, " "),
+              formatReadableLabel(p.payment_method, "Bank Transfer"),
               formatNgn(Number(p.amount || 0)),
-              String(p.status || "pending").toUpperCase(),
+              formatReadableLabel(p.status, "Pending"),
             ]),
           }
         : undefined
@@ -1354,7 +1449,7 @@ async function handleFinanceOperationalReport(
               e.category || "Operations",
               e.description || "—",
               formatNgn(Number(e.amount || 0)),
-              String(e.status || "pending").toUpperCase(),
+              formatReadableLabel(e.status, "Pending"),
             ]),
           }
         : undefined
@@ -1367,7 +1462,7 @@ async function handleFinanceOperationalReport(
             const paid = Number(inv.paid_amount || 0);
             return [
               inv.invoice_number || "INV",
-              String(inv.status || "unpaid").toUpperCase(),
+              formatReadableLabel(inv.status, "Unpaid"),
               formatNgn(total),
               formatNgn(paid),
               formatNgn(Math.max(0, total - paid)),
@@ -1380,12 +1475,13 @@ async function handleFinanceOperationalReport(
     followUpSuggestions: getContextualFollowUpQuestions(caller, intent.primaryModule, context),
     sourceMeta: {
       tablesQueried: ["invoices", "payments", "quotations", "expenses", "vendors"],
+      sourcesLabel: formatFriendlySourceNames(["invoices", "payments", "quotations", "expenses", "vendors"]),
       reportingPeriodLabel: intent.dateRange.label,
       timezone: ABILITY_TIMEZONE,
       fetchedAtIso: now.toISOString(),
       fetchedAtFormatted: formatDateTimeLagos(now),
       roleApplied: caller.role,
-      scopeDescription: "Authorized finance ledger query (independent table aggregation)",
+      scopeDescription: "Finance & billing summary",
     },
   };
 }
@@ -1432,14 +1528,14 @@ async function handleReferralsOperationalReport(
   const markdown = [
     prefix + `### Referrals & Spin & Earn Report (${intent.dateRange.label})`,
     status === "empty"
-      ? `The query against \`referrals\` and \`spin_rewards\` succeeded and returned **0 referral or reward records** for **${intent.dateRange.label}**.`
-      : `Verified **${formatCount(referrals.length)}** referral(s) and **${formatCount(rewards.length)}** Spin & Earn reward record(s).`,
-    `#### Verified Breakdown`,
-    `- **Referrals Needing Follow-Up (\`pending\`, \`contacted\`, \`qualified\`):** ${formatCount(needsFollowUp.length)}`,
+      ? `No matching referral or Spin & Earn reward records were found for **${intent.dateRange.label}**.`
+      : `Found **${formatCount(referrals.length)}** referral(s) and **${formatCount(rewards.length)}** Spin & Earn reward record(s).`,
+    `#### Key Figures & Findings`,
+    `- **Referrals Needing Follow-Up (Pending, Contacted, or Qualified):** ${formatCount(needsFollowUp.length)}`,
     `- **Converted Referrals:** ${formatCount(convertedReferrals.length)}`,
-    `- **Rewards Awaiting Approval / Fulfillment:** ${formatCount(awaitingFulfillment.length)}`,
+    `- **Rewards Awaiting Approval or Fulfillment:** ${formatCount(awaitingFulfillment.length)}`,
     `- **Fulfilled Rewards:** ${formatCount(fulfilledRewards.length)}`,
-    `#### Recommended Next Step`,
+    `#### Recommended Next Action`,
     `- Open [Referrals & Spin & Earn](/admin/referrals) to contact pending referrals or fulfil approved rewards.`,
   ].join("\n\n");
 
@@ -1473,8 +1569,8 @@ async function handleReferralsOperationalReport(
               r.referrer_name || r.referrer_code || "Partner",
               r.referred_name || "Prospect",
               r.service_needed || "General",
-              String(r.status || "pending").toUpperCase(),
-              String(r.reward_status || "pending").toUpperCase(),
+              formatReadableLabel(r.status, "Pending"),
+              formatReadableLabel(r.reward_status, "Pending"),
             ]),
           }
         : undefined,
@@ -1482,12 +1578,13 @@ async function handleReferralsOperationalReport(
     followUpSuggestions: getContextualFollowUpQuestions(caller, "referrals", context),
     sourceMeta: {
       tablesQueried: ["referrals", "spin_rewards"],
+      sourcesLabel: formatFriendlySourceNames(["referrals", "spin_rewards"]),
       reportingPeriodLabel: intent.dateRange.label,
       timezone: ABILITY_TIMEZONE,
       fetchedAtIso: now.toISOString(),
       fetchedAtFormatted: formatDateTimeLagos(now),
       roleApplied: caller.role,
-      scopeDescription: "Referral conversion and Spin & Earn fulfillment tracker",
+      scopeDescription: "Referral conversion and Spin & Earn fulfillment",
     },
   };
 }
@@ -1535,15 +1632,15 @@ async function handleCrmLeadsAndFollowUpsReport(
   const markdown = [
     prefix + `### CRM Leads, Follow-Ups & Communications (${intent.dateRange.label})`,
     status === "empty"
-      ? `The query across \`leads\`, \`follow_ups\`, and \`client_communications\` succeeded and found **0 matching CRM records**.`
-      : `Verified **${formatCount(leads.length)}** lead(s), **${formatCount(pendingFollowUps.length)}** pending follow-up(s), and **${formatCount(comms.length)}** communication log(s).`,
-    `#### CRM Pipeline Metrics`,
-    `- **Active Leads (\`new\`, \`contacted\`, \`qualified\`, \`proposal_sent\`):** ${formatCount(activeLeads.length)}`,
+      ? `No matching leads, follow-ups, or communication logs were found for **${intent.dateRange.label}**.`
+      : `Found **${formatCount(leads.length)}** lead(s), **${formatCount(pendingFollowUps.length)}** pending follow-up(s), and **${formatCount(comms.length)}** client communication log(s).`,
+    `#### Key Figures & Findings`,
+    `- **Active Leads (New, Contacted, Qualified, or Proposal Sent):** ${formatCount(activeLeads.length)}`,
     `- **Converted / Won Leads:** ${formatCount(wonLeads.length)}`,
     `- **Pending Follow-Ups:** ${formatCount(pendingFollowUps.length)} (**${formatCount(overdueFollowUps.length)} overdue**)`,
     `- **Logged Client Communications:** ${formatCount(comms.length)}`,
-    `#### Recommended Next Step`,
-    `- Open [Leads](/admin/leads) or [Follow-ups](/admin/follow-ups) to action overdue callbacks and convert qualified leads.`,
+    `#### Recommended Next Action`,
+    `- Open [Leads](/admin/leads) or [Follow-ups](/admin/follow-ups) to complete overdue callbacks and convert qualified leads into clients.`,
   ].join("\n\n");
 
   return {
@@ -1561,7 +1658,7 @@ async function handleCrmLeadsAndFollowUpsReport(
         value: formatCount(overdueFollowUps.length),
         tone: overdueFollowUps.length > 0 ? "rose" : "emerald",
       },
-      { label: "Comm Logs", value: formatCount(comms.length), tone: "slate" },
+      { label: "Communication Logs", value: formatCount(comms.length), tone: "slate" },
     ],
     table:
       leads.length > 0
@@ -1572,7 +1669,7 @@ async function handleCrmLeadsAndFollowUpsReport(
               l.full_name || l.company_name || "Prospect",
               l.service_interest || "General Inquiry",
               l.source || "Direct",
-              String(l.status || "new").toUpperCase(),
+              formatReadableLabel(l.status, "New"),
               formatShortDate(l.created_at),
             ]),
           }
@@ -1581,6 +1678,7 @@ async function handleCrmLeadsAndFollowUpsReport(
     followUpSuggestions: getContextualFollowUpQuestions(caller, intent.primaryModule, context),
     sourceMeta: {
       tablesQueried: ["leads", "follow_ups", "client_communications"],
+      sourcesLabel: formatFriendlySourceNames(["leads", "follow_ups", "client_communications"]),
       reportingPeriodLabel: intent.dateRange.label,
       timezone: ABILITY_TIMEZONE,
       fetchedAtIso: now.toISOString(),
@@ -1635,14 +1733,14 @@ async function handleClientsAndBusinessesReport(
   const markdown = [
     prefix + `### Clients 360° & Registered Businesses (${intent.dateRange.label})`,
     status === "empty"
-      ? `The query against \`clients\` and \`businesses\` succeeded and found **0 records** for **${intent.dateRange.label}**.`
-      : `Verified **${formatCount(clients.length)}** client profile(s) and **${formatCount(businesses.length)}** corporate business entity record(s).`,
-    `#### Key Metrics`,
+      ? `No matching client or business records were found for **${intent.dateRange.label}**.`
+      : `Found **${formatCount(clients.length)}** client profile(s) and **${formatCount(businesses.length)}** registered business entity record(s).`,
+    `#### Key Figures & Findings`,
     `- **Active Clients:** ${formatCount(activeClients.length)} (**${formatCount(verifiedKyc.length)} KYC Verified**)`,
     `- **Registered Business Entities:** ${formatCount(businesses.length)}`,
-    `- **Businesses with Annual Returns Due/Overdue:** ${formatCount(dueAnnualReturns.length)}`,
-    `#### Recommended Next Step`,
-    `- Manage client profiles in [Clients 360°](/admin/clients) and track RC/BN compliance in [Businesses](/admin/businesses).`,
+    `- **Businesses with Annual Returns Due or Overdue:** ${formatCount(dueAnnualReturns.length)}`,
+    `#### Recommended Next Action`,
+    `- Manage client records in [Clients 360°](/admin/clients) and track RC/BN compliance in [Businesses](/admin/businesses).`,
   ].join("\n\n");
 
   return {
@@ -1669,9 +1767,9 @@ async function handleClientsAndBusinessesReport(
             headers: ["Full Name", "Type", "Status", "KYC Status", "Joined"],
             rows: clients.slice(0, 10).map((c: any) => [
               c.full_name || "Client",
-              String(c.client_type || "individual").toUpperCase(),
-              String(c.status || "active").toUpperCase(),
-              String(c.kyc_status || "pending").toUpperCase(),
+              formatReadableLabel(c.client_type, "Individual"),
+              formatReadableLabel(c.status, "Active"),
+              formatReadableLabel(c.kyc_status, "Pending"),
               formatShortDate(c.created_at),
             ]),
           }
@@ -1680,12 +1778,13 @@ async function handleClientsAndBusinessesReport(
     followUpSuggestions: getContextualFollowUpQuestions(caller, intent.primaryModule, context),
     sourceMeta: {
       tablesQueried: ["clients", "businesses"],
+      sourcesLabel: formatFriendlySourceNames(["clients", "businesses"]),
       reportingPeriodLabel: intent.dateRange.label,
       timezone: ABILITY_TIMEZONE,
       fetchedAtIso: now.toISOString(),
       fetchedAtFormatted: formatDateTimeLagos(now),
       roleApplied: caller.role,
-      scopeDescription: "Client 360 and corporate entity directory",
+      scopeDescription: "Client and registered business directory",
     },
   };
 }
@@ -1728,31 +1827,31 @@ async function handleTasksOperationalReport(
   const status: QueryResultStatus = allTasks.length === 0 ? "empty" : "ok";
 
   const markdown = [
-    prefix + `### Tasks & SLA Execution Report`,
+    prefix + `### Tasks & Deadlines Report`,
     allTasks.length === 0
-      ? `The query against \`tasks\` succeeded and returned **0 task records**.`
-      : `Verified **${formatCount(allTasks.length)}** total task(s) (**${formatCount(openTasks.length)} open**, **${formatCount(overdueTasks.length)} overdue**).`,
-    `#### SLA & Workload Breakdown`,
-    `- **Open Tasks (\`todo\`, \`in_progress\`, \`review\`, \`blocked\`):** ${formatCount(openTasks.length)}`,
+      ? `No matching task records were found.`
+      : `Found **${formatCount(allTasks.length)}** total task(s) (**${formatCount(openTasks.length)} open**, **${formatCount(overdueTasks.length)} overdue**).`,
+    `#### Key Figures & Findings`,
+    `- **Open Tasks (To Do, In Progress, In Review, or Blocked):** ${formatCount(openTasks.length)}`,
     `- **Overdue Tasks (Due prior to ${todayYmd}):** ${formatCount(overdueTasks.length)}`,
     `- **High / Urgent Priority Open Tasks:** ${formatCount(urgentTasks.length)}`,
     `- **Blocked Tasks:** ${formatCount(blockedTasks.length)}`,
     `- **Completed Tasks:** ${formatCount(completedTasks.length)}`,
-    `#### Recommended Next Step`,
-    `- Open [Tasks](/admin/tasks) to update status on overdue items or clear blocked dependencies.`,
+    `#### Recommended Next Action`,
+    `- Open [Tasks](/admin/tasks) to update progress on overdue items or resolve blocked tasks.`,
   ].join("\n\n");
 
   return {
     status,
     intentType: "operational_report",
     moduleId: "tasks",
-    title: "Tasks & SLA Tracker",
+    title: "Tasks & Deadlines Tracker",
     summary: `${openTasks.length} open tasks (${overdueTasks.length} overdue, ${urgentTasks.length} high/urgent).`,
     markdown,
     metrics: [
       { label: "Open Tasks", value: formatCount(openTasks.length), tone: "blue" },
       {
-        label: "Overdue SLA",
+        label: "Overdue",
         value: formatCount(overdueTasks.length),
         tone: overdueTasks.length > 0 ? "rose" : "emerald",
       },
@@ -1770,8 +1869,8 @@ async function handleTasksOperationalReport(
             headers: ["Task Title", "Priority", "Status", "Due Date"],
             rows: openTasks.slice(0, 12).map((t: any) => [
               t.title || "Task",
-              String(t.priority || "medium").toUpperCase(),
-              String(t.status || "todo").replace(/_/g, " ").toUpperCase(),
+              formatReadableLabel(t.priority, "Medium"),
+              formatReadableLabel(t.status, "To Do"),
               formatShortDate(t.due_date),
             ]),
           }
@@ -1780,12 +1879,13 @@ async function handleTasksOperationalReport(
     followUpSuggestions: getContextualFollowUpQuestions(caller, "tasks", context),
     sourceMeta: {
       tablesQueried: ["tasks"],
+      sourcesLabel: formatFriendlySourceNames(["tasks"]),
       reportingPeriodLabel: intent.dateRange.label,
       timezone: ABILITY_TIMEZONE,
       fetchedAtIso: now.toISOString(),
       fetchedAtFormatted: formatDateTimeLagos(now),
       roleApplied: caller.role,
-      scopeDescription: "Operational tasks and SLA deadlines",
+      scopeDescription: "Operational tasks and deadlines",
     },
   };
 }
@@ -1816,9 +1916,9 @@ async function handleDocumentsReport(
   const markdown = [
     prefix + `### Document Vault Summary`,
     docs.length === 0
-      ? `The query against \`documents\` succeeded and found **0 uploaded document records**.`
-      : `Verified **${formatCount(docs.length)}** document metadata record(s) in the Document Vault.`,
-    `#### Recommended Next Step`,
+      ? `No matching uploaded document records were found in the Document Vault.`
+      : `Found **${formatCount(docs.length)}** document record(s) in the Document Vault.`,
+    `#### Recommended Next Action`,
     `- Open [Documents](/admin/documents) to filter by document type (Certificate, Status Report, KYC ID, Receipt) or upload new client files.`,
   ].join("\n\n");
 
@@ -1847,12 +1947,13 @@ async function handleDocumentsReport(
     followUpSuggestions: getContextualFollowUpQuestions(caller, "documents", context),
     sourceMeta: {
       tablesQueried: ["documents"],
+      sourcesLabel: formatFriendlySourceNames(["documents"]),
       reportingPeriodLabel: intent.dateRange.label,
       timezone: ABILITY_TIMEZONE,
       fetchedAtIso: now.toISOString(),
       fetchedAtFormatted: formatDateTimeLagos(now),
       roleApplied: caller.role,
-      scopeDescription: "Document Vault metadata index",
+      scopeDescription: "Document Vault index",
     },
   };
 }
@@ -1885,13 +1986,13 @@ async function handleStaffAndRbacReport(
   const status: QueryResultStatus = staff.length === 0 ? "empty" : "ok";
 
   const markdown = [
-    prefix + `### Staff Directory & RBAC Maker-Checker Queue`,
-    `Verified **${formatCount(staff.length)}** staff profile(s) (**${formatCount(activeStaff.length)} active**) and **${formatCount(pendingApprovals.length)}** pending maker-checker approval request(s).`,
-    `#### Governance Summary`,
+    prefix + `### Staff Directory & Role Approvals`,
+    `Found **${formatCount(staff.length)}** staff profile(s) (**${formatCount(activeStaff.length)} active**) and **${formatCount(pendingApprovals.length)}** pending role or status approval request(s).`,
+    `#### Key Figures & Findings`,
     `- **Active Staff Accounts:** ${formatCount(activeStaff.length)}`,
-    `- **Pending Staff Change Requests (\`staff_change_requests\`):** ${formatCount(pendingApprovals.length)}`,
-    `- **Maker-Checker Rule:** Operations Admin and HR Manager submit role/status change requests; **Super Admin** and **Managing Director** approve or reject them.`,
-    `#### Recommended Next Step`,
+    `- **Pending Staff Role / Status Approvals:** ${formatCount(pendingApprovals.length)}`,
+    `- **Approval Rule:** Operations Admin and HR Manager submit role or status change requests; **Super Admin** and **Managing Director** approve or decline them.`,
+    `#### Recommended Next Action`,
     `- Open [Staff & RBAC](/admin/team) to review staff assignments or process pending approval requests.`,
   ].join("\n\n");
 
@@ -1899,7 +2000,7 @@ async function handleStaffAndRbacReport(
     status,
     intentType: "operational_report",
     moduleId: "team",
-    title: "Staff & RBAC Governance",
+    title: "Staff & Role Governance",
     summary: `${activeStaff.length} active staff; ${pendingApprovals.length} pending approval requests.`,
     markdown,
     metrics: [
@@ -1914,14 +2015,14 @@ async function handleStaffAndRbacReport(
     table:
       staff.length > 0
         ? {
-            caption: "Staff Profiles & Canonical Roles",
+            caption: "Staff Directory & Assigned Roles",
             headers: ["Full Name", "Role", "Department", "Employment Status", "Active"],
             rows: staff.slice(0, 12).map((s: any) => [
-              s.full_name || s.email || "Staff",
-              String(s.role || "viewer").replace(/_/g, " "),
+              s.full_name || s.email || "Staff Member",
+              formatReadableLabel(s.role, "Staff Observer"),
               s.department || "Operations",
-              String(s.employment_status || "active").replace(/_/g, " ").toUpperCase(),
-              s.is_active !== false ? "YES" : "NO",
+              formatReadableLabel(s.employment_status, "Active"),
+              s.is_active !== false ? "Yes" : "No",
             ]),
           }
         : undefined,
@@ -1929,12 +2030,13 @@ async function handleStaffAndRbacReport(
     followUpSuggestions: getContextualFollowUpQuestions(caller, "team", context),
     sourceMeta: {
       tablesQueried: ["staff_profiles", "staff_change_requests"],
-      reportingPeriodLabel: "Current RBAC State",
+      sourcesLabel: formatFriendlySourceNames(["staff_profiles", "staff_change_requests"]),
+      reportingPeriodLabel: "Current Directory",
       timezone: ABILITY_TIMEZONE,
       fetchedAtIso: now.toISOString(),
       fetchedAtFormatted: formatDateTimeLagos(now),
       roleApplied: caller.role,
-      scopeDescription: "Staff RBAC and maker-checker approval queue",
+      scopeDescription: "Staff directory and role approval queue",
     },
   };
 }
@@ -1964,34 +2066,36 @@ async function handleAuditLogsReport(
   const status: QueryResultStatus = audits.length === 0 && activities.length === 0 ? "empty" : "ok";
 
   const markdown = [
-    prefix + `### Audit Logs & Activity Timeline`,
-    `Retrieved **${formatCount(audits.length)}** recent security audit event(s) and **${formatCount(activities.length)}** operational timeline event(s).`,
-    `#### Recommended Next Step`,
-    `- Open [Audit Logs](/admin/audit-logs) to filter immutable logs by actor email, role, or entity type.`,
+    prefix + `### Security Audit & Activity History`,
+    status === "empty"
+      ? `No matching security audit or activity timeline events were found.`
+      : `Retrieved **${formatCount(audits.length)}** recent security audit event(s) and **${formatCount(activities.length)}** operational activity event(s).`,
+    `#### Recommended Next Action`,
+    `- Open [Audit Logs](/admin/audit-logs) to filter activity history by staff member, role, or record type.`,
   ].join("\n\n");
 
   return {
     status,
     intentType: "operational_report",
     moduleId: "audit_logs",
-    title: "Security Audit & Activity Logs",
+    title: "Security Audit & Activity History",
     summary: `${audits.length} audit events and ${activities.length} timeline events retrieved.`,
     markdown,
     metrics: [
       { label: "Audit Events", value: formatCount(audits.length), tone: "blue" },
-      { label: "Timeline Events", value: formatCount(activities.length), tone: "slate" },
+      { label: "Activity Events", value: formatCount(activities.length), tone: "slate" },
     ],
     table:
       audits.length > 0
         ? {
-            caption: "Recent Security Audit Logs",
-            headers: ["Timestamp", "Actor", "Role", "Action", "Entity"],
+            caption: "Recent Security Audit Events",
+            headers: ["Timestamp", "Staff Member", "Role", "Action", "Record Type"],
             rows: audits.slice(0, 10).map((a: any) => [
               formatDateTimeLagos(a.created_at),
               a.actor_email || "System",
-              a.actor_role || "—",
-              a.action || "event",
-              a.entity_type || "—",
+              formatReadableLabel(a.actor_role, "—"),
+              formatReadableLabel(a.action, "Event"),
+              formatReadableLabel(a.entity_type, "—"),
             ]),
           }
         : undefined,
@@ -1999,12 +2103,13 @@ async function handleAuditLogsReport(
     followUpSuggestions: getContextualFollowUpQuestions(caller, "audit_logs", context),
     sourceMeta: {
       tablesQueried: ["audit_logs", "activity_timeline"],
+      sourcesLabel: formatFriendlySourceNames(["audit_logs", "activity_timeline"]),
       reportingPeriodLabel: intent.dateRange.label,
       timezone: ABILITY_TIMEZONE,
       fetchedAtIso: now.toISOString(),
       fetchedAtFormatted: formatDateTimeLagos(now),
       roleApplied: caller.role,
-      scopeDescription: "Immutable audit trail",
+      scopeDescription: "Security audit and activity history",
     },
   };
 }
@@ -2036,10 +2141,10 @@ async function handleSettingsAndBankReport(
   const markdown = [
     prefix + `### Business Profile & Settlement Bank Settings`,
     profile
-      ? `Verified corporate profile for **${profile.company_name || "ABLEBIZ"}** (RC: \`${profile.rc_number || "N/A"}\`, Invoice Prefix: \`${profile.invoice_prefix || "INV"}\`) and **${formatCount(activeBanks.length)} active bank account(s)**.`
-      : `Verified **${formatCount(activeBanks.length)}** active settlement bank account(s).`,
-    `#### Recommended Next Step`,
-    `- Open [Settings](/admin/settings) to update corporate branding, invoice prefixes, or settlement bank details.`,
+      ? `Configured company profile for **${profile.company_name || "ABLEBIZ"}** (RC Number: **${profile.rc_number || "N/A"}**, Invoice Prefix: **${profile.invoice_prefix || "INV"}**) with **${formatCount(activeBanks.length)} active settlement bank account(s)**.`
+      : `Found **${formatCount(activeBanks.length)}** active settlement bank account(s).`,
+    `#### Recommended Next Action`,
+    `- Open [Settings](/admin/settings) to update company branding, invoice numbering, or settlement bank account details.`,
   ].join("\n\n");
 
   return {
@@ -2056,14 +2161,14 @@ async function handleSettingsAndBankReport(
     table:
       banks.length > 0
         ? {
-            caption: "Configured Settlement Bank Accounts",
-            headers: ["Bank Name", "Account Name", "Account Number", "Primary", "Active"],
+            caption: "Settlement Bank Accounts",
+            headers: ["Bank Name", "Account Name", "Account Number", "Primary", "Status"],
             rows: banks.map((b: any) => [
               b.bank_name || "Bank",
               b.account_name || "ABLEBIZ",
               b.account_number || "—",
-              b.is_primary ? "PRIMARY" : "Secondary",
-              b.is_active !== false ? "ACTIVE" : "INACTIVE",
+              b.is_primary ? "Primary" : "Secondary",
+              b.is_active !== false ? "Active" : "Inactive",
             ]),
           }
         : undefined,
@@ -2071,12 +2176,13 @@ async function handleSettingsAndBankReport(
     followUpSuggestions: getContextualFollowUpQuestions(caller, "settings", context),
     sourceMeta: {
       tablesQueried: ["business_profile", "business_bank_accounts"],
+      sourcesLabel: formatFriendlySourceNames(["business_profile", "business_bank_accounts"]),
       reportingPeriodLabel: "Current Settings",
       timezone: ABILITY_TIMEZONE,
       fetchedAtIso: now.toISOString(),
       fetchedAtFormatted: formatDateTimeLagos(now),
       roleApplied: caller.role,
-      scopeDescription: "Organization configuration",
+      scopeDescription: "Company profile and settlement bank settings",
     },
   };
 }
@@ -2115,9 +2221,11 @@ async function handleNotificationsReport(
     summary: `${unread.length} unread notifications out of ${rows.length}.`,
     markdown: [
       prefix + `### System Notifications`,
-      `You have **${formatCount(unread.length)} unread notification(s)** out of **${formatCount(rows.length)}** recent alerts.`,
-      `#### Recommended Next Step`,
-      `- Open [Notifications](/admin/notifications) to view and mark alerts as read.`,
+      rows.length === 0
+        ? `No matching notifications were found in your inbox.`
+        : `You have **${formatCount(unread.length)} unread notification(s)** out of **${formatCount(rows.length)}** recent alerts.`,
+      `#### Recommended Next Action`,
+      `- Open [Notifications](/admin/notifications) to review and mark alerts as read.`,
     ].join("\n\n"),
     metrics: [
       { label: "Unread Alerts", value: formatCount(unread.length), tone: unread.length > 0 ? "amber" : "emerald" },
@@ -2127,12 +2235,13 @@ async function handleNotificationsReport(
     followUpSuggestions: getContextualFollowUpQuestions(caller, "dashboard", context),
     sourceMeta: {
       tablesQueried: ["notifications"],
+      sourcesLabel: formatFriendlySourceNames(["notifications"]),
       reportingPeriodLabel: "Current Session",
       timezone: ABILITY_TIMEZONE,
       fetchedAtIso: now.toISOString(),
       fetchedAtFormatted: formatDateTimeLagos(now),
       roleApplied: caller.role,
-      scopeDescription: "User notification inbox",
+      scopeDescription: "Notification inbox",
     },
   };
 }
@@ -2180,7 +2289,6 @@ async function handleManagementAttentionReport(
         : Promise.resolve({ data: [], error: null }),
     ]);
 
-  // If primary operational tables errored, report the error truthfully instead of returning 0s
   if (hasOps && tasksRes.error && cacRes.error) {
     return buildErrorOrSchemaPayload(caller, "dashboard", intent, "tasks", tasksRes.error, now);
   }
@@ -2248,18 +2356,18 @@ async function handleManagementAttentionReport(
   const bulletPoints: string[] = [];
   if (hasOps) {
     bulletPoints.push(
-      `- **Tasks & SLA:** **${formatCount(overdueTasks.length)} overdue task(s)** and **${formatCount(urgentTasks.length)} high/urgent task(s)** requiring execution.`
+      `- **Tasks & Deadlines:** **${formatCount(overdueTasks.length)} overdue task(s)** and **${formatCount(urgentTasks.length)} high/urgent task(s)** requiring attention.`
     );
     bulletPoints.push(
       `- **CAC Operations:** **${formatCount(queriedCac.length)} queried filing(s)** and **${formatCount(activeCac.length)} active incorporation(s)** in progress.`
     );
     bulletPoints.push(
-      `- **Service Requests:** **${formatCount(pendingSr.length)} request(s)** awaiting review, assignment, or intervention.`
+      `- **Service Requests:** **${formatCount(pendingSr.length)} request(s)** awaiting review, assignment, or follow-up.`
     );
   }
   if (hasCrm) {
     bulletPoints.push(
-      `- **CRM & Follow-Ups:** **${formatCount(overdueFollowUps.length)} overdue follow-up(s)** and **${formatCount(newLeads.length)} uncontacted new lead(s)**.`
+      `- **CRM & Follow-Ups:** **${formatCount(overdueFollowUps.length)} overdue follow-up(s)** and **${formatCount(newLeads.length)} new uncontacted lead(s)**.`
     );
   }
   if (hasFinance) {
@@ -2269,7 +2377,7 @@ async function handleManagementAttentionReport(
   }
   if (caller.isManagement || caller.hrAccess.canViewAllLeave) {
     bulletPoints.push(
-      `- **Governance & HR Approvals:** **${formatCount(pendingLeaveApprovals.length)} pending leave request(s)** and **${formatCount(pendingStaffChanges.length)} pending staff RBAC change request(s)**.`
+      `- **Staff & Leave Approvals:** **${formatCount(pendingLeaveApprovals.length)} pending leave request(s)** and **${formatCount(pendingStaffChanges.length)} pending staff role change request(s)**.`
     );
   }
 
@@ -2283,13 +2391,13 @@ async function handleManagementAttentionReport(
     pendingStaffChanges.length;
 
   const markdown = [
-    prefix + `### Executive Operational Attention Summary`,
+    prefix + `### Executive Operational Summary`,
     totalActionItems === 0
-      ? `All verified queues authorized for **${caller.roleLabel}** were checked as of **${formatDateTimeLagos(now)}** (\`${ABILITY_TIMEZONE}\`). There are currently **0 overdue or critical bottleneck items**.`
-      : `Verified operational bottlenecks requiring attention for **${caller.roleLabel}** as of **${formatDateTimeLagos(now)}** (\`${ABILITY_TIMEZONE}\`):`,
-    `#### Key Action Queues`,
+      ? `All workspaces available to **${caller.roleLabel}** were checked as of **${formatDateTimeLagos(now)}**. There are currently **no overdue or critical items** requiring urgent intervention.`
+      : `Priority items requiring attention for **${caller.roleLabel}** as of **${formatDateTimeLagos(now)}**:`,
+    `#### What Requires Attention`,
     ...bulletPoints,
-    `#### Recommended Next Step`,
+    `#### Recommended Next Action`,
     queriedCac.length > 0
       ? `- Resolve the **${formatCount(queriedCac.length)} queried CAC application(s)** in [CAC Operations](/admin/cac-operations) and clear the **${formatCount(overdueTasks.length)} overdue task(s)** in [Tasks](/admin/tasks).`
       : `- Review your active work queues in [Manager Workbench](/admin/dashboard) or [Tasks](/admin/tasks).`,
@@ -2300,7 +2408,7 @@ async function handleManagementAttentionReport(
     intentType: "operational_report",
     moduleId: intent.primaryModule,
     title: "Operational Attention Summary",
-    summary: `${totalActionItems} priority items across your authorized Suite modules.`,
+    summary: `${totalActionItems} priority items across your authorized Suite workspaces.`,
     markdown,
     metrics: [
       {
@@ -2337,12 +2445,13 @@ async function handleManagementAttentionReport(
     followUpSuggestions: getContextualFollowUpQuestions(caller, "dashboard", context),
     sourceMeta: {
       tablesQueried,
+      sourcesLabel: formatFriendlySourceNames(tablesQueried),
       reportingPeriodLabel: intent.dateRange.label,
       timezone: ABILITY_TIMEZONE,
       fetchedAtIso: now.toISOString(),
       fetchedAtFormatted: formatDateTimeLagos(now),
       roleApplied: caller.role,
-      scopeDescription: `Role-scoped operational overview for ${caller.roleLabel}`,
+      scopeDescription: `Operational overview for ${caller.roleLabel}`,
     },
   };
 }

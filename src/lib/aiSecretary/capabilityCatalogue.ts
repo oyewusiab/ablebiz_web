@@ -1365,8 +1365,77 @@ function buildRolePermissionsList(role: CanonicalStaffRole): string[] {
   }
 }
 
+const FRIENDLY_SOURCE_LABELS: Record<string, string> = {
+  clients: "Client Directory",
+  businesses: "Registered Business Records",
+  leads: "CRM Leads Pipeline",
+  follow_ups: "Client Follow-up Schedule",
+  client_communications: "Client Communication Logs",
+  services_catalog: "Services Catalogue",
+  service_requests: "Service Requests",
+  cac_applications: "CAC Filing Records",
+  tasks: "Operational Tasks & Deadlines",
+  documents: "Document Vault",
+  quotations: "Quotations",
+  invoices: "Invoices Ledger",
+  payments: "Payment Receipts",
+  expenses: "Operating Expenses",
+  vendors: "Vendor Directory",
+  referrals: "Referral Records",
+  spin_rewards: "Spin & Earn Rewards",
+  reports: "Executive Reports",
+  hr_leave_requests: "Staff Leave Records",
+  hr_attendance_logs: "Attendance Records",
+  hr_documents: "HR Documents",
+  hr_announcements: "Staff Announcements",
+  staff_profiles: "Staff Directory",
+  staff_change_requests: "Staff Approval Requests",
+  roles_permissions: "Role Permission Rules",
+  audit_logs: "Security Audit Trail",
+  activity_timeline: "Activity Timeline",
+  business_profile: "Company Profile Settings",
+  business_bank_accounts: "Settlement Bank Accounts",
+  notifications: "Staff Notifications",
+};
+
 /**
- * Helper to build an AssistantCallerContext from either AuthContext values or a caller descriptor.
+ * Converts internal table names into business-friendly source labels for user-facing display.
+ */
+export function formatFriendlySourceNames(tables: string[]): string {
+  if (!tables || tables.length === 0) return "Verified Suite Guidance";
+  const labels = Array.from(
+    new Set(
+      tables.map((t) => {
+        const clean = t.replace(/^public\./, "").trim();
+        return FRIENDLY_SOURCE_LABELS[clean] || clean.replace(/_/g, " ");
+      })
+    )
+  );
+  return labels.join(" • ");
+}
+
+function sanitizeDisplayName(candidate: string | null | undefined, email?: string | null): string | null {
+  if (!candidate || typeof candidate !== "string") return null;
+  const trimmed = candidate.trim();
+  if (!trimmed) return null;
+  // Never use an email address or the raw local-part of the user's email (e.g. oyewusi.adebayo1) as a person's display name
+  if (trimmed.includes("@")) return null;
+  if (email) {
+    const emailPrefix = email.split("@")[0]?.trim().toLowerCase();
+    if (emailPrefix && trimmed.toLowerCase() === emailPrefix) {
+      return null;
+    }
+  }
+  if (/^[a-z0-9._-]+$/i.test(trimmed) && /[._\d]/.test(trimmed) && !trimmed.includes(" ")) {
+    return null;
+  }
+  return trimmed;
+}
+
+/**
+ * Helper to build an AssistantCallerContext from AuthContext values (profile, hasPermission, user)
+ * or a caller descriptor object.
+ * Never trusts job_title for authorization and never falls back to an email prefix for greetings.
  */
 export function buildCallerContext(
   profileOrParams:
@@ -1376,37 +1445,137 @@ export function buildCallerContext(
         userId?: string | null;
         userName?: string | null;
         email?: string | null;
+        jobTitle?: string | null;
+        department?: string | null;
         profile?: AssistantCallerContext["profile"];
-      },
-  hasPermissionFn?: AssistantCallerContext["hasPermission"]
+        user?: {
+          id?: string;
+          name?: string;
+          email?: string;
+          role?: string;
+          department?: string;
+        } | null;
+      }
+    | null,
+  hasPermissionFn?: AssistantCallerContext["hasPermission"],
+  suiteUser?: {
+    id?: string;
+    name?: string;
+    email?: string;
+    role?: string;
+    department?: string;
+  } | null
 ): AssistantCallerContext {
   const isDescriptor =
     profileOrParams !== null &&
     typeof profileOrParams === "object" &&
-    ("userId" in profileOrParams || "userName" in profileOrParams || !("is_active" in profileOrParams));
+    ("userId" in profileOrParams ||
+      "userName" in profileOrParams ||
+      "jobTitle" in profileOrParams ||
+      "user" in profileOrParams ||
+      !("is_active" in profileOrParams));
 
-  const rawRole = isDescriptor
-    ? (profileOrParams as any).role
-    : (profileOrParams as any)?.role;
-  const canonicalRole = normalizeStaffRole(rawRole);
-  const roleTitle = getRoleTitle(canonicalRole);
-  const permissions = buildRolePermissionsList(canonicalRole);
+  const resolvedProfile: AssistantCallerContext["profile"] = isDescriptor
+    ? (profileOrParams as any)?.profile || null
+    : (profileOrParams as any) || null;
+
+  const resolvedSuiteUser = isDescriptor
+    ? (profileOrParams as any)?.user || suiteUser || null
+    : suiteUser || null;
+
+  const rawProfileRole = resolvedProfile?.role ? String(resolvedProfile.role).trim() : "";
+  const rawUserRole = resolvedSuiteUser?.role ? String(resolvedSuiteUser.role).trim() : "";
+  const rawDescriptorRole =
+    isDescriptor && (profileOrParams as any)?.role
+      ? String((profileOrParams as any).role).trim()
+      : "";
+
+  // Check if identity & role sources are present and consistent
+  const hasAnyRoleSource = Boolean(rawProfileRole || rawUserRole || rawDescriptorRole);
+  let identityVerified = hasAnyRoleSource;
+  let identityWarning: string | undefined;
+
+  if (resolvedProfile && resolvedProfile.is_active === false) {
+    identityVerified = false;
+    identityWarning =
+      "Your staff profile is currently marked inactive. Access is restricted until an administrator activates your profile.";
+  } else if (
+    rawProfileRole &&
+    rawUserRole &&
+    normalizeStaffRole(rawProfileRole) !== normalizeStaffRole(rawUserRole)
+  ) {
+    identityVerified = false;
+    identityWarning =
+      "Your session role and staff profile role did not match. Enforcing your verified staff profile role.";
+  } else if (!hasAnyRoleSource) {
+    identityVerified = false;
+    identityWarning =
+      "Your staff role could not be verified for this session. Showing read-only guidance until your profile finishes loading.";
+  }
+
+  // Authoritative role resolution: staff_profiles.role -> suiteUser.role -> descriptor.role (never job_title!)
+  const authoritativeRawRole = rawProfileRole || rawUserRole || rawDescriptorRole;
+  const canonicalRole: CanonicalStaffRole = hasAnyRoleSource
+    ? normalizeStaffRole(authoritativeRawRole)
+    : "viewer";
+
+  const roleTitle = hasAnyRoleSource
+    ? getRoleTitle(canonicalRole)
+    : "Unverified Staff Identity";
+
+  // Separate job title from authorization role
+  const rawJobTitle =
+    resolvedProfile?.job_title ||
+    (isDescriptor ? (profileOrParams as any)?.jobTitle : null) ||
+    null;
+  const jobTitle = rawJobTitle && String(rawJobTitle).trim() ? String(rawJobTitle).trim() : null;
+
+  const department =
+    resolvedProfile?.department ||
+    resolvedSuiteUser?.department ||
+    (isDescriptor ? (profileOrParams as any)?.department : null) ||
+    null;
+
+  const email =
+    resolvedProfile?.email ||
+    resolvedSuiteUser?.email ||
+    (isDescriptor ? (profileOrParams as any)?.email : null) ||
+    null;
+
+  const userId =
+    resolvedProfile?.id ||
+    resolvedSuiteUser?.id ||
+    (isDescriptor ? (profileOrParams as any)?.userId : null) ||
+    null;
+
+  // Resolve clean human display name (never a raw email handle like oyewusi.adebayo1)
+  const userName =
+    sanitizeDisplayName(resolvedProfile?.full_name, email) ||
+    sanitizeDisplayName(resolvedSuiteUser?.name, email) ||
+    sanitizeDisplayName(isDescriptor ? (profileOrParams as any)?.userName : null, email) ||
+    "Staff Member";
+
+  const permissions = hasAnyRoleSource
+    ? buildRolePermissionsList(canonicalRole)
+    : ["workbench.view"];
+
   const isManagement =
-    canonicalRole === "super_admin" ||
-    canonicalRole === "admin" ||
-    canonicalRole === "operations_manager";
+    hasAnyRoleSource &&
+    (canonicalRole === "super_admin" ||
+      canonicalRole === "admin" ||
+      canonicalRole === "operations_manager");
 
-  const canManageHr = canAccessHrManagementWorkspace(canonicalRole);
+  const canManageHr = hasAnyRoleSource && canAccessHrManagementWorkspace(canonicalRole);
   const hrAccess = {
-    canViewDirectory: true,
+    canViewDirectory: hasAnyRoleSource,
     canManageStaffRecords: canManageHr,
-    canSubmitOwnLeave: true,
+    canSubmitOwnLeave: hasAnyRoleSource,
     canViewAllLeave: canManageHr,
     canApproveLeave: canManageHr,
-    canLogOwnAttendance: true,
+    canLogOwnAttendance: hasAnyRoleSource,
     canViewAllAttendance: canManageHr,
     canManageShiftSettings: canManageHr,
-    canViewHrDocuments: true,
+    canViewHrDocuments: hasAnyRoleSource,
     canManageHrDocuments: canManageHr,
     canPostAnnouncements: canManageHr,
   };
@@ -1415,6 +1584,7 @@ export function buildCallerContext(
     module: string,
     action: string = "view"
   ) => {
+    if (!hasAnyRoleSource) return false;
     if (canonicalRole === "super_admin" || canonicalRole === "admin") return true;
     const key = `${module}.${action}`;
     if (permissions.includes(key)) return true;
@@ -1424,29 +1594,35 @@ export function buildCallerContext(
     return false;
   };
 
-  const userId = isDescriptor
-    ? (profileOrParams as any).userId || null
-    : (profileOrParams as any)?.id || null;
-  const userName = isDescriptor
-    ? (profileOrParams as any).userName || "Staff"
-    : (profileOrParams as any)?.full_name || "Staff";
-  const email = isDescriptor
-    ? (profileOrParams as any).email || null
-    : (profileOrParams as any)?.email || null;
+  const effectiveHasPermission: AssistantCallerContext["hasPermission"] = (
+    module: string,
+    action: any = "view"
+  ) => {
+    if (!hasAnyRoleSource) return false;
+    if (hasPermissionFn) {
+      return hasPermissionFn(module, action);
+    }
+    return defaultHasPermission(module, action);
+  };
 
   return {
-    profile: isDescriptor ? (profileOrParams as any).profile || null : (profileOrParams as any),
+    profile: resolvedProfile,
     canonicalRole,
     role: canonicalRole,
     roleTitle,
     roleLabel: roleTitle,
+    jobTitle,
+    department,
     userId,
     userName,
     email,
+    identityVerified,
+    identityWarning,
     permissions,
     isManagement,
     hrAccess,
-    hasPermission: hasPermissionFn || defaultHasPermission,
+    hasPermission: effectiveHasPermission,
   };
 }
+
 

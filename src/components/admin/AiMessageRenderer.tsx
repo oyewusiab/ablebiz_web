@@ -23,7 +23,10 @@ import {
   AssistantResponsePayload,
   QueryResultStatus,
 } from "../../lib/aiSecretary/types";
-import { canCallerAccessRoute } from "../../lib/aiSecretary/capabilityCatalogue";
+import {
+  canCallerAccessRoute,
+  formatFriendlySourceNames,
+} from "../../lib/aiSecretary/capabilityCatalogue";
 
 /**
  * Validates and classifies a Markdown href so unsafe protocols (javascript:, data:, vbscript:)
@@ -72,37 +75,37 @@ function getStatusBadgeMeta(status: QueryResultStatus): {
   switch (status) {
     case "ok":
       return {
-        label: "Verified Data",
+        label: "Verified",
         className: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60",
         icon: <CheckCircle2 className="w-3.5 h-3.5" />,
       };
     case "empty":
       return {
-        label: "0 Matching Records",
+        label: "No Matching Records",
         className: "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
         icon: <Database className="w-3.5 h-3.5" />,
       };
     case "permission_denied":
       return {
-        label: "Role Restricted",
+        label: "Access Restricted",
         className: "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60",
         icon: <Lock className="w-3.5 h-3.5" />,
       };
     case "schema_pending":
       return {
-        label: "Schema Migration Pending",
+        label: "Workspace Setup Pending",
         className: "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60",
         icon: <AlertTriangle className="w-3.5 h-3.5" />,
       };
     case "query_error":
       return {
-        label: "Query Error",
+        label: "Request Incomplete",
         className: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/60",
         icon: <ShieldAlert className="w-3.5 h-3.5" />,
       };
     case "unsupported":
       return {
-        label: "Not Implemented",
+        label: "Feature Unavailable",
         className: "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
         icon: <HelpCircle className="w-3.5 h-3.5" />,
       };
@@ -517,15 +520,17 @@ export const AiMessageRenderer: React.FC<AiMessageRendererProps> = ({
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1 font-medium">
               <Database className="w-3 h-3" />
-              {payload.sourceMeta.tablesQueried.length > 0
-                ? `Sources: ${payload.sourceMeta.tablesQueried.join(", ")}`
+              {payload.sourceMeta.sourcesLabel
+                ? `Source: ${payload.sourceMeta.sourcesLabel}`
+                : payload.sourceMeta.tablesQueried.length > 0
+                ? `Source: ${formatFriendlySourceNames(payload.sourceMeta.tablesQueried)}`
                 : payload.sourceMeta.scopeDescription}
             </span>
           </div>
           <div className="flex items-center gap-1.5 font-medium">
             <Clock className="w-3 h-3" />
             <span>
-              As of {payload.sourceMeta.fetchedAtFormatted} ({payload.sourceMeta.timezone})
+              Updated {payload.sourceMeta.fetchedAtFormatted}
             </span>
           </div>
         </div>

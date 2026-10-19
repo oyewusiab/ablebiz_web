@@ -1,5 +1,6 @@
 import {
   AssistantCallerContext,
+  AssistantTopicFilterId,
   ClassifiedIntent,
   ConversationContext,
   SuiteModuleId,
@@ -18,25 +19,25 @@ const UNSUPPORTED_FEATURE_PATTERNS: UnsupportedFeaturePattern[] = [
     pattern: /\b(payroll|payslip|pay slip|salary disbursement|tax deduction|paye|pension calculation)\b/i,
     moduleId: "hr",
     reason:
-      "Automated payroll calculation, tax/pension deductions, and payslip generation are not implemented in ABLEBIZ SUITE. The HR module currently supports Staff Directory, Leave Management, Attendance & Shift Settings, HR Documents, and Staff Announcements.",
+      "Automated payroll calculation, tax or pension deductions, and payslip generation are not part of ABLEBIZ SUITE. The HR & Staff Portal currently supports the Staff Directory, Leave Management, Attendance & Shift Settings, HR Documents, and Staff Announcements.",
   },
   {
     pattern: /\b(biometric|fingerprint|facial recognition|gps check[- ]?in|geofence attendance)\b/i,
     moduleId: "hr",
     reason:
-      "Hardware biometric or GPS geofenced attendance is not connected. Attendance in ABLEBIZ SUITE is recorded via the interactive Check In / Check Out controls in the HR & Staff Portal (`/admin/hr`).",
+      "Biometric hardware and GPS geofenced attendance are not connected. Daily attendance in ABLEBIZ SUITE is recorded using the Check In and Check Out controls in the HR & Staff Portal (/admin/hr).",
   },
   {
     pattern: /\b(paystack|flutterwave|stripe|auto[- ]?reconcil|bank webhook|direct debit|online payment gateway)\b/i,
     moduleId: "payments",
     reason:
-      "Automated payment gateway webhooks and live bank API feeds are not integrated. Payments are recorded and verified manually against bank transfer references or receipts in `/admin/payments`.",
+      "Automated payment gateway webhooks and live bank feeds are not connected. Payments are recorded and verified manually against bank transfer references or receipts in Payments (/admin/payments).",
   },
   {
     pattern: /\b(client login|customer portal|client self[- ]?service password|customer account login)\b/i,
     moduleId: "clients",
     reason:
-      "ABLEBIZ SUITE does not provide a password-authenticated client self-service portal. Public visitors can submit leads, service requests, and referral codes via the public website, while authenticated staff manage client records in `/admin/clients`.",
+      "ABLEBIZ SUITE does not include a password-protected client login portal. Prospective clients can submit inquiries, service requests, and referral codes on the public website, while staff manage client records in Clients 360° (/admin/clients).",
   },
 ];
 
@@ -58,13 +59,35 @@ const FOLLOW_UP_PATTERNS: RegExp[] = [
   /^(why can't i|why cannot i|why is the button)\b/i,
 ];
 
+const TECHNICAL_DIAGNOSTICS_PATTERN =
+  /\b(diagnostic|diagnostics|technical detail|table name|database schema|sql|debug|error code)\b/i;
+
+function mapTopicHintToModule(topicHint?: AssistantTopicFilterId): SuiteModuleId | undefined {
+  switch (topicHint) {
+    case "management":
+      return "dashboard";
+    case "cac_operations":
+      return "cac_operations";
+    case "finance":
+      return "invoices";
+    case "referrals_crm":
+      return "referrals";
+    case "staff_hr":
+      return "hr";
+    default:
+      return undefined;
+  }
+}
+
 /**
  * Detects target module from query text with priority ordering.
+ * Returns `explicitMatch: true` when the query text itself names a specific domain,
+ * so an explicit question always overrides an optional category hint.
  */
 export function detectModuleFromText(
   normalizedQuery: string,
   fallbackModule?: SuiteModuleId
-): { moduleId: SuiteModuleId; subIntent?: string } {
+): { moduleId: SuiteModuleId; subIntent?: string; explicitMatch: boolean } {
   const q = normalizedQuery.toLowerCase();
 
   // 1. HR & Staff Leave / Attendance / HR Documents / Announcements
@@ -74,18 +97,18 @@ export function detectModuleFromText(
     )
   ) {
     if (/\b(leave|on leave|vacation|time off|absence)\b/.test(q)) {
-      return { moduleId: "hr", subIntent: "leave" };
+      return { moduleId: "hr", subIntent: "leave", explicitMatch: true };
     }
     if (/\b(attendance|check[- ]?in|check[- ]?out|late|absent|present|shift)\b/.test(q)) {
-      return { moduleId: "hr", subIntent: "attendance" };
+      return { moduleId: "hr", subIntent: "attendance", explicitMatch: true };
     }
     if (/\b(announcement|notice)\b/.test(q)) {
-      return { moduleId: "hr", subIntent: "announcements" };
+      return { moduleId: "hr", subIntent: "announcements", explicitMatch: true };
     }
     if (/\b(hr document|handbook|policy|contract)\b/.test(q)) {
-      return { moduleId: "hr", subIntent: "hr_documents" };
+      return { moduleId: "hr", subIntent: "hr_documents", explicitMatch: true };
     }
-    return { moduleId: "hr", subIntent: "overview" };
+    return { moduleId: "hr", subIntent: "overview", explicitMatch: true };
   }
 
   // 2. CAC Operations & Filing Pipeline
@@ -97,75 +120,75 @@ export function detectModuleFromText(
       !/\b(leave application)\b/.test(q))
   ) {
     if (/\b(overdue|stalled|queried|delayed|attention)\b/.test(q)) {
-      return { moduleId: "cac_operations", subIntent: "overdue_or_queried" };
+      return { moduleId: "cac_operations", subIntent: "overdue_or_queried", explicitMatch: true };
     }
     if (/\b(review|awaiting|waiting|pending|submission)\b/.test(q)) {
-      return { moduleId: "cac_operations", subIntent: "waiting_review" };
+      return { moduleId: "cac_operations", subIntent: "waiting_review", explicitMatch: true };
     }
-    return { moduleId: "cac_operations", subIntent: "summary" };
+    return { moduleId: "cac_operations", subIntent: "summary", explicitMatch: true };
   }
 
   // 3. Service Catalogue vs Service Requests
   if (/\b(service catalog|services catalog|service catalogue|services catalogue|base price|turnaround|service offering)\b/.test(q)) {
-    return { moduleId: "services_catalog", subIntent: "summary" };
+    return { moduleId: "services_catalog", subIntent: "summary", explicitMatch: true };
   }
   if (/\b(service request|service requests|intake request|intervention)\b/.test(q)) {
-    return { moduleId: "service_requests", subIntent: "summary" };
+    return { moduleId: "service_requests", subIntent: "summary", explicitMatch: true };
   }
 
   // 4. Finance: Quotations, Invoices, Payments, Expenses, Vendors
   if (/\b(quotation|quotations|quote|quotes)\b/.test(q)) {
-    return { moduleId: "quotations", subIntent: "summary" };
+    return { moduleId: "quotations", subIntent: "summary", explicitMatch: true };
   }
   if (/\b(invoice|invoices|unpaid bill|receivable|outstanding balance|overdue invoice)\b/.test(q)) {
-    return { moduleId: "invoices", subIntent: "summary" };
+    return { moduleId: "invoices", subIntent: "summary", explicitMatch: true };
   }
   if (/\b(payment|payments|reconcil|receipt|collection|collected|revenue|paid amount)\b/.test(q)) {
-    return { moduleId: "payments", subIntent: "summary" };
+    return { moduleId: "payments", subIntent: "summary", explicitMatch: true };
   }
   if (/\b(expense|expenses|expenditure|outflow|cost|operating cost)\b/.test(q)) {
-    return { moduleId: "expenses", subIntent: "summary" };
+    return { moduleId: "expenses", subIntent: "summary", explicitMatch: true };
   }
   if (/\b(vendor|vendors|supplier|suppliers)\b/.test(q)) {
-    return { moduleId: "vendors", subIntent: "summary" };
+    return { moduleId: "vendors", subIntent: "summary", explicitMatch: true };
   }
   if (/\b(finance|financial|cashflow|net cash|billing|accounting)\b/.test(q)) {
-    return { moduleId: "invoices", subIntent: "finance_overview" };
+    return { moduleId: "invoices", subIntent: "finance_overview", explicitMatch: true };
   }
 
   // 5. Referrals & Spin & Earn
   if (/\b(referral|referrals|referred|spin|wheel|reward|rewards|partner|commission|fulfillment|fulfilment)\b/.test(q)) {
     if (/\b(reward|spin|fulfil|awaiting)\b/.test(q)) {
-      return { moduleId: "referrals", subIntent: "rewards" };
+      return { moduleId: "referrals", subIntent: "rewards", explicitMatch: true };
     }
-    return { moduleId: "referrals", subIntent: "summary" };
+    return { moduleId: "referrals", subIntent: "summary", explicitMatch: true };
   }
 
   // 6. CRM: Leads, Follow-ups, Communications, Clients, Businesses
   if (/\b(follow[- ]?up|follow[- ]?ups|callback|scheduled call)\b/.test(q)) {
-    return { moduleId: "follow_ups", subIntent: "summary" };
+    return { moduleId: "follow_ups", subIntent: "summary", explicitMatch: true };
   }
   if (/\b(lead|leads|prospect|crm pipeline|inquiry|inquiries)\b/.test(q)) {
-    return { moduleId: "leads", subIntent: "summary" };
+    return { moduleId: "leads", subIntent: "summary", explicitMatch: true };
   }
   if (/\b(communication|communications|message log|whatsapp log|email log|call log)\b/.test(q)) {
-    return { moduleId: "communications", subIntent: "summary" };
+    return { moduleId: "communications", subIntent: "summary", explicitMatch: true };
   }
   if (/\b(registered business|businesses|rc number|bn number|tin|annual return)\b/.test(q)) {
-    return { moduleId: "businesses", subIntent: "summary" };
+    return { moduleId: "businesses", subIntent: "summary", explicitMatch: true };
   }
   if (/\b(client|clients|customer|customers|kyc)\b/.test(q)) {
-    return { moduleId: "clients", subIntent: "summary" };
+    return { moduleId: "clients", subIntent: "summary", explicitMatch: true };
   }
 
   // 7. Tasks & SLA
   if (/\b(task|tasks|sla|deadline|deadlines|to[- ]?do|assigned to me|blocked task)\b/.test(q)) {
-    return { moduleId: "tasks", subIntent: "summary" };
+    return { moduleId: "tasks", subIntent: "summary", explicitMatch: true };
   }
 
   // 8. Documents Vault
   if (/\b(document|documents|vault|upload|certificate file|status report file)\b/.test(q)) {
-    return { moduleId: "documents", subIntent: "summary" };
+    return { moduleId: "documents", subIntent: "summary", explicitMatch: true };
   }
 
   // 9. Staff Provisioning, RBAC & Approvals
@@ -174,32 +197,32 @@ export function detectModuleFromText(
       q
     )
   ) {
-    return { moduleId: "team", subIntent: "summary" };
+    return { moduleId: "team", subIntent: "summary", explicitMatch: true };
   }
 
   // 10. Audit Logs & Activity Timeline
   if (/\b(audit logs?|audit trail|activity timeline|security logs?|security audit|who changed|history of changes)\b/.test(q)) {
-    return { moduleId: "audit_logs", subIntent: "summary" };
+    return { moduleId: "audit_logs", subIntent: "summary", explicitMatch: true };
   }
 
   // 11. Settings & Bank Accounts
   if (/\b(bank account|company setting|business profile|invoice prefix|tax rate|stamp|signature)\b/.test(q)) {
-    return { moduleId: "settings", subIntent: "summary" };
+    return { moduleId: "settings", subIntent: "summary", explicitMatch: true };
   }
 
   // 12. Password & Account Security
   if (/\b(change password|reset password|update password|my password)\b/.test(q)) {
-    return { moduleId: "change_password", subIntent: "summary" };
+    return { moduleId: "change_password", subIntent: "summary", explicitMatch: true };
   }
 
   // 13. Notifications
   if (/\b(notification|notifications|unread alert|alerts)\b/.test(q)) {
-    return { moduleId: "notifications", subIntent: "summary" };
+    return { moduleId: "notifications", subIntent: "summary", explicitMatch: true };
   }
 
   // 14. Executive Reports
   if (/\b(executive report|operational summary|analytics|kpi report|monthly report)\b/.test(q)) {
-    return { moduleId: "reports", subIntent: "summary" };
+    return { moduleId: "reports", subIntent: "summary", explicitMatch: true };
   }
 
   // 15. Attention / Workbench / Overview
@@ -208,40 +231,46 @@ export function detectModuleFromText(
       q
     )
   ) {
-    return { moduleId: "dashboard", subIntent: "attention" };
+    return {
+      moduleId: fallbackModule || "dashboard",
+      subIntent: "attention",
+      explicitMatch: false,
+    };
   }
 
   if (fallbackModule) {
-    return { moduleId: fallbackModule, subIntent: "summary" };
+    return { moduleId: fallbackModule, subIntent: "summary", explicitMatch: false };
   }
 
-  return { moduleId: "dashboard", subIntent: "attention" };
+  return { moduleId: "dashboard", subIntent: "attention", explicitMatch: false };
 }
 
 /**
  * Classifies a user query into a structured intent with module, date range,
- * security flags, and conversational follow-up awareness.
+ * security flags, optional topic hint, and conversational follow-up awareness.
  */
 export function classifyAssistantIntent(
   rawQuery: string,
   caller: AssistantCallerContext,
   context?: ConversationContext,
-  referenceDate: Date = new Date()
+  referenceDate: Date = new Date(),
+  topicHint?: AssistantTopicFilterId
 ): ClassifiedIntent {
   const normalizedQuery = rawQuery.trim();
   const lower = normalizedQuery.toLowerCase();
+  const wantsTechnicalDiagnostics = TECHNICAL_DIAGNOSTICS_PATTERN.test(normalizedQuery);
 
   // Check for role spoofing attempts
   let isRoleSpoofingAttempt = false;
   for (const pattern of ROLE_SPOOF_PATTERNS) {
     if (pattern.test(normalizedQuery)) {
-      // If they claim to be a role they are not, or ask to bypass RLS/permissions
       if (
         lower.includes("bypass") ||
         lower.includes("ignore") ||
         lower.includes("override") ||
         lower.includes("service_role") ||
-        !lower.includes(caller.role.toLowerCase())
+        (!lower.includes(caller.role.toLowerCase()) &&
+          !lower.includes(caller.roleLabel.toLowerCase()))
       ) {
         isRoleSpoofingAttempt = true;
         break;
@@ -266,6 +295,7 @@ export function classifyAssistantIntent(
         isFollowUp: false,
         isRoleSpoofingAttempt,
         isWriteMutationAttempt,
+        wantsTechnicalDiagnostics,
         unsupportedReason: item.reason,
       };
     }
@@ -277,10 +307,13 @@ export function classifyAssistantIntent(
     (FOLLOW_UP_PATTERNS.some((p) => p.test(normalizedQuery)) ||
       normalizedQuery.split(/\s+/).length <= 5);
 
-  const detected = detectModuleFromText(
-    normalizedQuery,
-    isFollowUp ? context?.lastModuleId : undefined
-  );
+  const hintModule = mapTopicHintToModule(topicHint);
+  const fallbackModule = isFollowUp
+    ? context?.lastModuleId || hintModule
+    : hintModule;
+
+  const detected = detectModuleFromText(normalizedQuery, fallbackModule);
+  const topicHintApplied = !detected.explicitMatch && Boolean(hintModule);
 
   // Parse date range; if follow-up doesn't specify a new date range and is asking a filter question, inherit or default
   let dateRange = parseQueryDateRange(normalizedQuery, referenceDate);
@@ -309,6 +342,7 @@ export function classifyAssistantIntent(
       isFollowUp,
       isRoleSpoofingAttempt,
       isWriteMutationAttempt,
+      wantsTechnicalDiagnostics,
     };
   }
 
@@ -327,6 +361,7 @@ export function classifyAssistantIntent(
       isFollowUp,
       isRoleSpoofingAttempt,
       isWriteMutationAttempt,
+      wantsTechnicalDiagnostics,
       subIntent: detected.subIntent,
     };
   }
@@ -346,18 +381,24 @@ export function classifyAssistantIntent(
       isFollowUp,
       isRoleSpoofingAttempt,
       isWriteMutationAttempt,
+      wantsTechnicalDiagnostics,
       subIntent: detected.subIntent,
     };
   }
 
-  // Check for Suite Guide ("How do I...", "Where can I...", "Steps to...", or write-mutation redirect)
-  const matchedGuide = matchGuideTopic(normalizedQuery);
+  // Check for Suite Guide ("How do I...", "Where can I...", "Steps to...", topicHint === "suite_guide" on an ambiguous query, or write-mutation redirect)
+  const matchedGuide = matchGuideTopic(normalizedQuery, detected.moduleId);
   const isExplicitHowTo =
     /^(how do i|how can i|how to|where can i|where do i|steps to|guide me|explain how|walk me through)\b/i.test(
       normalizedQuery
     );
 
-  if (isExplicitHowTo || (matchedGuide && !/\b(which|how many|show|list|count|total|who is)\b/i.test(normalizedQuery))) {
+  if (
+    isExplicitHowTo ||
+    (matchedGuide &&
+      !/\b(which|how many|show|list|count|total|who is)\b/i.test(normalizedQuery)) ||
+    (topicHint === "suite_guide" && !detected.explicitMatch)
+  ) {
     return {
       intentType: "suite_guide",
       primaryModule: matchedGuide?.moduleId || detected.moduleId,
@@ -367,6 +408,8 @@ export function classifyAssistantIntent(
       isFollowUp,
       isRoleSpoofingAttempt,
       isWriteMutationAttempt,
+      wantsTechnicalDiagnostics,
+      topicHintApplied,
       guideTopicId: matchedGuide?.id,
       subIntent: detected.subIntent,
     };
@@ -382,6 +425,8 @@ export function classifyAssistantIntent(
     isFollowUp,
     isRoleSpoofingAttempt,
     isWriteMutationAttempt,
+    wantsTechnicalDiagnostics,
+    topicHintApplied,
     guideTopicId: matchedGuide?.id,
     subIntent: detected.subIntent,
   };

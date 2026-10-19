@@ -32,6 +32,15 @@ export type SuiteModuleId =
   | "change_password"
   | "general";
 
+export type AssistantTopicFilterId =
+  | "all"
+  | "management"
+  | "cac_operations"
+  | "finance"
+  | "referrals_crm"
+  | "staff_hr"
+  | "suite_guide";
+
 export type AssistantIntentType =
   | "operational_report"
   | "suite_guide"
@@ -138,7 +147,7 @@ export interface SuggestedQuestionChip {
 }
 
 export interface SuggestedQuestionGroup {
-  id: string;
+  id: AssistantTopicFilterId;
   label: string;
   iconName: string;
   questions: SuggestedQuestionChip[];
@@ -152,12 +161,14 @@ export interface AssistantTableData {
 
 export interface AssistantSourceMetadata {
   tablesQueried: string[];
+  sourcesLabel?: string;
   reportingPeriodLabel: string;
   timezone: "Africa/Lagos";
   fetchedAtIso: string;
   fetchedAtFormatted: string;
   roleApplied: CanonicalStaffRole;
   scopeDescription: string;
+  technicalDetails?: string;
 }
 
 export interface AssistantResponsePayload {
@@ -188,6 +199,8 @@ export interface ClassifiedIntent {
   isFollowUp: boolean;
   isRoleSpoofingAttempt: boolean;
   isWriteMutationAttempt: boolean;
+  wantsTechnicalDiagnostics?: boolean;
+  topicHintApplied?: boolean;
   guideTopicId?: string;
   unsupportedReason?: string;
   subIntent?: string;
@@ -262,9 +275,13 @@ export interface AssistantCallerContext {
   role: CanonicalStaffRole;
   roleTitle: string;
   roleLabel: string;
+  jobTitle: string | null;
+  department: string | null;
   userId: string | null;
   userName: string;
   email: string | null;
+  identityVerified: boolean;
+  identityWarning?: string;
   permissions: string[];
   isManagement: boolean;
   hrAccess: HrPermissionMatrix;

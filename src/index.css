@@ -715,3 +715,15 @@
   }
 }
 
+/* --- AI Secretary Auto-Expanding Prompt Textarea --- */
+.ai-prompt-textarea {
+  field-sizing: content;
+  height: auto;
+  width: 100%;
+  min-block-size: 2.75rem;
+  max-block-size: 9rem;
+  overflow-y: auto;
+  resize: none;
+}
+
+
