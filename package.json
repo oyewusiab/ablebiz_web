@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "esbuild src/lib/aiSecretary/__tests__/aiSecretary.test.ts --bundle --platform=node --format=esm --outfile=.test-dist/aiSecretary.test.mjs --external:react --external:react-dom --external:react-router-dom --external:react-markdown --external:remark-gfm --external:lucide-react --external:@supabase/supabase-js && node --test .test-dist/aiSecretary.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.103.0",

@@ -1,216 +1,114 @@
-import { useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  BookOpen,
   Bot,
-  Send,
-  Sparkles,
-  ShieldCheck,
-  AlertCircle,
+  Briefcase,
   Clock,
-  ArrowRight,
-  TrendingUp,
-  FileCheck2,
   DollarSign,
-  UserCheck,
-  Building2,
+  Gift,
+  HelpCircle,
   RefreshCw,
-  Lightbulb,
+  RotateCcw,
+  Send,
+  ShieldCheck,
+  Sparkles,
+  User,
+  Users,
 } from "lucide-react";
-import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
-import { getRoleTitle } from "../../auth/roleConfig";
+import {
+  AssistantResponsePayload,
+  ConversationContext,
+} from "../../lib/aiSecretary/types";
+import {
+  buildCallerContext,
+  CAPABILITY_CATALOGUE_VERSION,
+} from "../../lib/aiSecretary/capabilityCatalogue";
+import { getRoleAwareSuggestionGroups } from "../../lib/aiSecretary/suggestions";
+import { executeAssistantQuery } from "../../lib/aiSecretary/queryEngine";
+import {
+  ABILITY_TIMEZONE,
+  formatDateTimeLagos,
+} from "../../lib/aiSecretary/dateUtils";
+import { AiMessageRenderer } from "../../components/admin/AiMessageRenderer";
 
 interface ChatMessage {
   id: string;
   sender: "user" | "ai";
   text: string;
   timestamp: Date;
-  dataCitations?: string[];
+  queryPrompt?: string;
+  payload?: AssistantResponsePayload;
 }
 
 export function AiSecretaryPage() {
-  const { profile, hasPermission } = useAuth();
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "welcome-1",
-      sender: "ai",
-      text: `Good day, ${profile?.full_name || "Manager"}! I am your **ABLEBIZ AI Secretary**.\n\nI am grounded directly in live ABLEBIZ operational and client records, maintaining strict read-only security and respecting your role as **${getRoleTitle(profile?.role)}**.\n\nHow may I assist your management oversight today?`,
-      timestamp: new Date(),
-    },
+  const { user, role, userName } = useAuth();
+
+  const caller = useMemo(
+    () =>
+      buildCallerContext({
+        role,
+        userId: user?.id || null,
+        userName: userName || user?.email?.split("@")[0] || "Staff",
+        email: user?.email || null,
+      }),
+    [role, user?.id, user?.email, userName]
+  );
+
+  const suggestionGroups = useMemo(
+    () => getRoleAwareSuggestionGroups(caller),
+    [caller]
+  );
+
+  const [activeGroupId, setActiveGroupId] = useState<string>(
+    suggestionGroups[0]?.id || "management"
+  );
+  const [conversationContext, setConversationContext] =
+    useState<ConversationContext>({
+      turnCount: 0,
+    });
+
+  const buildWelcomeMessage = (): ChatMessage => ({
+    id: "welcome-1",
+    sender: "ai",
+    text: [
+      `### Welcome, ${caller.userName}!`,
+      `I am your **ABLEBIZ AI Secretary** — your role-aware operational intelligence and Suite Guide assistant.`,
+      `- **Operational Reports:** Ask for verified database figures, overdue tasks, CAC filing bottlenecks, upcoming staff leave schedules (e.g., *"next three weeks"*), CRM leads, referrals, or financial reconciliations.`,
+      `- **Suite Guide & Troubleshooting:** Ask step-by-step *"How do I..."* questions, check why a button is restricted for your role (**${caller.roleLabel}**), or troubleshoot a failed operation.`,
+      `Select a suggested prompt below by category or type any question directly.`,
+    ].join("\n\n"),
+    timestamp: new Date(),
+  });
+
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [
+    buildWelcomeMessage(),
   ]);
   const [inputText, setInputText] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  const isSuper = profile?.role === "super_admin" || profile?.role === "admin";
-  const canViewFinance =
-    isSuper ||
-    profile?.role === "accounts_officer" ||
-    hasPermission("finance", "view");
-
-  const canViewOps =
-    isSuper ||
-    profile?.role === "operations_manager" ||
-    profile?.role === "registration_officer" ||
-    hasPermission("operations", "view");
-
-  // Prompt suggestions
-  const quickChips = [
-    { label: "What requires attention today?", prompt: "What requires management attention today?" },
-    { label: "Overdue CAC applications", prompt: "Which CAC applications are currently overdue or pending review?" },
-    ...(canViewFinance
-      ? [{ label: "Financial summary", prompt: "Summarize our financial collections, invoices, and outstanding receivables." }]
-      : []),
-    { label: "Overdue tasks", prompt: "Which operational tasks are overdue or pending completion?" },
-    { label: "Client acquisition stats", prompt: "How many active clients and businesses are currently registered?" },
-  ];
-
-  // Grounded Answer Engine (Role-aware query execution without autonomous mutations)
-  const processQuery = async (query: string): Promise<{ reply: string; citations: string[] }> => {
-    const q = query.toLowerCase();
-    const citations: string[] = [];
-
-    try {
-      // 1. Attention & Exceptions
-      if (q.includes("attention") || q.includes("today") || q.includes("urgent")) {
-        const [tasksRes, cacRes, invRes] = await Promise.all([
-          supabase.from("tasks").select("id, title, due_date, status, priority").neq("status", "completed"),
-          supabase.from("cac_applications").select("id, current_stage, proposed_name_1, updated_at").not("current_stage", "in", '("completed","cancelled")'),
-          canViewFinance ? supabase.from("invoices").select("id, invoice_number, balance_due, due_date, status").gt("balance_due", 0) : Promise.resolve({ data: [] }),
-        ]);
-
-        const now = new Date();
-        const overdueTasks = (tasksRes.data || []).filter((t: any) => t.due_date && new Date(t.due_date) < now);
-        const overdueInvoices = (invRes.data || []).filter((i: any) => i.due_date && new Date(i.due_date) < now);
-
-        citations.push(`tasks: ${tasksRes.data?.length || 0} active`, `cac_applications: ${cacRes.data?.length || 0} active`);
-        if (canViewFinance) citations.push(`invoices: ${invRes.data?.length || 0} unpaid`);
-
-        let response = `### 📋 Management Attention Summary for Today\n\n`;
-        response += `Based on live records:\n\n`;
-        response += `- **Overdue Tasks:** **${overdueTasks.length}** operational tasks require officer intervention.\n`;
-        response += `- **Active CAC Applications:** **${cacRes.data?.length || 0}** filings currently progressing through the 11-stage workflow.\n`;
-
-        if (canViewFinance) {
-          response += `- **Overdue Invoices:** **${overdueInvoices.length}** client invoices have passed their contractual payment due date.\n`;
-        }
-
-        response += `\n**Recommended Next Action:** Check the **[Overdue Tasks](/admin/tasks)** and **[CAC Operations Workbench](/admin/cac-operations)**.`;
-        return { reply: response, citations };
-      }
-
-      // 2. CAC Operations
-      if (q.includes("cac") || q.includes("application") || q.includes("filing")) {
-        if (!canViewOps) {
-          return {
-            reply: "Your assigned role does not permit access to operational CAC filing details.",
-            citations: ["Role authorization gate"],
-          };
-        }
-
-        const { data: cacApps } = await supabase
-          .from("cac_applications")
-          .select("id, current_stage, proposed_name_1, approved_name, created_at")
-          .order("created_at", { ascending: false });
-
-        citations.push(`cac_applications: ${cacApps?.length || 0} records`);
-
-        const total = cacApps?.length || 0;
-        const active = cacApps?.filter((c) => !["completed", "rejected", "cancelled"].includes(c.current_stage)).length || 0;
-        const completed = cacApps?.filter((c) => c.current_stage === "completed").length || 0;
-
-        return {
-          reply: `### 🏛️ CAC Operations Status\n\n- **Total Applications on Record:** **${total}**\n- **Currently In Progress:** **${active}**\n- **Completed & Certificates Received:** **${completed}**\n\nYou can review individual stage progress directly in the **[CAC Operations Workspace](/admin/cac-operations)**.`,
-          citations,
-        };
-      }
-
-      // 3. Financial Summary
-      if (q.includes("finance") || q.includes("invoice") || q.includes("revenue") || q.includes("payment") || q.includes("receivable") || q.includes("money") || q.includes("profit")) {
-        if (!canViewFinance) {
-          return {
-            reply: `I apologize, but financial metrics (invoices, collections, and disbursements) are restricted to authorized **Accounts Officers** and **Executive Management**. Your role (${getRoleTitle(profile?.role)}) cannot view revenue data.`,
-            citations: ["Financial RBAC guard"],
-          };
-        }
-
-        const [invRes, payRes, expRes] = await Promise.all([
-          supabase.from("invoices").select("total_amount, amount_paid, balance_due, due_date, status"),
-          supabase.from("payments").select("amount"),
-          supabase.from("expenses").select("amount"),
-        ]);
-
-        const totalInvoiced = (invRes.data || []).reduce((acc: number, i: any) => acc + (Number(i.total_amount) || 0), 0);
-        const totalCollected = (payRes.data || []).reduce((acc: number, p: any) => acc + (Number(p.amount) || 0), 0);
-        const outstanding = (invRes.data || []).reduce((acc: number, i: any) => acc + (Number(i.balance_due) || 0), 0);
-        const totalExpenses = (expRes.data || []).reduce((acc: number, e: any) => acc + (Number(e.amount) || 0), 0);
-        const netOperatingMargin = totalCollected - totalExpenses;
-
-        citations.push(
-          `invoices: ${invRes.data?.length || 0} records`,
-          `payments: ${payRes.data?.length || 0} verified receipts`,
-          `expenses: ${expRes.data?.length || 0} disbursements`
-        );
-
-        return {
-          reply: `### 💰 Financial Health & Balance Ledger\n\n- **Total Invoiced:** ₦**${totalInvoiced.toLocaleString()}**\n- **Reconciled Collections (Revenue):** ₦**${totalCollected.toLocaleString()}**\n- **Outstanding Receivables:** ₦**${outstanding.toLocaleString()}**\n- **Recorded Operating Expenses:** ₦**${totalExpenses.toLocaleString()}**\n- **Net Operating Margin (Cash Collected − Expenses):** ₦**${netOperatingMargin.toLocaleString()}**\n\n*Note: Outstanding receivables are contractually billed but not yet received in our official settlement account.*`,
-          citations,
-        };
-      }
-
-      // 4. Clients & Businesses
-      if (q.includes("client") || q.includes("business") || q.includes("customer")) {
-        const [cRes, bRes] = await Promise.all([
-          supabase.from("clients").select("id, is_active", { count: "exact" }),
-          supabase.from("businesses").select("id, entity_type", { count: "exact" }),
-        ]);
-
-        citations.push(`clients: ${cRes.count || 0}`, `businesses: ${bRes.count || 0}`);
-
-        return {
-          reply: `### 👥 Client & Enterprise Directory\n\n- **Total Registered Clients:** **${cRes.count || 0}**\n- **Registered Client Businesses:** **${bRes.count || 0}**\n\nEvery client is tracked under the **[Client 360° Directory](/admin/clients)**.`,
-          citations,
-        };
-      }
-
-      // 5. Tasks
-      if (q.includes("task") || q.includes("overdue")) {
-        const { data: tasksData } = await supabase
-          .from("tasks")
-          .select("id, title, status, priority, due_date")
-          .order("due_date", { ascending: true });
-
-        const now = new Date();
-        const pending = tasksData?.filter((t) => t.status !== "completed") || [];
-        const overdue = pending.filter((t) => t.due_date && new Date(t.due_date) < now);
-
-        citations.push(`tasks: ${tasksData?.length || 0} records`);
-
-        return {
-          reply: `### ⏱️ Operational Task SLA\n\n- **Total Active Pending Tasks:** **${pending.length}**\n- **Overdue SLA Deadlines:** **${overdue.length}**\n\nYou can delegate and inspect comments in the **[Task Management Center](/admin/tasks)**.`,
-          citations,
-        };
-      }
-
-      // Generic Grounded Response
-      return {
-        reply: `I understand your inquiry. As an authoritative management assistant, I can provide grounded insights on:\n\n1. **Management Attention Today** (Overdue deadlines, pending reviews)\n2. **CAC Operations & Stage Health**\n3. **Financial Balances & Collections** (for authorized roles)\n4. **Client & Business Directory Counts**\n5. **Task SLA Management**\n\nPlease select one of the quick prompt suggestions or ask a specific question.`,
-        citations: ["System core grounding"],
-      };
-    } catch (err: any) {
-      console.error("[AI Secretary] Query error:", err);
-      return {
-        reply: "I encountered a query resolution error while communicating with the database. Please verify your connection.",
-        citations: [],
-      };
+  useEffect(() => {
+    if (
+      suggestionGroups.length > 0 &&
+      !suggestionGroups.some((g) => g.id === activeGroupId)
+    ) {
+      setActiveGroupId(suggestionGroups[0].id);
     }
-  };
+  }, [suggestionGroups, activeGroupId]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isProcessing]);
 
   const handleSendMessage = async (textToSend: string) => {
-    if (!textToSend.trim() || isProcessing) return;
+    const trimmed = textToSend.trim();
+    if (!trimmed || isProcessing) return;
 
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
       sender: "user",
-      text: textToSend.trim(),
+      text: trimmed,
       timestamp: new Date(),
     };
 
@@ -218,142 +116,287 @@ export function AiSecretaryPage() {
     setInputText("");
     setIsProcessing(true);
 
-    const { reply, citations } = await processQuery(textToSend);
+    try {
+      const { payload, updatedContext } = await executeAssistantQuery(
+        trimmed,
+        caller,
+        conversationContext
+      );
 
-    const aiMsg: ChatMessage = {
-      id: `ai-${Date.now()}`,
-      sender: "ai",
-      text: reply,
-      timestamp: new Date(),
-      dataCitations: citations,
-    };
+      setConversationContext(updatedContext);
 
-    setMessages((prev) => [...prev, aiMsg]);
-    setIsProcessing(false);
+      const aiMsg: ChatMessage = {
+        id: `ai-${Date.now()}`,
+        sender: "ai",
+        text: payload.markdown,
+        timestamp: new Date(),
+        queryPrompt: trimmed,
+        payload,
+      };
+
+      setMessages((prev) => [...prev, aiMsg]);
+    } catch (err: any) {
+      const fallbackMsg: ChatMessage = {
+        id: `ai-err-${Date.now()}`,
+        sender: "ai",
+        text: `### Query Execution Error\n\nAn unexpected error occurred while processing your request: \`${err?.message || "Unknown error"}\`. Please try again.`,
+        timestamp: new Date(),
+        queryPrompt: trimmed,
+      };
+      setMessages((prev) => [...prev, fallbackMsg]);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleResetConversation = () => {
+    setConversationContext({ turnCount: 0 });
+    setMessages([buildWelcomeMessage()]);
+    setInputText("");
+  };
+
+  const activeGroup =
+    suggestionGroups.find((g) => g.id === activeGroupId) || suggestionGroups[0];
+
+  const renderGroupIcon = (iconName: string) => {
+    switch (iconName) {
+      case "ShieldCheck":
+        return <ShieldCheck className="w-3.5 h-3.5" />;
+      case "Briefcase":
+        return <Briefcase className="w-3.5 h-3.5" />;
+      case "DollarSign":
+        return <DollarSign className="w-3.5 h-3.5" />;
+      case "Gift":
+        return <Gift className="w-3.5 h-3.5" />;
+      case "Users":
+        return <Users className="w-3.5 h-3.5" />;
+      case "BookOpen":
+        return <BookOpen className="w-3.5 h-3.5" />;
+      default:
+        return <HelpCircle className="w-3.5 h-3.5" />;
+    }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-purple-700 border border-purple-200">
-              <Bot className="h-5 w-5" />
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-start gap-3.5">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#0A2558] text-amber-400 shadow-sm border border-[#0A2558]/20">
+            <Bot className="h-6 w-6" />
+          </div>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                ABLEBIZ AI Secretary
+              </h1>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 dark:bg-emerald-950/50 dark:border-emerald-800 dark:text-emerald-300 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider">
+                Read-Only Grounded
+              </span>
+              <span className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200 text-amber-800 dark:bg-amber-950/50 dark:border-amber-800 dark:text-amber-300 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider">
+                Suite Guide v{CAPABILITY_CATALOGUE_VERSION}
+              </span>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold text-slate-900">ABLEBIZ AI Secretary</h1>
-                <span className="rounded bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-bold uppercase">
-                  Read-Only Grounded
-                </span>
-              </div>
-              <p className="text-xs text-slate-500">
-                Management decision assistant grounded strictly in live database records
-              </p>
-            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Operational database intelligence, workflow guidance, and RBAC troubleshooting across all verified ABLEBIZ SUITE modules
+            </p>
           </div>
         </div>
 
-        {/* Security / Role indicator */}
-        <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 shadow-xs">
-          <ShieldCheck className="h-4 w-4 text-emerald-600" />
-          <span>Role Scope: <strong>{getRoleTitle(profile?.role)}</strong></span>
+        {/* Role & Timezone Indicator + Reset */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 shadow-2xs">
+            <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+            <span>
+              Role Scope:{" "}
+              <strong className="text-[#0A2558] dark:text-amber-400">
+                {caller.roleLabel}
+              </strong>
+            </span>
+          </div>
+
+          <div className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-500 dark:text-slate-400">
+            <Clock className="h-3.5 w-3.5 text-[#D97706]" />
+            <span>{ABILITY_TIMEZONE}</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleResetConversation}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 transition-colors"
+            title="Clear conversation history and context"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            <span>Clear Chat</span>
+          </button>
         </div>
       </div>
 
-      {/* Main Chat Interface */}
-      <div className="flex flex-col h-[650px] rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
+      {/* Main Assistant Container */}
+      <div className="flex flex-col min-h-[680px] max-h-[82vh] rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
+        {/* Role-Aware Contextual Suggestion Categories Bar */}
+        <div className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/50 px-4 py-3 space-y-2.5">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+              {suggestionGroups.map((group) => {
+                const isActive = group.id === activeGroup?.id;
+                return (
+                  <button
+                    key={group.id}
+                    type="button"
+                    onClick={() => setActiveGroupId(group.id)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
+                      isActive
+                        ? "bg-[#0A2558] text-white shadow-2xs"
+                        : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200/80 dark:border-slate-800 hover:border-slate-300 hover:text-slate-900"
+                    }`}
+                  >
+                    {renderGroupIcon(group.iconName)}
+                    <span>{group.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {conversationContext.lastModuleId && (
+              <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500">
+                Active Context:{" "}
+                <strong className="text-slate-600 dark:text-slate-300">
+                  {conversationContext.lastModuleId.replace(/_/g, " ")}
+                </strong>
+              </span>
+            )}
+          </div>
+
+          {/* Active Category Prompt Chips */}
+          {activeGroup && (
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {activeGroup.questions.map((q) => (
+                <button
+                  key={q.id}
+                  type="button"
+                  disabled={isProcessing}
+                  onClick={() => handleSendMessage(q.prompt)}
+                  className="shrink-0 inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 hover:border-[#D97706] hover:text-[#0A2558] dark:hover:text-amber-400 shadow-2xs transition-all disabled:opacity-50"
+                >
+                  <Sparkles className="w-3 h-3 text-[#D97706] shrink-0" />
+                  <span>{q.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Messages Stream */}
-        <div className="flex-1 p-5 overflow-y-auto space-y-4">
+        <div
+          className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-5"
+          role="log"
+          aria-live="polite"
+        >
           {messages.map((msg) => (
             <div
               key={msg.id}
-              className={`flex gap-3 text-xs leading-relaxed ${
+              className={`flex gap-3 ${
                 msg.sender === "user" ? "justify-end" : "justify-start"
               }`}
             >
               {msg.sender === "ai" && (
-                <div className="h-7 w-7 rounded-lg bg-purple-100 border border-purple-200 flex items-center justify-center text-purple-700 shrink-0">
+                <div className="h-8 w-8 rounded-xl bg-[#0A2558] text-amber-400 flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
                   <Bot className="h-4 w-4" />
                 </div>
               )}
 
               <div
-                className={`max-w-[85%] rounded-2xl p-4 shadow-2xs whitespace-pre-wrap ${
+                className={`${
                   msg.sender === "user"
-                    ? "bg-[#0A2558] text-white rounded-tr-xs"
-                    : "bg-slate-50 border border-slate-200 text-slate-800 rounded-tl-xs"
+                    ? "max-w-[82%] sm:max-w-[70%] bg-[#0A2558] text-white rounded-2xl rounded-tr-xs px-4 py-3 shadow-2xs"
+                    : "w-full max-w-[94%] sm:max-w-[88%] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 rounded-2xl rounded-tl-xs p-4 sm:p-5 shadow-xs"
                 }`}
               >
-                <div>{msg.text}</div>
-
-                {msg.dataCitations && msg.dataCitations.length > 0 && (
-                  <div className="mt-3 pt-2 border-t border-slate-200/60 flex items-center gap-1.5 text-[10px] text-slate-400">
-                    <Sparkles className="h-3 w-3 text-purple-500" />
-                    <span>Grounded Sources: {msg.dataCitations.join(" • ")}</span>
+                {msg.sender === "user" ? (
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium leading-relaxed">
+                      {msg.text}
+                    </p>
+                    <div className="text-[10px] text-blue-200/80 text-right">
+                      {formatDateTimeLagos(msg.timestamp)}
+                    </div>
                   </div>
+                ) : (
+                  <AiMessageRenderer
+                    text={msg.text}
+                    payload={msg.payload}
+                    caller={caller}
+                    onSelectFollowUp={(prompt) => handleSendMessage(prompt)}
+                    onRetry={
+                      msg.queryPrompt
+                        ? () => handleSendMessage(msg.queryPrompt!)
+                        : undefined
+                    }
+                  />
                 )}
               </div>
+
+              {msg.sender === "user" && (
+                <div className="h-8 w-8 rounded-xl bg-amber-100 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 flex items-center justify-center shrink-0 mt-0.5">
+                  <User className="h-4 w-4" />
+                </div>
+              )}
             </div>
           ))}
 
           {isProcessing && (
-            <div className="flex gap-3 text-xs justify-start">
-              <div className="h-7 w-7 rounded-lg bg-purple-100 border border-purple-200 flex items-center justify-center text-purple-700 shrink-0">
+            <div className="flex gap-3 justify-start">
+              <div className="h-8 w-8 rounded-xl bg-[#0A2558] text-amber-400 flex items-center justify-center shrink-0">
                 <Bot className="h-4 w-4 animate-pulse" />
               </div>
-              <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3 text-slate-500 text-[11px] flex items-center gap-2">
-                <RefreshCw className="h-3.5 w-3.5 animate-spin text-purple-600" />
-                Querying authoritative ABLEBIZ operational database...
+              <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-800 px-4 py-3 text-slate-600 dark:text-slate-300 text-xs font-medium flex items-center gap-2.5">
+                <RefreshCw className="h-4 w-4 animate-spin text-[#D97706]" />
+                <span>
+                  Verifying live records and workflow rules under{" "}
+                  <strong>{caller.roleLabel}</strong> scope...
+                </span>
               </div>
             </div>
           )}
-        </div>
 
-        {/* Quick Suggestion Chips */}
-        <div className="border-t border-slate-100 bg-slate-50/70 p-3 flex gap-2 overflow-x-auto text-[11px]">
-          {quickChips.map((chip, idx) => (
-            <button
-              key={idx}
-              onClick={() => handleSendMessage(chip.prompt)}
-              className="shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-slate-700 hover:border-emerald-500 hover:text-emerald-700 shadow-2xs transition"
-            >
-              {chip.label}
-            </button>
-          ))}
+          <div ref={messagesEndRef} />
         </div>
 
         {/* Input Bar */}
-        <div className="border-t border-slate-200 bg-white p-3.5">
+        <div className="border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 p-3.5 sm:p-4">
           <form
             onSubmit={(e) => {
               e.preventDefault();
               handleSendMessage(inputText);
             }}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2.5"
           >
             <input
               type="text"
-              placeholder="Ask your AI Secretary about deadlines, clients, CAC filings, or financial balances..."
+              aria-label="Ask ABLEBIZ AI Secretary"
+              placeholder="Ask about CAC filings, staff leave in the next 3 weeks, overdue invoices, or 'How do I create a quotation?'..."
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               disabled={isProcessing}
-              className="flex-1 rounded-xl border border-slate-200 px-3.5 py-2 text-xs outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 disabled:opacity-50"
+              className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:border-[#0A2558] dark:focus:border-amber-400 focus:ring-2 focus:ring-[#0A2558]/15 disabled:opacity-50 transition-all"
             />
             <button
               type="submit"
               disabled={!inputText.trim() || isProcessing}
-              className="rounded-xl bg-[#0A2558] p-2 text-white hover:bg-[#061738] disabled:opacity-50 shadow-xs transition"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0A2558] hover:bg-[#061738] text-white px-4 py-2.5 text-sm font-bold disabled:opacity-50 shadow-xs transition-colors cursor-pointer"
             >
+              <span>Ask</span>
               <Send className="h-4 w-4" />
             </button>
           </form>
-          <p className="mt-1.5 text-center text-[10px] text-slate-400">
-            Read-only analytical model. All numbers reflect actual PostgreSQL transaction balances. Zero autonomous changes.
+          <p className="mt-2 text-center text-[11px] text-slate-400 dark:text-slate-500">
+            Read-only operational & Suite Guide assistant. Grounded in live Supabase tables (`{ABILITY_TIMEZONE}`). Never executes unauthorized database writes.
           </p>
         </div>
       </div>
     </div>
   );
 }
+
+export default AiSecretaryPage;

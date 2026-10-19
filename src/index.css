@@ -635,3 +635,83 @@
     display: none !important;
   }
 }
+
+/* --- AI Secretary Responsive Table (Container Query + Accessible Card Stack) --- */
+.ai-table-wrapper {
+  container-type: inline-size;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--admin-border);
+  background: var(--admin-panel, #ffffff);
+}
+
+.ai-responsive-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+}
+
+.ai-responsive-table thead {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2;
+  background: var(--admin-panel-muted, #f8fafc);
+}
+
+.ai-responsive-table th {
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary, #475569);
+  border-bottom: 1px solid var(--admin-border, #e2e8f0);
+}
+
+.ai-responsive-table td,
+.ai-responsive-table tbody th {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--admin-border, #e2e8f0);
+  color: var(--text-primary, #0f172a);
+  font-weight: 500;
+}
+
+.ai-responsive-table tbody tr:last-child td,
+.ai-responsive-table tbody tr:last-child th {
+  border-bottom: none;
+}
+
+@container (width < 600px) {
+  .ai-responsive-table thead {
+    display: none;
+  }
+
+  .ai-responsive-table tr {
+    display: grid;
+    padding: 0.75rem 1rem;
+    border-block-end: 1px solid var(--admin-border, #e2e8f0);
+    gap: 0.35rem;
+  }
+
+  .ai-responsive-table td,
+  .ai-responsive-table tbody th {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.25rem 0;
+    border: none;
+  }
+
+  .ai-responsive-table td::before,
+  .ai-responsive-table tbody th::before {
+    content: var(--label) ": " / var(--label);
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--text-secondary, #475569);
+  }
+}
+
