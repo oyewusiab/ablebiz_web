@@ -111,7 +111,7 @@ export function AboutPage() {
                 Short Video
               </div>
               <VideoEmbed
-                url="https://www.youtube.com/embed/Q3mgyZsFhWM"
+                url="https://www.youtube.com/embed/BZ_CRYPc-9I"
                 title="Meet ABLEBIZ"
               />
               <p className="text-xs text-slate-600">

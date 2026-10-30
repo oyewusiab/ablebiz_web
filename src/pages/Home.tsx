@@ -298,7 +298,7 @@ export function HomePage() {
                 </p>
               </div>
               <VideoEmbed
-                url="https://www.youtube.com/embed/Q3mgyZsFhWM"
+                url="https://www.youtube.com/embed/BZ_CRYPc-9I"
                 title="ABLEBIZ Intro Video"
               />
             </div>

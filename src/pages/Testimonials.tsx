@@ -48,18 +48,18 @@ export function TestimonialsPage() {
             <Card className="overflow-hidden border border-slate-200 shadow-sm dark:border-slate-800">
               <div className="aspect-[16/10] bg-slate-100 dark:bg-slate-800">
                 <img
-                  src="/images/testimonials/whatsapp-review-1.png"
-                  alt="WhatsApp review screenshot"
+                  src="/images/testimonials/whatsapp-review-2.jpeg"
+                  alt="WhatsApp review from Mr. Ekpenyong of Eksendeal Impart"
                   className="h-full w-full object-cover"
                   loading="lazy"
                 />
               </div>
               <CardBody>
                 <div className="text-sm font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
-                  WhatsApp Reviews
+                  Mr. Ekpenyong
                 </div>
                 <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                  We also receive feedback directly on WhatsApp after successful registrations.
+                  Eksendeal Impart
                 </p>
               </CardBody>
             </Card>
@@ -67,18 +67,18 @@ export function TestimonialsPage() {
             <Card className="overflow-hidden border border-slate-200 shadow-sm dark:border-slate-800">
               <div className="aspect-[16/10] bg-slate-100 dark:bg-slate-800">
                 <img
-                  src="/images/testimonials/whatsapp-review-2.png"
-                  alt="WhatsApp review screenshot"
+                  src="/images/testimonials/whatsapp-review-1.jpeg"
+                  alt="WhatsApp review from Mrs. Idowu of Beehive Essence Limited"
                   className="h-full w-full object-cover"
                   loading="lazy"
                 />
               </div>
               <CardBody>
                 <div className="text-sm font-extrabold text-[color:var(--ablebiz-primary)]">
-                  Before/After Confidence
+                  Mrs. Idowu
                 </div>
                 <p className="mt-2 text-sm text-slate-700">
-                  Many clients start with fear and uncertainty — and finish with confidence and documents.
+                  Beehive Essence Limited
                 </p>
               </CardBody>
             </Card>
