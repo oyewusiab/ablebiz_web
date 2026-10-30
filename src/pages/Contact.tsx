@@ -65,15 +65,15 @@ export function ContactPage() {
         <Container className="pt-8 sm:pt-10">
           <div className="grid gap-4 sm:grid-cols-3">
             {/* Option 1: WhatsApp */}
-            <div className="flex flex-col justify-between rounded-2xl border border-emerald-200/80 bg-emerald-50/40 p-5 dark:border-emerald-900/60 dark:bg-emerald-950/20">
+            <div className="flex flex-col justify-between rounded-2xl border border-emerald-200/80 bg-emerald-50/40 p-5">
               <div>
-                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-400">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-800">
                   <MessageCircle className="h-4 w-4" /> Option 1 • Fastest
                 </div>
-                <div className="mt-2 text-base font-extrabold text-slate-900 dark:text-white">
+                <div className="mt-2 text-base font-extrabold text-slate-900">
                   WhatsApp ABLEBIZ
                 </div>
-                <p className="mt-1 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                <p className="mt-1 text-xs text-slate-600 leading-relaxed">
                   Best for immediate questions, requirement checklists, and quick status updates.
                 </p>
               </div>
@@ -88,36 +88,36 @@ export function ContactPage() {
             </div>
 
             {/* Option 2: Detailed Enquiry Form */}
-            <div className="flex flex-col justify-between rounded-2xl border border-blue-200/80 bg-blue-50/40 p-5 dark:border-blue-900/60 dark:bg-blue-950/20">
+            <div className="flex flex-col justify-between rounded-2xl border border-blue-200/80 bg-blue-50/40 p-5">
               <div>
-                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-800 dark:text-blue-400">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-800">
                   <Send className="h-4 w-4" /> Option 2 • Comprehensive
                 </div>
-                <div className="mt-2 text-base font-extrabold text-slate-900 dark:text-white">
+                <div className="mt-2 text-base font-extrabold text-slate-900">
                   Consultation Form
                 </div>
-                <p className="mt-1 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                <p className="mt-1 text-xs text-slate-600 leading-relaxed">
                   Best if you want to share full requirements, budget range, and urgency for a structured quote.
                 </p>
               </div>
               <a
                 href="#consultation-form"
-                className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-xs font-bold text-white shadow-xs hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700"
+                className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-xs font-bold text-white shadow-xs hover:bg-slate-800"
               >
                 Fill Enquiry Form ↓
               </a>
             </div>
 
             {/* Option 3: Phone & Physical Office */}
-            <div className="flex flex-col justify-between rounded-2xl border border-amber-200/80 bg-amber-50/40 p-5 dark:border-amber-900/60 dark:bg-amber-950/20">
+            <div className="flex flex-col justify-between rounded-2xl border border-amber-200/80 bg-amber-50/40 p-5">
               <div>
-                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-400">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-800">
                   <Phone className="h-4 w-4" /> Option 3 • Direct Line
                 </div>
-                <div className="mt-2 text-base font-extrabold text-slate-900 dark:text-white">
+                <div className="mt-2 text-base font-extrabold text-slate-900">
                   Call or Visit Office
                 </div>
-                <p className="mt-1 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                <p className="mt-1 text-xs text-slate-600 leading-relaxed">
                   Direct phone access to staff and in-person consultations at our Abeokuta office.
                 </p>
               </div>
@@ -144,17 +144,17 @@ export function ContactPage() {
             />
 
             <div className="space-y-6">
-              <Card className="border border-slate-200/90 shadow-sm dark:border-slate-800">
+              <Card className="border border-slate-200/90 shadow-sm bg-white">
                 <CardBody className="p-6">
-                  <div className="text-base font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
+                  <div className="text-base font-extrabold text-[color:var(--ablebiz-primary)]">
                     Office & Communication Channels
                   </div>
-                  <div className="mt-4 space-y-3.5 text-sm text-slate-700 dark:text-slate-300">
+                  <div className="mt-4 space-y-3.5 text-sm text-slate-700">
                     <a
                       className="flex items-center gap-3 no-underline hover:text-amber-600 transition-colors"
                       href={`tel:${site.phone}`}
                     >
-                      <div className="grid h-8 w-8 place-items-center rounded-lg bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400">
+                      <div className="grid h-8 w-8 place-items-center rounded-lg bg-amber-50 text-amber-700">
                         <Phone className="h-4 w-4" />
                       </div>
                       <span className="font-semibold">{site.phoneDisplay}</span>
@@ -163,20 +163,20 @@ export function ContactPage() {
                       className="flex items-center gap-3 no-underline hover:text-amber-600 transition-colors"
                       href={`mailto:${site.email}`}
                     >
-                      <div className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400">
+                      <div className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-blue-700">
                         <Mail className="h-4 w-4" />
                       </div>
                       <span>{site.email}</span>
                     </a>
                     <div className="flex items-start gap-3">
-                      <div className="mt-0.5 grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                      <div className="mt-0.5 grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-700">
                         <MapPin className="h-4 w-4" />
                       </div>
                       <span className="leading-relaxed">{site.location}</span>
                     </div>
                   </div>
 
-                  <div className="mt-6 flex flex-wrap gap-2.5 border-t border-slate-100 pt-4 dark:border-slate-800">
+                  <div className="mt-6 flex flex-wrap gap-2.5 border-t border-slate-100 pt-4">
                     <ButtonLink to={whatsapp} external className="text-xs">
                       <MessageCircle className="h-3.5 w-3.5" />
                       WhatsApp Direct
@@ -191,8 +191,8 @@ export function ContactPage() {
                 </CardBody>
               </Card>
 
-              <Card className="overflow-hidden border border-slate-200/90 shadow-sm dark:border-slate-800">
-                <div className="aspect-[16/10] bg-slate-100 dark:bg-slate-800">
+              <Card className="overflow-hidden border border-slate-200/90 shadow-sm bg-white">
+                <div className="aspect-[16/10] bg-slate-100">
                   <iframe
                     title="ABLEBIZ Office Google Map"
                     className="h-full w-full"
@@ -204,10 +204,10 @@ export function ContactPage() {
                   />
                 </div>
                 <CardBody className="p-5">
-                  <div className="text-sm font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
+                  <div className="text-sm font-extrabold text-[color:var(--ablebiz-primary)]">
                     Visit Our Office
                   </div>
-                  <p className="mt-1.5 text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                  <p className="mt-1.5 text-xs sm:text-sm text-slate-600 leading-relaxed">
                     Physical office available along M.K.O. Abiola Way, Leme, Abeokuta. In-person consultations welcomed Monday through Friday during business hours.
                   </p>
                 </CardBody>

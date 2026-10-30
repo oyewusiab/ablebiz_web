@@ -49,18 +49,18 @@ export const ablebizSteps = [
 
 export function BusinessRegistrationStepsInfographic() {
   return (
-    <Card className="border border-slate-200 shadow-md dark:border-slate-800">
+    <Card className="border border-slate-200 shadow-md bg-white">
       <CardBody className="p-6 sm:p-7">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
-            <div className="text-base font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
+            <div className="text-base font-extrabold text-[color:var(--ablebiz-primary)]">
               The ABLEBIZ Process
             </div>
-            <div className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">
+            <div className="text-xs sm:text-sm text-slate-600">
               Clear 6-step journey from first message to legal compliance
             </div>
           </div>
-          <span className="self-start sm:self-auto rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800 ring-1 ring-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-900">
+          <span className="self-start sm:self-auto rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800 ring-1 ring-blue-200">
             Transparent & Guided
           </span>
         </div>
@@ -71,21 +71,21 @@ export function BusinessRegistrationStepsInfographic() {
             return (
               <div
                 key={s.step}
-                className="flex flex-col justify-between rounded-2xl bg-slate-50/70 p-4 ring-1 ring-slate-200/80 transition-all hover:bg-white hover:shadow-sm dark:bg-slate-800/70 dark:ring-slate-700"
+                className="flex flex-col justify-between rounded-2xl bg-slate-50/70 p-4 ring-1 ring-slate-200/80 transition-all hover:bg-white hover:shadow-sm"
               >
                 <div>
                   <div className="flex items-center justify-between">
-                    <div className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 ring-1 ring-blue-100 dark:bg-blue-950 dark:ring-blue-900">
+                    <div className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 ring-1 ring-blue-100">
                       <Icon className="h-5 w-5 text-[color:var(--ablebiz-cta)]" />
                     </div>
-                    <span className="text-xs font-black text-amber-600 dark:text-amber-400">
+                    <span className="text-xs font-black text-amber-600">
                       {s.step}
                     </span>
                   </div>
-                  <div className="mt-3 text-sm font-bold text-[color:var(--ablebiz-primary)] dark:text-blue-200">
+                  <div className="mt-3 text-sm font-bold text-[color:var(--ablebiz-primary)]">
                     {s.title}
                   </div>
-                  <p className="mt-1 text-xs text-slate-600 leading-relaxed dark:text-slate-300">
+                  <p className="mt-1 text-xs text-slate-600 leading-relaxed">
                     {s.desc}
                   </p>
                 </div>

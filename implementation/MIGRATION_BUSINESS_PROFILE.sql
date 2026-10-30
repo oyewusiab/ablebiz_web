@@ -36,7 +36,7 @@ create table if not exists public.business_profile (
   cac_accredited_agent_number text default '', -- CAC Accredited Agent ID (kept blank until administrator enters)
   tax_identification_number text default '', -- TIN (kept blank until administrator enters verified TIN)
   year_established text default '2019',
-  award_badge text default '🏆 2nd Place – BYUMS Africa Business Plan Competition',
+  award_badge text default 'Reliable Business Registration & Compliance Support',
 
   -- Category B: Contact Information
   primary_phone text not null default '08160486023',
@@ -130,7 +130,7 @@ values (
   '', -- Unverified CAC agent number left empty
   '', -- Unverified TIN left empty
   '2019',
-  '🏆 2nd Place – BYUMS Africa Business Plan Competition',
+  'Reliable Business Registration & Compliance Support',
   '08160486023',
   '08160486023',
   '2348160486023',

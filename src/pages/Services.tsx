@@ -66,13 +66,13 @@ export function ServicesPage() {
       {/* Spin & Win Promo Banner */}
       <section>
         <Container className="pt-8">
-          <div className="rounded-3xl bg-gradient-to-r from-amber-500/10 via-blue-50/50 to-amber-500/10 p-6 ring-1 ring-amber-500/30 dark:from-amber-950/20 dark:via-blue-950/30 dark:to-amber-950/20">
+          <div className="rounded-3xl bg-gradient-to-r from-amber-500/10 via-blue-50/50 to-amber-500/10 p-6 ring-1 ring-amber-500/30">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <div className="text-lg font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
+                <div className="text-lg font-extrabold text-[color:var(--ablebiz-primary)]">
                   🎁 Spin & Win — Get an instant reward
                 </div>
-                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                <p className="mt-1 text-sm text-slate-600">
                   Play our Spin & Win game to get a discount or free bonus on any registration service.
                 </p>
               </div>
@@ -100,10 +100,10 @@ export function ServicesPage() {
 
               return (
                 <div key={s.id} id={s.id} className="scroll-mt-28">
-                  <Card className="border border-slate-200/90 shadow-sm transition-shadow hover:shadow-md dark:border-slate-800">
+                  <Card className="border border-slate-200/90 shadow-sm transition-shadow hover:shadow-md bg-white">
                     <CardBody className="p-6 sm:p-8">
                       <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-                        <div className="grid h-14 w-14 place-items-center rounded-2xl bg-blue-50 ring-1 ring-blue-100 shrink-0 dark:bg-blue-950 dark:ring-blue-900">
+                        <div className="grid h-14 w-14 place-items-center rounded-2xl bg-blue-50 ring-1 ring-blue-100 shrink-0">
                           <ServiceIcon
                             icon={s.icon}
                             className="h-7 w-7 text-[color:var(--ablebiz-cta)]"
@@ -111,17 +111,17 @@ export function ServicesPage() {
                         </div>
                         <div className="flex-1">
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <h2 className="text-xl sm:text-2xl font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
+                            <h2 className="text-xl sm:text-2xl font-extrabold text-[color:var(--ablebiz-primary)]">
                               {s.title}
                             </h2>
                             {s.timeline ? (
-                              <span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800 ring-1 ring-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:ring-amber-900">
+                              <span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800 ring-1 ring-amber-200">
                                 {s.timeline}
                               </span>
                             ) : null}
                           </div>
 
-                          <p className="mt-2 text-base text-slate-700 dark:text-slate-200 leading-relaxed">
+                          <p className="mt-2 text-base text-slate-700 leading-relaxed">
                             {s.description}
                           </p>
 
@@ -129,11 +129,11 @@ export function ServicesPage() {
                           <div className="mt-6 grid gap-6 md:grid-cols-2">
                             {/* Who It Is For */}
                             {s.whoItIsFor?.length ? (
-                              <div className="rounded-2xl bg-slate-50/80 p-4 ring-1 ring-slate-200/70 dark:bg-slate-800/60 dark:ring-slate-700/80">
-                                <div className="text-xs font-bold uppercase tracking-wider text-[color:var(--ablebiz-primary)] dark:text-blue-300">
+                              <div className="rounded-2xl bg-slate-50/80 p-4 ring-1 ring-slate-200/70">
+                                <div className="text-xs font-bold uppercase tracking-wider text-[color:var(--ablebiz-primary)]">
                                   👤 Who This Is For
                                 </div>
-                                <ul className="mt-3 space-y-2 text-xs sm:text-sm text-slate-700 dark:text-slate-300">
+                                <ul className="mt-3 space-y-2 text-xs sm:text-sm text-slate-700">
                                   {s.whoItIsFor.map((item) => (
                                     <li key={item} className="flex items-start gap-2">
                                       <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
@@ -146,11 +146,11 @@ export function ServicesPage() {
 
                             {/* What You May Need */}
                             {s.whatYouNeed?.length ? (
-                              <div className="rounded-2xl bg-slate-50/80 p-4 ring-1 ring-slate-200/70 dark:bg-slate-800/60 dark:ring-slate-700/80">
-                                <div className="text-xs font-bold uppercase tracking-wider text-[color:var(--ablebiz-primary)] dark:text-blue-300">
+                              <div className="rounded-2xl bg-slate-50/80 p-4 ring-1 ring-slate-200/70">
+                                <div className="text-xs font-bold uppercase tracking-wider text-[color:var(--ablebiz-primary)]">
                                   📋 What You May Need
                                 </div>
-                                <ul className="mt-3 space-y-2 text-xs sm:text-sm text-slate-700 dark:text-slate-300">
+                                <ul className="mt-3 space-y-2 text-xs sm:text-sm text-slate-700">
                                   {s.whatYouNeed.map((item) => (
                                     <li key={item} className="flex items-start gap-2">
                                       <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
@@ -163,11 +163,11 @@ export function ServicesPage() {
 
                             {/* How ABLEBIZ Helps */}
                             {s.howWeHelp?.length ? (
-                              <div className="rounded-2xl bg-blue-50/40 p-4 ring-1 ring-blue-100/70 dark:bg-blue-950/30 dark:ring-blue-900/40">
-                                <div className="text-xs font-bold uppercase tracking-wider text-[color:var(--ablebiz-primary)] dark:text-blue-300">
+                              <div className="rounded-2xl bg-blue-50/40 p-4 ring-1 ring-blue-100/70">
+                                <div className="text-xs font-bold uppercase tracking-wider text-[color:var(--ablebiz-primary)]">
                                   🛡️ How ABLEBIZ Helps
                                 </div>
-                                <ul className="mt-3 space-y-2 text-xs sm:text-sm text-slate-700 dark:text-slate-300">
+                                <ul className="mt-3 space-y-2 text-xs sm:text-sm text-slate-700">
                                   {s.howWeHelp.map((item) => (
                                     <li key={item} className="flex items-start gap-2">
                                       <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
@@ -180,11 +180,11 @@ export function ServicesPage() {
 
                             {/* What Happens Next */}
                             {s.whatHappensNext?.length ? (
-                              <div className="rounded-2xl bg-blue-50/40 p-4 ring-1 ring-blue-100/70 dark:bg-blue-950/30 dark:ring-blue-900/40">
-                                <div className="text-xs font-bold uppercase tracking-wider text-[color:var(--ablebiz-primary)] dark:text-blue-300">
+                              <div className="rounded-2xl bg-blue-50/40 p-4 ring-1 ring-blue-100/70">
+                                <div className="text-xs font-bold uppercase tracking-wider text-[color:var(--ablebiz-primary)]">
                                   ⚡ What Happens Next
                                 </div>
-                                <ul className="mt-3 space-y-2 text-xs sm:text-sm text-slate-700 dark:text-slate-300">
+                                <ul className="mt-3 space-y-2 text-xs sm:text-sm text-slate-700">
                                   {s.whatHappensNext.map((item) => (
                                     <li key={item} className="flex items-start gap-2">
                                       <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
@@ -197,7 +197,7 @@ export function ServicesPage() {
                           </div>
 
                           {/* Action CTAs */}
-                          <div className="mt-7 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-5 dark:border-slate-800">
+                          <div className="mt-7 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-5">
                             <a
                               href={whatsappUrl}
                               target="_blank"
@@ -210,7 +210,7 @@ export function ServicesPage() {
 
                             <Link
                               to={`/services?service=${encodeURIComponent(s.id)}#consultation`}
-                              className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                              className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-2xs hover:bg-slate-50"
                             >
                               Request Consultation Form
                             </Link>
@@ -218,7 +218,7 @@ export function ServicesPage() {
                             {hasChecklist ? (
                               <Link
                                 to="/services#checklists"
-                                className="text-sm font-semibold text-[color:var(--ablebiz-primary)] hover:underline dark:text-amber-400"
+                                className="text-sm font-semibold text-[color:var(--ablebiz-primary)] hover:underline"
                               >
                                 Download Checklist →
                               </Link>
@@ -227,11 +227,11 @@ export function ServicesPage() {
 
                           {/* FAQs */}
                           {s.faqs?.length ? (
-                            <div className="mt-8 border-t border-slate-100 pt-6 dark:border-slate-800">
-                              <div className="text-sm font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
+                            <div className="mt-8 border-t border-slate-100 pt-6">
+                              <div className="text-sm font-extrabold text-[color:var(--ablebiz-primary)]">
                                 FAQs for {s.title}
                               </div>
-                              <p className="mt-1 text-xs sm:text-sm text-slate-600 dark:text-slate-300">
+                              <p className="mt-1 text-xs sm:text-sm text-slate-600">
                                 Clear answers to common questions about requirements, timelines, and documentation.
                               </p>
                               <div className="mt-4">
@@ -254,14 +254,14 @@ export function ServicesPage() {
         <Container className="py-14">
           <div className="flex items-end justify-between gap-6">
             <div>
-              <h2 className="text-2xl font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
+              <h2 className="text-2xl font-extrabold text-[color:var(--ablebiz-primary)]">
                 Free Downloadable Checklists
               </h2>
-              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 sm:text-base">
+              <p className="mt-2 text-sm text-slate-600 sm:text-base">
                 Get the exact requirements before you start — these checklists help you prepare and avoid delays.
               </p>
             </div>
-            <div className="hidden text-xs font-semibold text-slate-500 dark:text-slate-400 md:block">
+            <div className="hidden text-xs font-semibold text-slate-500 md:block">
               Lead magnets • Professional PDFs
             </div>
           </div>
@@ -284,22 +284,22 @@ export function ServicesPage() {
               subtitle="Select your service, urgency, and budget range — we’ll respond with clear steps and transparent pricing."
             />
 
-            <Card>
+            <Card className="bg-white border border-slate-200">
               <CardBody>
-                <div className="text-sm font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
+                <div className="text-sm font-extrabold text-[color:var(--ablebiz-primary)]">
                   What happens next
                 </div>
-                <ul className="mt-4 grid gap-3 text-sm text-slate-700 dark:text-slate-300">
-                  <li className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
+                <ul className="mt-4 grid gap-3 text-sm text-slate-700">
+                  <li className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200">
                     1) We confirm your requirements and eligibility.
                   </li>
-                  <li className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
+                  <li className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200">
                     2) We send a clear quote (no hidden charges).
                   </li>
-                  <li className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
+                  <li className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200">
                     3) You submit details/documents.
                   </li>
-                  <li className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
+                  <li className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200">
                     4) We process and deliver your documents.
                   </li>
                 </ul>

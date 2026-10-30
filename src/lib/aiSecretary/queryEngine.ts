@@ -17,6 +17,7 @@ import {
   formatShortDate,
   isDateInRange,
   overlapsDateWindow,
+  parseQueryDateRange,
 } from "./dateUtils";
 import {
   CAPABILITY_CATALOGUE,
@@ -410,10 +411,10 @@ export async function executeAssistantQuery(
   // 2. Handle Capability Overview ("What can you do?")
   if (intent.intentType === "capability_overview") {
     const accessibleModules = Object.values(CAPABILITY_CATALOGUE).filter((m) =>
-      canCallerAccessModule(caller, m.id)
+      canCallerAccessModule(caller, m.id as SuiteModuleId)
     );
     const restrictedModules = Object.values(CAPABILITY_CATALOGUE).filter(
-      (m) => !canCallerAccessModule(caller, m.id)
+      (m) => !canCallerAccessModule(caller, m.id as SuiteModuleId)
     );
 
     const markdown = [
@@ -849,16 +850,7 @@ async function handleHrOperationalReport(
 
   const effectiveRange: ParsedDateRange =
     intent.dateRange.preset === "all_time" && /\b(who is|which staff|upcoming|on leave)\b/.test(q)
-      ? {
-          preset: "upcoming_window",
-          label: `Current & Upcoming Leave Window (${formatShortDate(now.toISOString())} onwards)`,
-          startDate: now.toISOString().slice(0, 10),
-          endDate: new Date(now.getTime() + 21 * 86400000).toISOString().slice(0, 10),
-          startIso: now.toISOString(),
-          endIso: new Date(now.getTime() + 21 * 86400000).toISOString(),
-          isFuture: true,
-          timezone: ABILITY_TIMEZONE,
-        }
+      ? parseQueryDateRange("next 3 weeks", now)
       : intent.dateRange;
 
   let leaveRows = leaveRes.data || [];

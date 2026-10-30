@@ -70,23 +70,23 @@ export function CommentSection({ slug }: { slug: string }) {
         <CardBody>
           <form onSubmit={submit} className="grid gap-3">
             <div className="grid gap-2 sm:grid-cols-2">
-              <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
+              <label className="grid gap-1 text-sm font-semibold text-slate-700">
                 Your Name
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-800 dark:ring-slate-700 dark:text-white"
+                  className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
                   placeholder="e.g., Tolu"
                 />
               </label>
             </div>
 
-            <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
+            <label className="grid gap-1 text-sm font-semibold text-slate-700">
               Message
               <textarea
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                className="min-h-28 rounded-xl bg-white px-3 py-2 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-800 dark:ring-slate-700 dark:text-white"
+                className="min-h-28 rounded-xl bg-white px-3 py-2 text-sm text-slate-900 ring-1 ring-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 placeholder="Share your thoughts..."
               />
             </label>

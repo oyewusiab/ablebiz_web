@@ -1,6 +1,19 @@
 import type { CanonicalStaffRole } from "../../auth/roleConfig";
 import type { PermissionAction, StaffProfile } from "../../auth/AuthContext";
-import type { HrPermissionMatrix } from "../hrPermissions";
+
+export interface HrCallerAccess {
+  canViewDirectory: boolean;
+  canManageStaffRecords: boolean;
+  canSubmitOwnLeave: boolean;
+  canViewAllLeave: boolean;
+  canApproveLeave: boolean;
+  canLogOwnAttendance: boolean;
+  canViewAllAttendance: boolean;
+  canManageShiftSettings: boolean;
+  canViewHrDocuments: boolean;
+  canManageHrDocuments: boolean;
+  canPostAnnouncements: boolean;
+}
 
 export type SuiteModuleId =
   | "dashboard"
@@ -39,6 +52,7 @@ export type AssistantTopicFilterId =
   | "finance"
   | "referrals_crm"
   | "staff_hr"
+  | "hr"
   | "suite_guide";
 
 export type AssistantIntentType =
@@ -284,6 +298,6 @@ export interface AssistantCallerContext {
   identityWarning?: string;
   permissions: string[];
   isManagement: boolean;
-  hrAccess: HrPermissionMatrix;
+  hrAccess: HrCallerAccess;
   hasPermission: HasPermissionFn;
 }

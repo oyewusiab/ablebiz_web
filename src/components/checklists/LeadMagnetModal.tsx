@@ -78,12 +78,13 @@ export function LeadMagnetModal({ checklist, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
+      className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"
       role="dialog"
       aria-modal="true"
+      style={{ colorScheme: "light" }}
     >
       <div className="w-full max-w-xl">
-        <Card className="shadow-xl">
+        <Card className="shadow-xl bg-white border border-slate-200 text-slate-900">
           <CardBody>
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -97,7 +98,7 @@ export function LeadMagnetModal({ checklist, onClose }: Props) {
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-800"
+                className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-100 transition shadow-xs"
               >
                 Close
               </button>
@@ -105,45 +106,45 @@ export function LeadMagnetModal({ checklist, onClose }: Props) {
 
             <form onSubmit={submit} className="mt-6 grid gap-4">
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                <label className="grid gap-1 text-sm font-semibold text-slate-800">
                   Name
                   <input
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-800 dark:ring-slate-700 dark:text-white"
+                    className="h-11 rounded-xl bg-white px-3 text-sm text-slate-900 border border-slate-300 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0A2558]/20 focus:border-[#0A2558] transition-all"
                     placeholder="Your full name"
                   />
                 </label>
-                <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                <label className="grid gap-1 text-sm font-semibold text-slate-800">
                   Phone
                   <input
                     required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-800 dark:ring-slate-700 dark:text-white"
+                    className="h-11 rounded-xl bg-white px-3 text-sm text-slate-900 border border-slate-300 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0A2558]/20 focus:border-[#0A2558] transition-all"
                     placeholder="e.g., 0816..."
                   />
                 </label>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                <label className="grid gap-1 text-sm font-semibold text-slate-800">
                   Email
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-800 dark:ring-slate-700 dark:text-white"
+                    className="h-11 rounded-xl bg-white px-3 text-sm text-slate-900 border border-slate-300 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0A2558]/20 focus:border-[#0A2558] transition-all"
                     placeholder="hello@..."
                   />
                 </label>
-                <label className="grid gap-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                <label className="grid gap-1 text-sm font-semibold text-slate-800">
                   Service Interest
                   <select
                     value={interest}
                     onChange={(e) => setInterest(e.target.value)}
-                    className="h-11 rounded-xl bg-white px-3 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-800 dark:ring-slate-700 dark:text-white"
+                    className="h-11 rounded-xl bg-white px-3 text-sm text-slate-900 border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A2558]/20 focus:border-[#0A2558] transition-all"
                   >
                     {services.map((s) => (
                       <option key={s.id} value={s.title}>
@@ -155,7 +156,7 @@ export function LeadMagnetModal({ checklist, onClose }: Props) {
                 </label>
               </div>
 
-              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-800">
                 <input
                   type="checkbox"
                   checked={sendToWhatsApp}
@@ -166,7 +167,7 @@ export function LeadMagnetModal({ checklist, onClose }: Props) {
               </label>
 
               {errorMsg && (
-                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300 flex items-start gap-2">
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800 flex items-start gap-2">
                   <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
                   <div>{errorMsg}</div>
                 </div>
@@ -191,14 +192,14 @@ export function LeadMagnetModal({ checklist, onClose }: Props) {
                     href={whatsapp}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-sm font-semibold text-[color:var(--ablebiz-primary)] hover:underline dark:text-amber-400"
+                    className="text-sm font-semibold text-[color:var(--ablebiz-primary)] hover:underline"
                   >
                     Preview WhatsApp message
                   </a>
                 ) : null}
               </div>
 
-              <div className="rounded-2xl bg-slate-50 p-4 text-xs text-slate-600 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:ring-slate-700">
+              <div className="rounded-2xl bg-slate-50 p-4 text-xs text-slate-600 border border-slate-200">
                 We use this info only to respond faster to your request. No spam.
               </div>
             </form>

@@ -1,4 +1,4 @@
-import { Award, BadgeCheck, Briefcase, HeartHandshake } from "lucide-react";
+import { BadgeCheck, Briefcase, HeartHandshake } from "lucide-react";
 import { Seo } from "../components/Seo";
 import { PageHero } from "../components/PageHero";
 import { Container } from "../components/ui/Container";
@@ -73,8 +73,8 @@ export function AboutPage() {
                     Administrative & Financial Management Background
                   </li>
                   <li className="inline-flex items-start gap-2">
-                    <Award className="mt-0.5 h-5 w-5 text-[color:var(--ablebiz-secondary)]" />
-                    Award-winning entrepreneur ({site.awardBadge})
+                    <HeartHandshake className="mt-0.5 h-5 w-5 text-[color:var(--ablebiz-secondary)]" />
+                    Committed to entrepreneurship & business growth across Nigeria
                   </li>
                 </ul>
               </CardBody>
@@ -91,13 +91,13 @@ export function AboutPage() {
                   {["Integrity", "Excellence", "Reliability", "Customer-Centered Service"].map((v) => (
                     <div
                       key={v}
-                      className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:ring-slate-700"
+                      className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200"
                     >
-                      <div className="inline-flex items-center gap-2 text-sm font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
+                      <div className="inline-flex items-center gap-2 text-sm font-extrabold text-[color:var(--ablebiz-primary)]">
                         <HeartHandshake className="h-5 w-5 text-[color:var(--ablebiz-cta)]" />
                         {v}
                       </div>
-                      <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                      <p className="mt-2 text-sm text-slate-600">
                         We keep the process clear, honest, and professional — no stories.
                       </p>
                     </div>

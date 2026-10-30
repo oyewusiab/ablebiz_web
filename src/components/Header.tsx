@@ -28,7 +28,7 @@ export function Header() {
 
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur-md transition-colors dark:border-slate-800 dark:bg-slate-900/90 shadow-xs">
+    <header className="sticky top-0 z-40 border-b border-slate-200/90 bg-white/95 backdrop-blur-md transition-colors shadow-xs">
       <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8 xl:px-12 2xl:max-w-[1440px]">
         <Link to="/" className="flex items-center gap-2 no-underline group shrink-0">
           <img
@@ -46,9 +46,9 @@ export function Header() {
               end={item.to === "/"}
               className={({ isActive }) =>
                 cn(
-                  "rounded-full px-3.5 py-1.5 text-sm font-semibold text-slate-700 no-underline transition-all hover:bg-slate-100 hover:text-[color:var(--ablebiz-primary)] dark:text-slate-200 dark:hover:bg-slate-800",
+                  "rounded-full px-3.5 py-1.5 text-sm font-semibold text-slate-700 no-underline transition-all hover:bg-slate-100 hover:text-[color:var(--ablebiz-primary)]",
                   isActive &&
-                    "bg-blue-50/90 text-[color:var(--ablebiz-primary)] font-bold ring-1 ring-blue-200/70 shadow-xs dark:bg-blue-950/50 dark:text-blue-200 dark:ring-blue-800"
+                    "bg-blue-50/90 text-[color:var(--ablebiz-primary)] font-bold ring-1 ring-blue-200/70 shadow-xs"
                 )
               }
             >
@@ -60,7 +60,7 @@ export function Header() {
         <div className="hidden items-center gap-3 md:flex shrink-0">
           <a
             href={`tel:${site.phone}`}
-            className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[color:var(--ablebiz-primary)] no-underline ring-1 ring-slate-200 hover:bg-slate-50 transition shadow-xs dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700"
+            className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[color:var(--ablebiz-primary)] no-underline ring-1 ring-slate-200 hover:bg-slate-50 transition shadow-xs"
           >
             <Phone className="h-4 w-4 text-[color:var(--ablebiz-cta)]" />
             Call
@@ -76,7 +76,7 @@ export function Header() {
 
         <button
           type="button"
-          className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white ring-1 ring-slate-200 text-slate-700 transition hover:bg-slate-50 md:hidden dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white ring-1 ring-slate-200 text-slate-700 transition hover:bg-slate-50 md:hidden"
           aria-label="Toggle navigation"
           onClick={() => setOpen((v) => !v)}
         >
@@ -85,7 +85,7 @@ export function Header() {
       </div>
 
       {open ? (
-        <div className="border-t border-slate-200 bg-white/95 backdrop-blur-md shadow-lg md:hidden dark:border-slate-800 dark:bg-slate-900/95">
+        <div className="border-t border-slate-200 bg-white/98 backdrop-blur-md shadow-lg md:hidden">
           <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8 xl:px-12">
             <div className="flex flex-col gap-2">
               {nav.map((item) => (
@@ -95,19 +95,19 @@ export function Header() {
                   end={item.to === "/"}
                   className={({ isActive }) =>
                     cn(
-                      "rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-700 no-underline hover:bg-slate-100 transition dark:text-slate-200 dark:hover:bg-slate-800",
+                      "rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-700 no-underline hover:bg-slate-100 transition",
                       isActive &&
-                        "bg-blue-50 text-[color:var(--ablebiz-primary)] font-bold ring-1 ring-blue-200 dark:bg-blue-950/60 dark:text-blue-200"
+                        "bg-blue-50 text-[color:var(--ablebiz-primary)] font-bold ring-1 ring-blue-200"
                     )
                   }
                 >
                   {item.label}
                 </NavLink>
               ))}
-              <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100">
                 <a
                   href={`tel:${site.phone}`}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-50 px-3 py-2.5 text-sm font-semibold text-[color:var(--ablebiz-primary)] no-underline ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-100"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-50 px-3 py-2.5 text-sm font-semibold text-[color:var(--ablebiz-primary)] no-underline ring-1 ring-slate-200 hover:bg-slate-100"
                 >
                   <Phone className="h-4 w-4 text-[color:var(--ablebiz-cta)]" />
                   Call

@@ -2,7 +2,7 @@ export const site = {
   name: "ABLEBIZ Business Services",
   tagline:
     "ABLEBIZ helps you formalize your business, handle the paperwork and stay on track.",
-  awardBadge: "🏆 2nd Place – BYUMS Africa Business Plan Competition",
+  awardBadge: "Reliable Business Registration & Compliance Support",
   phone: "08160486023",
   phoneDisplay: "0816 048 6023",
   email: "hello@ablebiz.com.ng",
@@ -13,7 +13,7 @@ export const site = {
     verification: [
       { title: "Registered Business Services Agent", note: "Assisting with CAC registration, compliance filings, and formal documentation." },
       { title: "Physical Office in Abeokuta", note: "In-person consultation and nationwide digital service delivery." },
-      { title: "Award-Winning Business", note: "BYUMS Africa Business Plan Competition — 2nd Place." },
+      { title: "Clear & Reliable Process", note: "Professional guidance, prompt delivery, and transparent steps from start to finish." },
       { title: "Transparent Process", note: "Clear requirements, real-time updates, and upfront quotes with no hidden charges." },
     ],
     stats: [

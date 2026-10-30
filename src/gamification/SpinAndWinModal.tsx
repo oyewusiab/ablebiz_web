@@ -227,24 +227,29 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs" role="dialog" aria-modal="true">
-      <div className="flex min-h-full items-center justify-center p-4 py-8">
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs"
+      role="dialog"
+      aria-modal="true"
+      style={{ colorScheme: "light" }}
+    >
+      <div className="flex min-h-full items-center justify-center p-3 sm:p-4 py-6 sm:py-8">
         <div className="w-full max-w-4xl">
-        <Card className="shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-          <CardBody className="p-6 sm:p-8">
+        <div className="rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden text-slate-900">
+          <div className="p-5 sm:p-8">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="inline-flex items-center gap-2 text-xl font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-200">
+                <div className="inline-flex items-center gap-2 text-xl font-black text-[#0A2558]">
                   <Sparkles className="h-6 w-6 text-amber-500" /> Spin & Win
                 </div>
-                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 font-medium">
+                <p className="mt-1 text-sm text-slate-600 font-medium">
                   Get an instant discount or reward and start your CAC registration with confidence.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={onClose}
-                className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3.5 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200 transition-all shadow-xs dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-slate-100 border border-slate-200 px-3.5 py-2 text-xs sm:text-sm font-bold text-slate-700 hover:bg-slate-200 transition-all shadow-xs shrink-0"
               >
                 <X className="h-4 w-4" /> Close
               </button>
@@ -252,47 +257,47 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
 
             <div className="mt-6 grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
               <div className="space-y-6">
-                <div className="rounded-2xl bg-amber-500/10 p-3.5 text-xs font-bold text-amber-800 dark:text-amber-300 ring-1 ring-amber-500/30 uppercase tracking-wider">
-                  🏆 Trusted by 5,000+ Nigerian Entrepreneurs
+                <div className="rounded-2xl bg-amber-500/10 p-3.5 text-xs font-bold text-amber-900 ring-1 ring-amber-500/30 uppercase tracking-wider">
+                  🏆 Professional CAC & Business Compliance Support
                 </div>
 
                 <div className="grid gap-4">
-                  <label className="grid gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  <label className="grid gap-1.5 text-xs font-bold text-slate-700 uppercase tracking-wider">
                     Name
                     <input
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      className="h-12 rounded-xl bg-white px-4 text-sm font-semibold ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all dark:bg-slate-800 dark:ring-slate-700 dark:text-white"
+                      className="h-12 rounded-xl bg-white px-4 text-sm font-semibold text-slate-900 ring-1 ring-slate-300 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all"
                       placeholder="Your full name"
                       required
                     />
                   </label>
 
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <label className="grid gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    <label className="grid gap-1.5 text-xs font-bold text-slate-700 uppercase tracking-wider">
                       Email
                       <input
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="h-12 rounded-xl bg-white px-4 text-sm font-semibold ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all dark:bg-slate-800 dark:ring-slate-700 dark:text-white"
+                        className="h-12 rounded-xl bg-white px-4 text-sm font-semibold text-slate-900 ring-1 ring-slate-300 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all"
                         placeholder="hello@..."
                         required
                       />
                     </label>
-                    <label className="grid gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    <label className="grid gap-1.5 text-xs font-bold text-slate-700 uppercase tracking-wider">
                       Phone (WhatsApp)
                       <input
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
-                        className="h-12 rounded-xl bg-white px-4 text-sm font-semibold ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all dark:bg-slate-800 dark:ring-slate-700 dark:text-white"
+                        className="h-12 rounded-xl bg-white px-4 text-sm font-semibold text-slate-900 ring-1 ring-slate-300 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all"
                         placeholder="e.g., 0816..."
                         required
                       />
                     </label>
                   </div>
 
-                  <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl ring-1 ring-slate-200 dark:ring-slate-700 cursor-pointer">
+                  <label className="flex items-center gap-2.5 text-xs font-semibold text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-200 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={sendToWhatsApp}
@@ -320,16 +325,16 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
                   </div>
 
                   {reward && !spinning && (
-                    <div className="rounded-3xl bg-slate-900 p-8 text-white space-y-5 animate-in zoom-in-95 duration-500 relative overflow-hidden shadow-2xl border border-amber-500/30">
+                    <div className="rounded-3xl bg-[#0A2558] p-6 sm:p-8 text-white space-y-5 animate-in zoom-in-95 duration-500 relative overflow-hidden shadow-2xl border border-amber-500/30">
                       <div className="absolute top-0 right-0 p-8 opacity-10">
                          <Sparkles className="h-32 w-32" />
                       </div>
                       <div className="relative">
                         <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-400 mb-1">CONGRATULATIONS!</div>
-                        <h4 className="text-xl font-black tracking-tight">You won: {reward.title}</h4>
-                        <div className="mt-4 flex items-center justify-between bg-white/5 rounded-2xl p-4 ring-1 ring-white/10">
+                        <h4 className="text-xl font-black tracking-tight text-white">You won: {reward.title}</h4>
+                        <div className="mt-4 flex items-center justify-between bg-white/10 rounded-2xl p-4 ring-1 ring-white/15">
                           <div>
-                            <div className="text-[10px] text-slate-400 font-black uppercase mb-0.5">Reward Code</div>
+                            <div className="text-[10px] text-slate-300 font-black uppercase mb-0.5">Reward Code</div>
                             <div className="text-lg font-black tracking-widest text-amber-300">{reward.code}</div>
                           </div>
                           <button
@@ -356,11 +361,11 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
               </div>
 
               <div className="space-y-6">
-                <div className="grid place-items-center rounded-3xl bg-slate-50 dark:bg-slate-800/50 p-8 ring-1 ring-slate-200/80 dark:ring-slate-700 shadow-inner">
+                <div className="grid place-items-center rounded-3xl bg-slate-50 p-5 sm:p-8 border border-slate-200/80 shadow-inner">
                   <div className="relative">
                     <div className="absolute -top-4 left-1/2 h-0 w-0 -translate-x-1/2 border-l-[14px] border-r-[14px] border-b-[20px] border-l-transparent border-r-transparent border-b-amber-500 z-10" />
                     <div
-                      className="relative h-56 w-56 sm:h-64 sm:w-64 md:h-72 md:w-72 rounded-full ring-[12px] ring-white dark:ring-slate-900 shadow-2xl overflow-hidden border-4 border-slate-900"
+                      className="relative h-48 w-48 min-[380px]:h-56 min-[380px]:w-56 sm:h-64 sm:w-64 md:h-72 md:w-72 rounded-full ring-[10px] sm:ring-[12px] ring-white shadow-2xl overflow-hidden border-4 border-slate-900"
                       style={{
                         ...wheelStyle,
                         transition: spinning ? "transform 5.0s cubic-bezier(0.15, 0.75, 0.15, 1)" : "none",
@@ -386,21 +391,21 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
                       })}
                     </div>
                     <div className="pointer-events-none absolute inset-0 grid place-items-center">
-                      <div className="h-16 w-16 rounded-full bg-slate-900 text-amber-400 shadow-2xl ring-4 ring-amber-400 flex items-center justify-center font-black text-[10px] uppercase tracking-widest scale-110">
+                      <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-full bg-slate-900 text-amber-400 shadow-2xl ring-4 ring-amber-400 flex items-center justify-center font-black text-[10px] uppercase tracking-widest scale-110">
                         SPIN
                       </div>
                     </div>
                   </div>
 
                   <div className="mt-8 w-full space-y-3">
-                    <div className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest px-1">Rewards available</div>
+                    <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Rewards available</div>
                     <div className="grid gap-2 text-sm text-slate-700">
                       {spinRewards.slice(0, 4).map((r) => (
                         <div
                           key={r.type}
-                          className="flex items-center justify-between rounded-xl bg-white dark:bg-slate-800 px-4 py-2.5 ring-1 ring-slate-200 dark:ring-slate-700 transition-all hover:scale-[1.02] shadow-xs"
+                          className="flex items-center justify-between rounded-xl bg-white px-4 py-2.5 border border-slate-200 transition-all hover:scale-[1.02] shadow-xs"
                         >
-                          <span className="text-xs font-bold text-slate-900 dark:text-white">{r.title}</span>
+                          <span className="text-xs font-bold text-slate-900">{r.title}</span>
                           <Sparkles className="h-3.5 w-3.5 text-amber-500" />
                         </div>
                       ))}
@@ -408,16 +413,16 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
                   </div>
                 </div>
 
-                <div className="rounded-2xl bg-blue-50 dark:bg-blue-950/40 p-4 text-[11px] font-medium text-blue-900 dark:text-blue-200 leading-relaxed ring-1 ring-blue-200/60 dark:ring-blue-900 flex gap-3">
-                  <div className="h-6 w-6 rounded-lg bg-blue-600 text-white flex shrink-0 items-center justify-center font-bold text-xs">!</div>
+                <div className="rounded-2xl bg-blue-50 p-4 text-[11px] font-medium text-blue-900 leading-relaxed border border-blue-200/70 flex gap-3">
+                  <div className="h-6 w-6 rounded-lg bg-[#0A2558] text-white flex shrink-0 items-center justify-center font-bold text-xs">!</div>
                   <p>Rewards are linked to your phone/email. You can close this and come back later; your progress is automatically saved for secure redemption.</p>
                 </div>
               </div>
             </div>
-          </CardBody>
-        </Card>
+          </div>
         </div>
       </div>
     </div>
+  </div>
   );
 }

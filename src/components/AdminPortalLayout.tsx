@@ -30,6 +30,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
+import { useTheme } from "../auth/ThemeContext";
 import { getRoleTitle, getRoleConfig } from "../auth/roleConfig";
 import { BrandLogo } from "./BrandLogo";
 
@@ -53,6 +54,7 @@ export function AdminPortalLayout() {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const { user, profile, logout, hasPermission } = useAuth();
+  const { theme } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -315,7 +317,7 @@ export function AdminPortalLayout() {
   );
 
   return (
-    <div className="admin-theme flex h-screen overflow-hidden bg-[#F8FAFC] text-[#0F172A] font-sans antialiased">
+    <div className={`admin-theme ${theme === "dark" ? "dark" : ""} flex h-screen overflow-hidden bg-[#F8FAFC] text-[#0F172A] font-sans antialiased`}>
       {/* Mobile Backdrop */}
       {isMobileOpen ? (
         <div

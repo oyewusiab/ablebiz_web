@@ -480,7 +480,7 @@ export function AdminSettings() {
                     setHasUnsavedBiz(true);
                   }}
                   disabled={!canEditSettings}
-                  placeholder="e.g. 🏆 2nd Place – BYUMS Africa Business Plan Competition"
+                  placeholder="e.g. Reliable Business Registration & Compliance Support"
                 />
               </AdminField>
             </div>

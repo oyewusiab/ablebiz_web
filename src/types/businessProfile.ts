@@ -97,7 +97,7 @@ export const DEFAULT_BUSINESS_PROFILE: BusinessProfile = {
   cac_accredited_agent_number: "",
   tax_identification_number: "",
   year_established: "2019",
-  award_badge: "🏆 2nd Place – BYUMS Africa Business Plan Competition",
+  award_badge: "Reliable Business Registration & Compliance Support",
   primary_phone: "08160486023",
   secondary_phone: "",
   whatsapp_number: "08160486023",

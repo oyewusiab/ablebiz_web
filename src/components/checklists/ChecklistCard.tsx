@@ -22,14 +22,14 @@ export function ChecklistCard({ checklist }: Props) {
 
           <ul className="mt-4 grid gap-2 text-sm text-slate-700">
             {checklist.bullets.slice(0, 5).map((b) => (
-              <li key={b} className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:ring-slate-700 dark:text-slate-300">
+              <li key={b} className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200">
                 {b}
               </li>
             ))}
           </ul>
 
           <div className="mt-5 flex items-center justify-between gap-4">
-            <div className="text-xs font-bold text-amber-700 dark:text-amber-400">
+            <div className="text-xs font-bold text-amber-700">
               PDF • Free Download
             </div>
             <Button

@@ -1,6 +1,9 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
+  color-scheme: light;
   /* --- ABLEBIZ Brand Colors (Navy & Gold Identity) --- */
   --ablebiz-primary: #0A2558;
   --ablebiz-cta: #D97706;
@@ -34,7 +37,7 @@
   --spacing-16: 64px;
 
   /* Shared values for website */
-  --card-bg: rgba(255, 255, 255, 0.92);
+  --card-bg: #ffffff;
   --sidebar-bg: #061738;
   --text-primary: #0F172A;
   --text-secondary: #475569;
@@ -42,7 +45,26 @@
   --admin-border-strong: #CBD5E1;
 }
 
+.public-site {
+  color-scheme: light;
+  --ablebiz-bg: #F8FAFC;
+  --card-bg: #ffffff;
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --admin-border: #E2E8F0;
+  --admin-border-strong: #CBD5E1;
+  background-color: #F8FAFC;
+  color: #0F172A;
+}
+
+.public-site input,
+.public-site select,
+.public-site textarea {
+  color-scheme: light;
+}
+
 .dark {
+  color-scheme: dark;
   --ablebiz-bg: #070D18;
   --card-bg: rgba(15, 23, 42, 0.75);
   --sidebar-bg: #040A14;

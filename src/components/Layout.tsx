@@ -15,7 +15,7 @@ function ScrollToTop() {
 
 export function Layout() {
   return (
-    <div className="min-h-dvh">
+    <div className="public-site min-h-dvh bg-[#F8FAFC] text-slate-900 font-sans" style={{ colorScheme: "light" }}>
       <ScrollToTop />
       <Header />
       <main>

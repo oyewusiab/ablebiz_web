@@ -184,7 +184,7 @@ describe("ABLEBIZ AI Secretary — Role & Identity Consistency (Header vs Assist
     const conflictingCaller = buildCallerContext(
       {
         id: "sp-conflict",
-        user_id: "u-conflict",
+        auth_uid: "u-conflict",
         email: "staff@ablebiz.com",
         full_name: "Chinedu Okafor",
         role: "viewer",
@@ -356,7 +356,7 @@ describe("ABLEBIZ AI Secretary — Plain Business Language vs Explicit Technical
       /No matching CAC filing records were found/i
     );
     assert.doesNotMatch(emptyResult.payload.markdown, /cac_applications/);
-    assert.equal(emptyResult.payload.sourceMeta.sourcesLabel, "CAC Filing Records");
+    assert.equal(emptyResult.payload.sourceMeta?.sourcesLabel, "CAC Filing Records");
   });
 
   it("hides SQL migration file paths in normal mode but includes them when the user asks for technical diagnostics", async () => {

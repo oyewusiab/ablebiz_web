@@ -9,7 +9,7 @@ import type {
 
 export const CAPABILITY_CATALOGUE_VERSION = "2026.10.2";
 
-export const SUITE_CAPABILITY_INVENTORY: Record<SuiteModuleId, CapabilityModuleSpec> = {
+export const SUITE_CAPABILITY_INVENTORY: Record<string, CapabilityModuleSpec> = {
   dashboard: {
     moduleId: "dashboard",
     name: "Manager Workbench & Dashboard",
@@ -1102,7 +1102,7 @@ export const SUITE_CAPABILITY_INVENTORY: Record<SuiteModuleId, CapabilityModuleS
     knownLimitations: "Cannot execute write operations on behalf of the user; provides exact instructions and direct links instead.",
     dataFreshness: "Live query per turn (Africa/Lagos).",
   },
-} as Record<SuiteModuleId, CapabilityModuleSpec>;
+} as unknown as Record<SuiteModuleId, CapabilityModuleSpec>;
 
 export const CAPABILITY_CATALOGUE: Record<string, CapabilityModuleSpec> = Object.fromEntries(
   Object.entries(SUITE_CAPABILITY_INVENTORY)
