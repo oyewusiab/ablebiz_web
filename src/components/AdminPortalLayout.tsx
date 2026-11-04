@@ -114,6 +114,7 @@ export function AdminPortalLayout() {
     {
       title: "GROWTH",
       items: [
+        { name: "Campaigns & Promos", path: "/admin/campaigns", icon: Sparkles, module: "campaigns" },
         { name: "Referrals & Partners", path: "/admin/referrals", icon: TrendingUp },
       ],
     },

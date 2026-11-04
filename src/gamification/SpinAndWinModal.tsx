@@ -18,6 +18,7 @@ import { supabaseEnabled } from "../lib/supabaseClient";
 import { rpcCreateSpinAndReward } from "../lib/supabaseApi";
 import { getSessionReferralCode } from "../referrals/useReferralUrl";
 import { useSiteConfig } from "../referrals/siteConfig";
+import { fetchAuthoritativeCampaignBundle } from "../lib/campaignEngine";
 
 type Props = {
   open: boolean;
@@ -138,6 +139,19 @@ export function SpinAndWinModal({ open, onClose, source }: Props) {
     if (!canSpin || isSubmitting) return;
     setSpinError(null);
     setIsSubmitting(true);
+
+    try {
+      const bundle = await fetchAuthoritativeCampaignBundle();
+      if (bundle.campaign.spin_and_win_paused) {
+        setSpinError(
+          "Spin & Win is temporarily paused during the ABLEBIZ Office Opening Special Promo. Please visit our Office Opening Promo page for up to 30% off selected services!"
+        );
+        setIsSubmitting(false);
+        return;
+      }
+    } catch {
+      // Continue to backend RPC check
+    }
 
     let chosenRewardType: SpinRewardType = "discount_1000";
     let rewardCode = "";

@@ -93,8 +93,12 @@ export function ConsultationForm({
     }
 
     if (!defaultServiceId) return;
-    const found = services.find((s) => s.id === defaultServiceId);
-    if (found) setServiceNeeded(found.title);
+    const found = services.find((s) => s.id === defaultServiceId || s.title === defaultServiceId);
+    if (found) {
+      setServiceNeeded(found.title);
+    } else {
+      setServiceNeeded(defaultServiceId);
+    }
   }, [defaultServiceId, services]);
 
   const summaryText = useMemo(() => {
@@ -182,9 +186,9 @@ export function ConsultationForm({
 
     // Extract UTM parameters if present
     const searchParams = new URLSearchParams(location.search);
-    const utmSource = searchParams.get('utm_source') || undefined;
+    const utmSource = searchParams.get('utm_source') || (location.pathname.includes('office-opening-promo') ? 'office_opening_promo_page' : undefined);
     const utmMedium = searchParams.get('utm_medium') || undefined;
-    const utmCampaign = searchParams.get('utm_campaign') || undefined;
+    const utmCampaign = searchParams.get('utm_campaign') || (location.pathname.includes('office-opening-promo') ? 'office-opening-promo-2026' : undefined);
 
     try {
       // 1. Authoritative submission into Supabase Suite database
@@ -273,12 +277,22 @@ export function ConsultationForm({
                 onChange={(e) => setServiceNeeded(e.target.value)}
                 className="h-11 rounded-xl bg-white px-3 text-sm text-slate-900 border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0A2558]/20 focus:border-[#0A2558] transition-all"
               >
-                {services.map((s) => (
-                  <option key={s.id} value={s.title}>
-                    {s.title}
-                  </option>
-                ))}
-                <option value="Custom / Not sure">Custom / Not sure</option>
+                <optgroup label="Office Opening Promo Eligible Services (Nov 5 – Nov 20, 2026)">
+                  <option value="Business Name Registration">Business Name Registration (Promo: ₦30,000 • 25% Off)</option>
+                  <option value="Company Registration">Company Registration (Promo: ₦45,500 • 30% Off)</option>
+                  <option value="NGO Registration">NGO Registration (Promo: ₦144,000 • 10% Off)</option>
+                  <option value="SCUML Assistance">SCUML Assistance (Promo: ₦32,000 • 20% Off)</option>
+                  <option value="Annual Returns – Business Name">Annual Returns – Business Name (Promo: ₦13,800 • 8% Off)</option>
+                  <option value="Annual Returns – Company">Annual Returns – Company (Promo: ₦14,400 • 10% Off)</option>
+                </optgroup>
+                <optgroup label="All ABLEBIZ Services">
+                  {services.map((s) => (
+                    <option key={s.id} value={s.title}>
+                      {s.title}
+                    </option>
+                  ))}
+                  <option value="Custom / Not sure">Custom / Not sure</option>
+                </optgroup>
               </select>
             </label>
           </div>

@@ -34,6 +34,9 @@ export function Footer() {
               Quick Links
             </div>
             <div className="grid gap-2 text-sm">
+              <Link className="text-amber-400 font-semibold no-underline transition hover:text-amber-300" to="/office-opening-promo">
+                Office Opening Promo (Up to 30% Off)
+              </Link>
               <Link className="text-slate-400 no-underline transition hover:text-amber-400" to="/services">
                 Services
               </Link>
@@ -41,7 +44,7 @@ export function Footer() {
                 Blog / Resources
               </Link>
               <Link className="text-slate-400 no-underline transition hover:text-amber-400" to="/refer-and-earn">
-                Refer & Earn
+                Refer & Earn (Up to ₦35,000)
               </Link>
               <Link className="text-slate-400 no-underline transition hover:text-amber-400" to="/contact">
                 Contact Us

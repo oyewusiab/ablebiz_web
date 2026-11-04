@@ -10,6 +10,7 @@ import { BlogIndexPage } from "./pages/BlogIndex";
 import { BlogPostPage } from "./pages/BlogPost";
 import { NotFoundPage } from "./pages/NotFound";
 import { ReferralsPage } from "./pages/Referrals";
+import { OfficeOpeningPromoPage } from "./pages/OfficeOpeningPromo";
 
 import { useReferralUrl } from "./referrals/useReferralUrl";
 import { Analytics } from "@vercel/analytics/react";
@@ -45,6 +46,7 @@ import { NotificationsPage } from "./pages/admin/Notifications";
 import { ClientCommunicationsPage } from "./pages/admin/Communications";
 import { StaffRbacPage } from "./pages/admin/Team";
 import { HrWorkspacePage } from "./pages/admin/HrWorkspace";
+import { Campaigns as AdminCampaigns } from "./pages/admin/Campaigns";
 import { BusinessProfileProvider } from "./lib/businessProfileContext";
 
 export default function App() {
@@ -61,7 +63,8 @@ export default function App() {
               <Route index element={<HomePage />} />
               <Route path="/about" element={<AboutPage />} />
               <Route path="/services" element={<ServicesPage />} />
-            <Route path="/pricing" element={<Navigate to="/services" replace />} />
+              <Route path="/office-opening-promo" element={<OfficeOpeningPromoPage />} />
+              <Route path="/pricing" element={<Navigate to="/services" replace />} />
             <Route path="/testimonials" element={<TestimonialsPage />} />
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/blog" element={<BlogIndexPage />} />
@@ -104,7 +107,8 @@ export default function App() {
             <Route path="hr" element={<ProtectedRoute requiredModule="hr"><HrWorkspacePage /></ProtectedRoute>} />
             <Route path="hr/:section" element={<ProtectedRoute requiredModule="hr"><HrWorkspacePage /></ProtectedRoute>} />
             <Route path="team" element={<ProtectedRoute requiredRole={["super_admin", "admin"]}><StaffRbacPage /></ProtectedRoute>} />
-            {/* Referrals & Reports */}
+            {/* Referrals & Reports & Campaigns */}
+            <Route path="campaigns" element={<ProtectedRoute><AdminCampaigns /></ProtectedRoute>} />
             <Route path="referrals" element={<ProtectedRoute><AdminReferrals /></ProtectedRoute>} />
             <Route path="reports" element={<ProtectedRoute requiredModule="reports"><AdminReports /></ProtectedRoute>} />
             <Route path="settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />

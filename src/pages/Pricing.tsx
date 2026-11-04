@@ -1,4 +1,4 @@
-import { Check, Gift } from "lucide-react";
+import { ArrowRight, Check, Gift, Sparkles } from "lucide-react";
 import { Seo } from "../components/Seo";
 import { PageHero } from "../components/PageHero";
 import { Container } from "../components/ui/Container";
@@ -10,8 +10,12 @@ import { buildWhatsAppLink } from "../content/site";
 import { CtaSection } from "../components/CtaSection";
 
 export function PricingPage() {
-  const { openSpin } = useGamification();
+  const { openSpin, isSpinPaused, campaignBundle } = useGamification();
   const { pricing: pricingTiers } = useSiteConfig();
+  const campaign = campaignBundle.campaign;
+  const showCampaignBanner =
+    campaign.is_publicly_visible &&
+    (campaign.effective_status === "scheduled" || campaign.effective_status === "active");
 
   const quoteLink = buildWhatsAppLink(
     "Hello ABLEBIZ, I need a custom quote. Please ask me the questions you need."
@@ -41,25 +45,51 @@ export function PricingPage() {
 
       <section>
         <Container className="py-14">
-          <div className="mb-8 rounded-3xl bg-gradient-to-r from-amber-500/10 via-blue-50/50 to-amber-500/10 p-6 ring-1 ring-amber-500/30 dark:from-amber-950/20 dark:via-blue-950/30 dark:to-amber-950/20">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="text-lg font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
-                  🎁 Spin & Win — Get an instant reward
+          {isSpinPaused ? (
+            showCampaignBanner ? (
+              <div className="mb-8 rounded-3xl bg-gradient-to-r from-[#0A2558] via-blue-900 to-[#0A2558] p-6 sm:p-7 text-white ring-1 ring-amber-400/40 shadow-lg">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-400/20 px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-amber-300 ring-1 ring-amber-400/30 mb-2">
+                      <Sparkles className="h-3.5 w-3.5" /> Office Opening Special Promo (Nov 5 – Nov 20, 2026)
+                    </div>
+                    <div className="text-lg font-extrabold text-white">
+                      {campaign.promo_headline} • {campaign.referral_headline}
+                    </div>
+                    <p className="mt-1 text-sm text-blue-100">
+                      Discounts apply strictly to ABLEBIZ professional service fees on eligible services. CAC/statutory charges excluded unless expressly stated.
+                    </p>
+                  </div>
+                  <ButtonLink
+                    to="/office-opening-promo"
+                    className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold border-0 shadow-md shrink-0"
+                  >
+                    <Sparkles className="h-4 w-4 text-slate-950" /> View Promo Pricing Table <ArrowRight className="h-4 w-4" />
+                  </ButtonLink>
                 </div>
-                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                  Play our Spin & Win game to get a discount or free bonus on any package.
-                </p>
               </div>
-              <Button
-                type="button"
-                onClick={() => openSpin("pricing_cta")}
-                className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold border-0 shadow-md"
-              >
-                <Gift className="h-4 w-4 text-slate-950" /> Spin & Get Discount
-              </Button>
+            ) : null
+          ) : (
+            <div className="mb-8 rounded-3xl bg-gradient-to-r from-amber-500/10 via-blue-50/50 to-amber-500/10 p-6 ring-1 ring-amber-500/30 dark:from-amber-950/20 dark:via-blue-950/30 dark:to-amber-950/20">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="text-lg font-extrabold text-[color:var(--ablebiz-primary)] dark:text-blue-300">
+                    🎁 Spin & Win — Get an instant reward
+                  </div>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                    Play our Spin & Win game to get a discount or free bonus on any package.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  onClick={() => openSpin("pricing_cta")}
+                  className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold border-0 shadow-md"
+                >
+                  <Gift className="h-4 w-4 text-slate-950" /> Spin & Get Discount
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="grid gap-6 md:grid-cols-3">
             {pricingTiers.map((t) => (

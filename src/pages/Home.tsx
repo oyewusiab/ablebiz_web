@@ -1,10 +1,11 @@
-import { ArrowRight, CheckCircle2, MessageCircle } from "lucide-react";
+import { ArrowRight, Calendar, CheckCircle2, FileText, MessageCircle, Sparkles, Tag, Users } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Seo } from "../components/Seo";
 import { PageHero } from "../components/PageHero";
 import { Container } from "../components/ui/Container";
 import { ButtonLink } from "../components/ui/Button";
 import { useSiteConfig } from "../referrals/siteConfig";
+import { useGamification } from "../gamification/GamificationProvider";
 import { Card, CardBody } from "../components/ui/Card";
 import { ServiceIcon } from "../components/ServiceIcon";
 import { AnimateIn } from "../components/AnimateIn";
@@ -18,9 +19,18 @@ import { TrustVerificationSection } from "../components/TrustVerificationSection
 
 export function HomePage() {
   const { site, services } = useSiteConfig();
+  const { campaignBundle } = useGamification();
+  const campaign = campaignBundle.campaign;
+  const showCampaignPromo =
+    campaign.is_publicly_visible &&
+    (campaign.effective_status === "scheduled" || campaign.effective_status === "active");
 
   const heroWhatsApp = buildWhatsAppLink(
     "Hello ABLEBIZ, I would like to speak with someone about your services."
+  );
+
+  const promoWhatsApp = buildWhatsAppLink(
+    "Hello ABLEBIZ! I want to get started with the Office Opening Special Promo (Up to 30% Off / Refer & Earn up to ₦35,000)."
   );
 
   return (
@@ -93,6 +103,103 @@ export function HomePage() {
           </div>
         }
       />
+
+      {/* OFFICE OPENING SPECIAL PROMO SECTION (Part 2A) */}
+      {showCampaignPromo ? (
+        <section aria-label="ABLEBIZ Office Opening Special Promo">
+          <Container className="pt-10 pb-2">
+            <AnimateIn>
+              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0A2558] via-blue-900 to-[#081b42] p-7 sm:p-10 text-white shadow-xl ring-2 ring-amber-400/50">
+                <div className="pointer-events-none absolute -top-20 -right-20 h-72 w-72 rounded-full bg-amber-400/15 blur-3xl" />
+                <div className="relative grid gap-8 lg:grid-cols-12 lg:items-center">
+                  <div className="lg:col-span-8 space-y-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-400 px-3 py-1 text-xs font-black uppercase tracking-wider text-slate-950">
+                        <Sparkles className="h-3.5 w-3.5" /> ABLEBIZ OFFICE OPENING SPECIAL
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-amber-200 ring-1 ring-white/20">
+                        <Calendar className="h-3.5 w-3.5 text-amber-400" /> Campaign Period: November 5 – November 20, 2026
+                      </span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <h2 className="text-2xl sm:text-4xl font-black tracking-tight text-white">
+                        {campaign.promo_headline} •{" "}
+                        <span className="text-amber-300">REFER & {campaign.referral_headline}</span>
+                      </h2>
+                      <p className="text-sm sm:text-base text-blue-100 leading-relaxed max-w-2xl">
+                        Selected Business Registration, Compliance & Business Support Services — celebrating our physical office opening in {campaign.location}.{" "}
+                        <span className="text-amber-200 font-semibold">Terms and conditions apply.</span>
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3 pt-1">
+                      <ButtonLink
+                        to="/office-opening-promo#eligible-services"
+                        className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black border-0 shadow-md"
+                      >
+                        <Tag className="h-4 w-4" /> Explore Promotional Services
+                      </ButtonLink>
+                      <ButtonLink
+                        to={promoWhatsApp}
+                        external
+                        className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-extrabold border-0 shadow-md"
+                      >
+                        <MessageCircle className="h-4 w-4" /> Get Started on WhatsApp
+                      </ButtonLink>
+                      <ButtonLink
+                        to="/refer-and-earn"
+                        variant="secondary"
+                        className="bg-white/10 text-white border-white/25 hover:bg-white/20 font-bold"
+                      >
+                        <Users className="h-4 w-4 text-amber-300" /> Join the Referral Rewards Programme
+                      </ButtonLink>
+                      <Link
+                        to="/office-opening-promo#campaign-terms"
+                        className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-blue-200 hover:text-white no-underline transition"
+                      >
+                        <FileText className="h-3.5 w-3.5" /> View Campaign Terms
+                      </Link>
+                    </div>
+                  </div>
+
+                  <div className="lg:col-span-4">
+                    <div className="rounded-2xl bg-white/10 p-5 ring-1 ring-white/20 backdrop-blur-xs space-y-3">
+                      <div className="text-xs font-extrabold uppercase tracking-wider text-amber-300">
+                        Featured Promotional Fees
+                      </div>
+                      <div className="space-y-2 text-xs sm:text-sm">
+                        <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
+                          <span className="text-blue-100">Business Name Reg. (25% Off)</span>
+                          <span className="font-black text-white">₦30,000</span>
+                        </div>
+                        <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
+                          <span className="text-blue-100">Company Reg. (30% Off)</span>
+                          <span className="font-black text-white">₦45,500</span>
+                        </div>
+                        <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
+                          <span className="text-blue-100">NGO Reg. (10% Off)</span>
+                          <span className="font-black text-white">₦144,000</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-blue-100">SCUML Assistance (20% Off)</span>
+                          <span className="font-black text-white">₦32,000</span>
+                        </div>
+                      </div>
+                      <div className="text-[11px] text-blue-200 pt-1">
+                        * Applies to ABLEBIZ professional service fees only.{" "}
+                        <Link to="/office-opening-promo" className="text-amber-300 font-bold underline">
+                          See all 6 services →
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </AnimateIn>
+          </Container>
+        </section>
+      ) : null}
 
       <section>
         <Container className="py-8">

@@ -1,5 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
+import { Link } from "react-router-dom";
 import {
+  ArrowRight,
+  Building2,
   Check,
   CheckCircle2,
   Copy,
@@ -30,6 +33,9 @@ import {
   type ReferralStatsRpcResult,
   type SubmitReferralResult,
 } from "../lib/supabaseApi";
+import { supabase } from "../lib/supabaseClient";
+import { useGamification } from "../gamification/GamificationProvider";
+import { calculateReferralMilestoneReward } from "../lib/campaignEngine";
 import { getSessionReferralCode } from "../referrals/useReferralUrl";
 import { buildWhatsAppLink, buildWhatsAppShareLink } from "../content/site";
 
@@ -43,7 +49,17 @@ type PartnerClient = {
 };
 
 export function ReferralsPage() {
+  const { campaignBundle } = useGamification();
+  const { campaign, milestones } = campaignBundle;
   const [activeTab, setActiveTab] = useState<"join" | "refer" | "dashboard">("join");
+
+  // Bank payout details form state for Campaign Referral Rewards
+  const [payoutPhone, setPayoutPhone] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [accountName, setAccountName] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [isSavingBank, setIsSavingBank] = useState(false);
+  const [bankSaveMsg, setBankSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   // Join form state
   const [name, setName] = useState("");
@@ -283,6 +299,44 @@ export function ReferralsPage() {
     window.open(waLink, "_blank");
   };
 
+  const handleSaveBankDetails = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const targetCode = stats?.referral_code || currentCode;
+    if (!targetCode || !payoutPhone.trim() || !bankName.trim() || !accountName.trim() || !accountNumber.trim()) {
+      return;
+    }
+    setIsSavingBank(true);
+    setBankSaveMsg(null);
+    try {
+      const { error } = await supabase.rpc("ablebiz_submit_referrer_bank_details", {
+        p_referral_code: targetCode.trim().toUpperCase(),
+        p_phone: payoutPhone.trim(),
+        p_bank_name: bankName.trim(),
+        p_account_name: accountName.trim(),
+        p_account_number: accountNumber.trim(),
+      });
+      if (error) throw error;
+      setBankSaveMsg({
+        ok: true,
+        text: "Your designated bank account details have been saved for post-campaign payout verification.",
+      });
+    } catch (err: any) {
+      setBankSaveMsg({
+        ok: false,
+        text:
+          err?.message ||
+          "Could not save bank details. Please ensure your registered phone number matches your referral code.",
+      });
+    } finally {
+      setIsSavingBank(false);
+    }
+  };
+
+  const campaignMilestoneProgress = useMemo(() => {
+    const verifiedCount = Number(stats?.conversions_count || 0);
+    return calculateReferralMilestoneReward(verifiedCount);
+  }, [stats?.conversions_count]);
+
   return (
     <>
       <Seo
@@ -299,6 +353,53 @@ export function ReferralsPage() {
 
       <section>
         <Container className="py-12 max-w-5xl">
+          {/* Office Opening Campaign Referral Milestones Banner (Part 2D & 2E) */}
+          {campaign.is_publicly_visible ? (
+            <div className="mb-8 rounded-3xl bg-gradient-to-br from-[#0A2558] via-blue-900 to-[#081b42] p-6 sm:p-8 text-white shadow-xl ring-2 ring-amber-400/50">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-400 px-3 py-1 text-xs font-black uppercase tracking-wider text-slate-950">
+                  <Sparkles className="h-3.5 w-3.5" /> Office Opening Referral Rewards Campaign (Nov 5 – Nov 20, 2026)
+                </div>
+                <Link
+                  to="/office-opening-promo#referral-milestones"
+                  className="inline-flex items-center gap-1 text-xs font-bold text-amber-300 hover:text-amber-200 no-underline"
+                >
+                  View Full Campaign Policy & Eligible Services <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+
+              <h2 className="mt-3 text-2xl sm:text-3xl font-black text-white">
+                Refer New Clients & {campaign.referral_headline}
+              </h2>
+              <p className="mt-1 text-xs sm:text-sm text-blue-100 max-w-3xl leading-relaxed">
+                During the Office Opening Special Promo (<strong>November 5 – November 20, 2026</strong>), earn cash rewards when you refer new customers who purchase and complete full payment for an eligible campaign service:
+              </p>
+
+              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {milestones.map((m) => (
+                  <div
+                    key={m.referrals_required}
+                    className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/15 backdrop-blur-xs"
+                  >
+                    <div className="text-xs font-bold text-amber-300 uppercase tracking-wider">
+                      {m.referrals_required} Successful {m.referrals_required === 1 ? "Referral" : "Referrals"}
+                    </div>
+                    <div className="mt-1 text-2xl font-black text-white">
+                      ₦{m.total_reward_ngn.toLocaleString("en-NG")}
+                    </div>
+                    <div className="mt-0.5 text-[11px] text-blue-200">
+                      Cumulative Milestone Total
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 rounded-xl bg-white/10 px-4 py-3 text-xs text-blue-100 ring-1 ring-white/10">
+                <strong className="text-amber-300">Cumulative Milestone Note:</strong> Rewards are cumulative milestone totals, not separate bonuses payable on top of each other (e.g., reaching 3 successful referrals means a total reward of <strong>₦7,500</strong>, not ₦2,000 + ₦7,500). Approved rewards are paid via bank transfer within 5–7 business days after post-campaign verification.
+              </div>
+            </div>
+          ) : null}
+
           {/* Program Highlights Banner */}
           <div className="mb-10 rounded-3xl bg-blue-50/70 p-6 sm:p-7 ring-1 ring-blue-200/80">
             <div className="flex items-center gap-3.5">
@@ -892,6 +993,119 @@ export function ReferralsPage() {
                         <Share2 className="h-3.5 w-3.5" /> Share WhatsApp
                       </a>
                     </div>
+                  </div>
+
+                  {/* Office Opening Campaign Cumulative Milestone Status & Bank Payout Card */}
+                  <div className="rounded-2xl border-2 border-amber-400/70 bg-gradient-to-br from-amber-50/70 via-white to-blue-50/40 p-6 shadow-sm space-y-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 pb-4">
+                      <div>
+                        <span className="inline-flex items-center gap-1 text-[11px] font-extrabold uppercase tracking-wider text-amber-800">
+                          <Sparkles className="h-3.5 w-3.5 text-amber-600" /> Office Opening Campaign Milestone Tracker
+                        </span>
+                        <h4 className="text-lg font-black text-[#0A2558]">
+                          Cumulative Cash Reward Status (Nov 5 – Nov 20, 2026)
+                        </h4>
+                      </div>
+                      <div className="text-left sm:text-right">
+                        <div className="text-[11px] font-bold uppercase text-slate-500">
+                          Cumulative Milestone Earned
+                        </div>
+                        <div className="text-2xl font-black text-emerald-700">
+                          ₦{campaignMilestoneProgress.totalRewardEarned.toLocaleString("en-NG")}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-3 text-xs">
+                      <div className="rounded-xl bg-white p-3.5 ring-1 ring-slate-200">
+                        <span className="text-slate-500 font-semibold">Verified Conversions:</span>
+                        <div className="text-xl font-black text-slate-900 mt-0.5">
+                          {campaignMilestoneProgress.successfulReferrals}
+                        </div>
+                      </div>
+                      <div className="rounded-xl bg-white p-3.5 ring-1 ring-slate-200">
+                        <span className="text-slate-500 font-semibold">Highest Milestone Reached:</span>
+                        <div className="text-xl font-black text-[#0A2558] mt-0.5">
+                          {campaignMilestoneProgress.milestoneReached === 0
+                            ? "None Yet"
+                            : `${campaignMilestoneProgress.milestoneReached} Referrals`}
+                        </div>
+                      </div>
+                      <div className="rounded-xl bg-white p-3.5 ring-1 ring-slate-200">
+                        <span className="text-slate-500 font-semibold">Next Campaign Milestone:</span>
+                        <div className="text-sm font-extrabold text-amber-800 mt-1">
+                          {campaignMilestoneProgress.nextMilestone
+                            ? `${campaignMilestoneProgress.remainingToNextMilestone} more to reach ${campaignMilestoneProgress.nextMilestone} Refs (₦${(
+                                campaignMilestoneProgress.nextMilestoneTotalReward || 0
+                              ).toLocaleString("en-NG")} total)`
+                            : "Max ₦35,000 Milestone Reached!"}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bank Details Submission for Post-Campaign Payout */}
+                    <form onSubmit={handleSaveBankDetails} className="rounded-2xl bg-white p-4 sm:p-5 ring-1 ring-slate-200 space-y-3">
+                      <div className="flex items-center gap-2 text-xs font-extrabold text-[#0A2558]">
+                        <Building2 className="h-4 w-4 text-amber-600" />
+                        <span>Designated Bank Account for Campaign Reward Payout</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500">
+                        Provide your Nigerian bank details so our Finance team can process your verified milestone payout within 5–7 business days after campaign verification.
+                      </p>
+                      <div className="grid gap-3 sm:grid-cols-4">
+                        <input
+                          value={payoutPhone}
+                          onChange={(e) => setPayoutPhone(e.target.value)}
+                          placeholder="Registered Phone (080...)"
+                          className="h-10 rounded-xl border border-slate-300 px-3 text-xs text-slate-900"
+                          required
+                        />
+                        <input
+                          value={bankName}
+                          onChange={(e) => setBankName(e.target.value)}
+                          placeholder="Bank Name (e.g. GTBank)"
+                          className="h-10 rounded-xl border border-slate-300 px-3 text-xs text-slate-900"
+                          required
+                        />
+                        <input
+                          value={accountNumber}
+                          onChange={(e) => setAccountNumber(e.target.value)}
+                          placeholder="10-Digit Account No."
+                          maxLength={10}
+                          className="h-10 rounded-xl border border-slate-300 px-3 text-xs font-mono text-slate-900"
+                          required
+                        />
+                        <input
+                          value={accountName}
+                          onChange={(e) => setAccountName(e.target.value)}
+                          placeholder="Account Holder Name"
+                          className="h-10 rounded-xl border border-slate-300 px-3 text-xs text-slate-900"
+                          required
+                        />
+                      </div>
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                        {bankSaveMsg ? (
+                          <span
+                            className={`text-xs font-semibold ${
+                              bankSaveMsg.ok ? "text-emerald-700" : "text-red-600"
+                            }`}
+                          >
+                            {bankSaveMsg.text}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-slate-400">
+                            Protected by phone + referral code verification.
+                          </span>
+                        )}
+                        <Button
+                          type="submit"
+                          disabled={isSavingBank}
+                          className="h-9 px-4 bg-[#0A2558] text-white text-xs font-bold"
+                        >
+                          {isSavingBank ? "Saving..." : "Save Payout Bank Details"}
+                        </Button>
+                      </div>
+                    </form>
                   </div>
 
                   {/* Rewards Status Section */}
