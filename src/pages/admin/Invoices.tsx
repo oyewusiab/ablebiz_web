@@ -67,6 +67,7 @@ export function InvoicesPage() {
   const { profile, hasPermission } = useAuth();
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
@@ -148,6 +149,9 @@ export function InvoicesPage() {
   const fetchInvoices = async () => {
     try {
       setLoading(true);
+      setFetchError(null);
+
+      // 1. Primary query specifying explicit foreign key relationship for staff_profiles
       const { data, error } = await supabase
         .from("invoices")
         .select(`
@@ -155,14 +159,40 @@ export function InvoicesPage() {
           client:clients(full_name, phone, email),
           business:businesses(name),
           service_request:service_requests(tracking_code),
-          creator:staff_profiles(full_name)
+          creator:staff_profiles!invoices_created_by_fkey(full_name)
         `)
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
-      setInvoices(data || []);
-    } catch (err) {
+      if (!error && data) {
+        setInvoices(data);
+        return;
+      }
+
+      // 2. Resilient fallback: If creator relation fails for any reason, fetch base invoices so records are NEVER hidden
+      if (error) {
+        console.warn("[Invoices] Primary query failed, attempting base fallback:", error.message);
+        const { data: fallbackData, error: fallbackErr } = await supabase
+          .from("invoices")
+          .select(`
+            *,
+            client:clients(full_name, phone, email),
+            business:businesses(name),
+            service_request:service_requests(tracking_code)
+          `)
+          .order("created_at", { ascending: false });
+
+        if (fallbackErr) {
+          console.error("[Invoices] Fallback query error:", fallbackErr.message);
+          setFetchError(fallbackErr.message || "Failed to load invoices from database.");
+          setInvoices([]);
+        } else {
+          setInvoices(fallbackData || []);
+        }
+      }
+    } catch (err: any) {
       console.error("[Invoices] Load error:", err);
+      setFetchError(err?.message || "An unexpected error occurred while loading invoices.");
+      setInvoices([]);
     } finally {
       setLoading(false);
     }
@@ -604,10 +634,26 @@ export function InvoicesPage() {
 
       {/* Invoices Table */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
+        {fetchError && (
+          <div className="flex items-center justify-between border-b border-red-100 bg-red-50/80 px-4 py-3 text-xs text-red-700">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
+              <span>{fetchError}</span>
+            </div>
+            <button
+              onClick={() => fetchInvoices()}
+              className="font-semibold text-red-800 underline hover:text-red-950 transition"
+            >
+              Retry
+            </button>
+          </div>
+        )}
         {loading ? (
           <div className="p-12 text-center text-xs text-slate-400">Loading invoices...</div>
         ) : filteredInvoices.length === 0 ? (
-          <div className="p-12 text-center text-xs text-slate-400">No invoices found matching criteria.</div>
+          <div className="p-12 text-center text-xs text-slate-400">
+            {fetchError ? "Could not display invoice list due to query error." : "No invoices found matching criteria."}
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">

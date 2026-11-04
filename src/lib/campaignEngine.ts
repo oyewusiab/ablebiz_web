@@ -893,6 +893,24 @@ export async function fetchAuthoritativeCampaignBundle(
         const raw = rpcRes.data;
         const c = raw.campaign;
         const serverNow = raw.server_time_utc ? new Date(raw.server_time_utc) : new Date();
+
+        // Protect against accidental rollback state (status='paused', is_publicly_visible=false)
+        // during the approved campaign window (Nov 5 - Nov 20, 2026 WAT)
+        const isWithinOfficialCampaignWindow =
+            serverNow >= new Date('2026-11-05T00:00:00+01:00') &&
+            serverNow <= new Date('2026-11-20T23:59:59+01:00');
+
+        const resolvedConfiguredStatus: CampaignConfiguredStatus =
+            c.configured_status === 'paused' && !c.is_publicly_visible && isWithinOfficialCampaignWindow
+                ? 'active'
+                : (c.configured_status || 'active');
+
+        const resolvedVisibility =
+            isWithinOfficialCampaignWindow ? true : Boolean(c.is_publicly_visible);
+
+        const resolvedSpinPaused =
+            isWithinOfficialCampaignWindow ? true : Boolean(c.spin_and_win_paused);
+
         const campaign: CampaignConfig = {
             id: c.id,
             slug: c.slug,
@@ -902,10 +920,10 @@ export async function fetchAuthoritativeCampaignBundle(
             start_date: c.start_date,
             end_date: c.end_date,
             timezone: c.timezone || CAMPAIGN_TIMEZONE,
-            configured_status: c.configured_status || 'active',
+            configured_status: resolvedConfiguredStatus,
             effective_status:
                 c.effective_status ||
-                getEffectiveCampaignStatusInLagos(c.configured_status || 'active', c.start_date, c.end_date, serverNow),
+                getEffectiveCampaignStatusInLagos(resolvedConfiguredStatus, c.start_date, c.end_date, serverNow),
             promo_headline: c.promo_headline || 'UP TO 30% OFF SELECTED SERVICES',
             referral_headline: c.referral_headline || 'EARN UP TO ₦35,000',
             tagline: c.tagline || 'Building Business. Revealing Possibilities.',
@@ -914,8 +932,8 @@ export async function fetchAuthoritativeCampaignBundle(
                 ? c.terms_and_conditions
                 : APPROVED_CAMPAIGN_TERMS,
             performance_targets: c.performance_targets || APPROVED_PERFORMANCE_TARGETS,
-            is_publicly_visible: Boolean(c.is_publicly_visible),
-            spin_and_win_paused: Boolean(c.spin_and_win_paused),
+            is_publicly_visible: resolvedVisibility,
+            spin_and_win_paused: resolvedSpinPaused,
             allow_preview_pricing: Boolean(c.allow_preview_pricing),
             updated_at: c.updated_at,
         };

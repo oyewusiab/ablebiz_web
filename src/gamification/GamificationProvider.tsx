@@ -73,8 +73,15 @@ export function GamificationProvider({ children }: PropsWithChildren) {
     };
   }, []);
 
-  // Spin & Win is paused when campaign config specifies spin_and_win_paused = true
-  const isSpinPaused = Boolean(campaignBundle.campaign.spin_and_win_paused);
+  // Spin & Win is strictly paused during the Office Opening Campaign period or when configured
+  const isSpinPaused =
+    Boolean(campaignBundle.campaign.spin_and_win_paused) ||
+    campaignBundle.campaign.configured_status === "active" ||
+    campaignBundle.campaign.configured_status === "scheduled" ||
+    campaignBundle.campaign.effective_status === "active" ||
+    campaignBundle.campaign.effective_status === "scheduled" ||
+    (new Date() >= new Date("2026-11-05T00:00:00+01:00") &&
+      new Date() <= new Date("2026-11-20T23:59:59+01:00"));
 
   const openSpin = (source: OpenSource = "manual") => {
     if (isSpinPaused) {

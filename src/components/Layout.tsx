@@ -4,6 +4,7 @@ import { Footer } from "./Footer";
 import { Header } from "./Header";
 import { WhatsAppFloatingButton } from "./WhatsAppFloatingButton";
 import { WhatsAppHelpWidget } from "./WhatsAppHelpWidget";
+import { CampaignPromoModal } from "./CampaignPromoModal";
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -24,6 +25,7 @@ export function Layout() {
       <Footer />
       <WhatsAppHelpWidget />
       <WhatsAppFloatingButton />
+      <CampaignPromoModal />
     </div>
   );
 }

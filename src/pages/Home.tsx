@@ -109,7 +109,7 @@ export function HomePage() {
         <section aria-label="ABLEBIZ Office Opening Special Promo">
           <Container className="pt-10 pb-2">
             <AnimateIn>
-              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0A2558] via-blue-900 to-[#081b42] p-7 sm:p-10 text-white shadow-xl ring-2 ring-amber-400/50">
+              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#005434] via-[#0A4328] to-[#042013] p-7 sm:p-10 text-white shadow-xl ring-2 ring-amber-400/50">
                 <div className="pointer-events-none absolute -top-20 -right-20 h-72 w-72 rounded-full bg-amber-400/15 blur-3xl" />
                 <div className="relative grid gap-8 lg:grid-cols-12 lg:items-center">
                   <div className="lg:col-span-8 space-y-4">
@@ -127,7 +127,7 @@ export function HomePage() {
                         {campaign.promo_headline} •{" "}
                         <span className="text-amber-300">REFER & {campaign.referral_headline}</span>
                       </h2>
-                      <p className="text-sm sm:text-base text-blue-100 leading-relaxed max-w-2xl">
+                      <p className="text-sm sm:text-base text-emerald-100/95 leading-relaxed max-w-2xl">
                         Selected Business Registration, Compliance & Business Support Services — celebrating our physical office opening in {campaign.location}.{" "}
                         <span className="text-amber-200 font-semibold">Terms and conditions apply.</span>
                       </p>
@@ -156,7 +156,7 @@ export function HomePage() {
                       </ButtonLink>
                       <Link
                         to="/office-opening-promo#campaign-terms"
-                        className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-blue-200 hover:text-white no-underline transition"
+                        className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-emerald-200 hover:text-white no-underline transition"
                       >
                         <FileText className="h-3.5 w-3.5" /> View Campaign Terms
                       </Link>
@@ -170,23 +170,23 @@ export function HomePage() {
                       </div>
                       <div className="space-y-2 text-xs sm:text-sm">
                         <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
-                          <span className="text-blue-100">Business Name Reg. (25% Off)</span>
+                          <span className="text-emerald-100">Business Name Reg. (25% Off)</span>
                           <span className="font-black text-white">₦30,000</span>
                         </div>
                         <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
-                          <span className="text-blue-100">Company Reg. (30% Off)</span>
+                          <span className="text-emerald-100">Company Reg. (30% Off)</span>
                           <span className="font-black text-white">₦45,500</span>
                         </div>
                         <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
-                          <span className="text-blue-100">NGO Reg. (10% Off)</span>
+                          <span className="text-emerald-100">NGO Reg. (10% Off)</span>
                           <span className="font-black text-white">₦144,000</span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-blue-100">SCUML Assistance (20% Off)</span>
+                          <span className="text-emerald-100">SCUML Assistance (20% Off)</span>
                           <span className="font-black text-white">₦32,000</span>
                         </div>
                       </div>
-                      <div className="text-[11px] text-blue-200 pt-1">
+                      <div className="text-[11px] text-emerald-200/90 pt-1">
                         * Applies to ABLEBIZ professional service fees only.{" "}
                         <Link to="/office-opening-promo" className="text-amber-300 font-bold underline">
                           See all 6 services →
