@@ -102,11 +102,11 @@ export function CampaignPromoModal() {
         className="relative w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-slate-900/10 transition-all transform animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Top Celebratory Header Bar with ABLEBIZ Deep Growth Green */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-[#005434] via-[#0A4328] to-[#042013] px-6 pt-7 pb-6 text-white sm:px-8">
+        {/* Top Celebratory Header Bar aligned with ABLEBIZ #061738 Navy Identity */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-[#061738] via-[#0A2558] to-[#040e24] px-6 pt-7 pb-6 text-white sm:px-8">
           {/* Subtle Decorative Accents & Gold Glow */}
-          <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-amber-400/20 blur-2xl" />
-          <div className="pointer-events-none absolute -left-12 -bottom-12 h-44 w-44 rounded-full bg-emerald-400/20 blur-2xl" />
+          <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-amber-400/15 blur-2xl" />
+          <div className="pointer-events-none absolute -left-12 -bottom-12 h-44 w-44 rounded-full bg-blue-600/15 blur-2xl" />
 
           {/* Close Button */}
           <button
@@ -131,12 +131,12 @@ export function CampaignPromoModal() {
             WE&apos;RE CELEBRATING OUR NEW OFFICE!
           </h2>
 
-          <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-emerald-100">
+          <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-slate-300">
             <MapPin className="h-3.5 w-3.5 text-amber-400 shrink-0" />
             <span>{campaign.location || "Abeokuta, Ogun State, Nigeria"}</span>
           </div>
 
-          <p className="mt-2.5 text-xs sm:text-sm text-emerald-100/90 leading-relaxed">
+          <p className="mt-2.5 text-xs sm:text-sm text-slate-200/90 leading-relaxed">
             ABLEBIZ BUSINESS SERVICES is now welcoming you from our physical office in Abeokuta.
             Celebrate with us and enjoy special discounts on selected business services.
           </p>

@@ -72,9 +72,9 @@ export function OfficeOpeningPromoPage() {
       />
 
       {/* 1. CAMPAIGN HERO SECTION */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#005434] via-[#0A4328] to-[#042013] text-white">
-        <div className="pointer-events-none absolute -top-24 -right-24 h-96 w-96 rounded-full bg-amber-500/15 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 -left-24 h-96 w-96 rounded-full bg-emerald-400/20 blur-3xl" />
+      <section className="relative overflow-hidden bg-gradient-to-br from-[#061738] via-[#0A2558] to-[#040e24] text-white">
+        <div className="pointer-events-none absolute -top-24 -right-24 h-96 w-96 rounded-full bg-amber-500/10 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 -left-24 h-96 w-96 rounded-full bg-blue-600/10 blur-3xl" />
 
         <Container className="relative py-16 sm:py-20 lg:py-24">
           <div className="grid items-center gap-10 lg:grid-cols-12">
@@ -83,7 +83,7 @@ export function OfficeOpeningPromoPage() {
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-400 px-3.5 py-1 text-xs font-black uppercase tracking-wider text-slate-950 shadow-sm">
                   <Sparkles className="h-3.5 w-3.5" /> Official Campaign
                 </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3.5 py-1 text-xs font-semibold text-emerald-100 ring-1 ring-white/20">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3.5 py-1 text-xs font-semibold text-slate-200 ring-1 ring-white/20">
                   <MapPin className="h-3.5 w-3.5 text-amber-400" /> {campaign.location}
                 </span>
                 {isActive && (
@@ -92,7 +92,7 @@ export function OfficeOpeningPromoPage() {
                   </span>
                 )}
                 {isScheduled && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-bold text-emerald-200 ring-1 ring-emerald-400/40">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/20 px-3 py-1 text-xs font-bold text-blue-200 ring-1 ring-blue-400/40">
                     <Clock className="h-3.5 w-3.5 text-amber-300" /> Starts November 5, 2026 (WAT)
                   </span>
                 )}
@@ -115,7 +115,7 @@ export function OfficeOpeningPromoPage() {
                 </p>
               </div>
 
-              <p className="text-base sm:text-lg text-emerald-100/95 max-w-2xl leading-relaxed">
+              <p className="text-base sm:text-lg text-slate-200/90 max-w-2xl leading-relaxed">
                 To celebrate the opening of our physical office in{" "}
                 <strong className="text-white">Abeokuta, Ogun State</strong>, enjoy exclusive
                 discounts on ABLEBIZ professional service fees for selected business registration,
@@ -129,31 +129,31 @@ export function OfficeOpeningPromoPage() {
                   <div className="flex items-start gap-3">
                     <Calendar className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
                     <div>
-                      <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-200">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-slate-300">
                         Campaign Period
                       </div>
                       <div className="text-sm font-extrabold text-white">
                         Nov 5 – Nov 20, 2026
                       </div>
-                      <div className="text-xs text-emerald-200">16 Calendar Days (Inclusive)</div>
+                      <div className="text-xs text-slate-400">16 Calendar Days (Inclusive)</div>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
                     <Clock className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
                     <div>
-                      <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-200">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-slate-300">
                         Official Timezone
                       </div>
                       <div className="text-sm font-extrabold text-white">
                         Africa/Lagos (WAT)
                       </div>
-                      <div className="text-xs text-emerald-200">Server-Verified Cutoff</div>
+                      <div className="text-xs text-slate-400">Server-Verified Cutoff</div>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
                     <Building2 className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
                     <div>
-                      <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-200">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-slate-300">
                         Tagline
                       </div>
                       <div className="text-sm font-extrabold text-amber-300">
@@ -184,7 +184,7 @@ export function OfficeOpeningPromoPage() {
                 <ButtonLink
                   to={generalWhatsAppLink}
                   external
-                  className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-extrabold border-0 px-6 py-3.5 shadow-lg"
+                  className="bg-[#25D366] hover:bg-[#1ebd59] text-white font-extrabold border-0 px-6 py-3.5 shadow-lg"
                 >
                   <MessageCircle className="h-4 w-4" /> Get Started on WhatsApp
                 </ButtonLink>
@@ -197,7 +197,7 @@ export function OfficeOpeningPromoPage() {
                 </ButtonLink>
                 <a
                   href="#campaign-terms"
-                  className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-transparent px-4 py-3.5 text-xs font-bold text-emerald-200 hover:text-white no-underline transition"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-transparent px-4 py-3.5 text-xs font-bold text-slate-300 hover:text-white no-underline transition"
                 >
                   <FileText className="h-4 w-4" /> View Campaign Terms
                 </a>
@@ -248,7 +248,7 @@ export function OfficeOpeningPromoPage() {
                   ))}
                 </div>
 
-                <div className="mt-5 rounded-2xl bg-gradient-to-r from-[#005434] to-[#0A4328] p-4 text-white">
+                <div className="mt-5 rounded-2xl bg-gradient-to-r from-[#061738] to-[#0A2558] p-4 text-white ring-1 ring-white/10">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-extrabold uppercase tracking-wider text-amber-300">
                       Referral Rewards
@@ -263,7 +263,7 @@ export function OfficeOpeningPromoPage() {
                         key={m.referrals_required}
                         className="rounded-xl bg-white/10 p-2 ring-1 ring-white/15"
                       >
-                        <div className="text-[11px] font-bold text-emerald-200">
+                        <div className="text-[11px] font-bold text-slate-300">
                           {m.referrals_required} {m.referrals_required === 1 ? "Ref" : "Refs"}
                         </div>
                         <div className="text-xs sm:text-sm font-black text-amber-300">
@@ -289,8 +289,8 @@ export function OfficeOpeningPromoPage() {
       <section id="eligible-services" className="scroll-mt-24 py-16 sm:py-20 bg-slate-50">
         <Container>
           <div className="max-w-3xl">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-emerald-950">
-              <Tag className="h-3.5 w-3.5 text-emerald-700" /> Part 1 • Service Discount Offer
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-[#061738] ring-1 ring-blue-200">
+              <Tag className="h-3.5 w-3.5 text-amber-600" /> Part 1 • Service Discount Offer
             </span>
             <h2 className="mt-3 text-2xl sm:text-4xl font-black text-[color:var(--ablebiz-primary)]">
               Eligible Services & Promotional Pricing
@@ -499,9 +499,9 @@ export function OfficeOpeningPromoPage() {
               </div>
 
               {/* Explicit Cumulative Milestone Explanation (Required by Part 2D) */}
-              <div className="rounded-2xl bg-emerald-50/90 border border-emerald-200 p-5 text-sm text-slate-800 space-y-2">
-                <div className="flex items-center gap-2 font-extrabold text-[color:var(--ablebiz-primary)]">
-                  <HelpCircle className="h-5 w-5 text-emerald-700 shrink-0" />
+              <div className="rounded-2xl bg-slate-50 border border-slate-200 p-5 text-sm text-slate-800 space-y-2">
+                <div className="flex items-center gap-2 font-extrabold text-[#061738]">
+                  <HelpCircle className="h-5 w-5 text-amber-600 shrink-0" />
                   How Cumulative Milestone Rewards Work (Important):
                 </div>
                 <p className="leading-relaxed text-slate-700">
@@ -526,7 +526,7 @@ export function OfficeOpeningPromoPage() {
                       <span className="text-xs font-extrabold uppercase tracking-wider text-amber-600">
                         Interactive Calculator
                       </span>
-                      <h3 className="text-xl font-black text-[color:var(--ablebiz-primary)]">
+                      <h3 className="text-xl font-black text-[#061738]">
                         Estimate Your Referral Payout
                       </h3>
                     </div>
@@ -536,7 +536,7 @@ export function OfficeOpeningPromoPage() {
                   <div>
                     <div className="flex items-center justify-between text-sm font-bold text-slate-700 mb-2">
                       <span>Verified Successful Referrals:</span>
-                      <span className="rounded-xl bg-[#0A2558] px-3 py-1 text-base font-black text-amber-300">
+                      <span className="rounded-xl bg-[#061738] px-3 py-1 text-base font-black text-amber-300">
                         {simulatedReferrals}
                       </span>
                     </div>
@@ -558,7 +558,7 @@ export function OfficeOpeningPromoPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-2xl bg-slate-900 p-5 text-white space-y-3">
+                  <div className="rounded-2xl bg-[#061738] p-5 text-white space-y-3">
                     <div className="flex items-center justify-between text-xs text-slate-400">
                       <span>Highest Milestone Reached:</span>
                       <span className="font-bold text-amber-300">
@@ -576,7 +576,7 @@ export function OfficeOpeningPromoPage() {
                       </span>
                     </div>
                     {milestoneSim.nextMilestone ? (
-                      <div className="text-xs text-emerald-200 pt-1">
+                      <div className="text-xs text-slate-300 pt-1">
                         Refer{" "}
                         <strong className="text-white">
                           {milestoneSim.remainingToNextMilestone} more
@@ -590,7 +590,7 @@ export function OfficeOpeningPromoPage() {
                         !
                       </div>
                     ) : (
-                      <div className="text-xs font-bold text-emerald-300 pt-1">
+                      <div className="text-xs font-bold text-amber-300 pt-1">
                         🎉 Maximum 10-Referral Champion Milestone unlocked (₦35,000 Total)!
                       </div>
                     )}
@@ -605,7 +605,7 @@ export function OfficeOpeningPromoPage() {
                     </ButtonLink>
                     <p className="text-[11px] text-center text-slate-500">
                       Already a partner? Visit the{" "}
-                      <Link to="/refer-and-earn" className="font-bold text-emerald-700 hover:text-emerald-800">
+                      <Link to="/refer-and-earn" className="font-bold text-[#0A2558] hover:text-[#061738]">
                         Referral Portal
                       </Link>{" "}
                       to retrieve your code, submit referrals, or add payout bank details.
@@ -625,8 +625,8 @@ export function OfficeOpeningPromoPage() {
             {/* 5. How the Discount Works */}
             <Card className="border border-slate-200 shadow-sm bg-white">
               <CardBody className="p-6 sm:p-8 space-y-5">
-                <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3.5 py-1 text-xs font-extrabold uppercase tracking-wider text-emerald-950 ring-1 ring-emerald-200">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600" /> How the Discount Works
+                <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3.5 py-1 text-xs font-extrabold uppercase tracking-wider text-[#061738] ring-1 ring-blue-200">
+                  <CheckCircle2 className="h-4 w-4 text-[#0A2558]" /> How the Discount Works
                 </div>
                 <h3 className="text-2xl font-black text-[color:var(--ablebiz-primary)]">
                   4 Simple Steps to Claim Your Promotional Price

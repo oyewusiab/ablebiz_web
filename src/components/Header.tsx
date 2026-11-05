@@ -50,7 +50,7 @@ export function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200/90 bg-white/95 backdrop-blur-md transition-colors shadow-xs">
       {showCampaignPromo ? (
-        <div className="bg-gradient-to-r from-[#005434] via-[#0A4328] to-[#005434] text-white border-b border-amber-400/40">
+        <div className="bg-gradient-to-r from-[#061738] via-[#0A2558] to-[#061738] text-white border-b border-amber-400/30">
           <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-1.5 text-xs sm:px-6 lg:px-8">
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1 rounded-full bg-amber-400 px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wider text-slate-950">
@@ -59,7 +59,7 @@ export function Header() {
               <span className="font-semibold text-amber-200">
                 {campaign.promo_headline} • {campaign.referral_headline}
               </span>
-              <span className="hidden text-emerald-100/90 lg:inline">
+              <span className="hidden text-slate-300 lg:inline">
                 (Nov 5 – Nov 20, 2026 • Abeokuta Office)
               </span>
             </div>
