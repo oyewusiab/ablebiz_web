@@ -126,24 +126,27 @@ const DEFAULT_ROLE_MODULES: Record<string, Record<string, string[]>> = {
     operations: ["view", "create", "edit", "approve", "export"],
     finance: ["view"],
     hr: ["view", "approve"],
-    reports: ["view"],
+    reports: ["view", "export"],
   },
   registration_officer: {
     workbench: ["view", "edit"],
     operations: ["view", "create", "edit"],
     hr: ["view", "create"],
+    reports: ["view"],
   },
   compliance_officer: {
     workbench: ["view", "edit"],
     operations: ["view", "create", "edit"],
     crm: ["view"],
     hr: ["view", "create"],
+    reports: ["view"],
   },
   legal_officer: {
     workbench: ["view", "edit"],
     operations: ["view", "create", "edit"],
     crm: ["view"],
     hr: ["view", "create"],
+    reports: ["view"],
   },
   accounts_officer: {
     workbench: ["view", "edit", "export"],
@@ -164,17 +167,20 @@ const DEFAULT_ROLE_MODULES: Record<string, Record<string, string[]>> = {
     crm: ["view", "create", "edit"],
     operations: ["view", "create"],
     hr: ["view", "create"],
+    reports: ["view"],
   },
   receptionist_support: {
     workbench: ["view", "edit"],
     crm: ["view", "create", "edit"],
     operations: ["view", "create"],
     hr: ["view", "create"],
+    reports: ["view"],
   },
   marketing_officer: {
     workbench: ["view"],
     crm: ["view", "create", "edit", "export"],
     hr: ["view", "create"],
+    reports: ["view", "export"],
   },
   viewer: {
     workbench: ["view"],
@@ -182,6 +188,7 @@ const DEFAULT_ROLE_MODULES: Record<string, Record<string, string[]>> = {
     operations: ["view"],
     finance: ["view"],
     hr: ["view", "create"],
+    reports: ["view"],
   },
   customer: {},
 };
@@ -211,7 +218,10 @@ function computeLegacyPermissions(role: StaffRole): SuiteUser["permissions"] {
     return { dashboard: true, referrals: false, clients: true, reports: true, settings: false, users: false };
   }
   if (norm === "client_service_officer" || norm === "marketing_officer") {
-    return { dashboard: true, referrals: true, clients: true, reports: false, settings: false, users: false };
+    return { dashboard: true, referrals: true, clients: true, reports: true, settings: false, users: false };
+  }
+  if (norm === "registration_officer" || norm === "viewer") {
+    return { dashboard: true, referrals: false, clients: true, reports: true, settings: false, users: false };
   }
   return { dashboard: true, referrals: false, clients: false, reports: false, settings: false, users: false };
 }
@@ -594,7 +604,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (permissionsList.length > 0) {
       const rule = permissionsList.find((p) => p.module === module);
       if (rule) {
-        if (action === "view") return rule.can_view;
+        if (action === "view") {
+          if (rule.can_view) return true;
+          // Scoped BI reporting workspace is accessible to all active canonical staff roles
+          if (module === "reports" && (profile.role as string) !== "customer") {
+            const fallbackRules = DEFAULT_ROLE_MODULES[norm] || DEFAULT_ROLE_MODULES[profile.role];
+            if (fallbackRules?.reports?.includes("view")) return true;
+          }
+          return false;
+        }
         if (action === "create") return rule.can_create;
         if (action === "edit") return rule.can_edit;
         if (action === "delete") return rule.can_delete;
