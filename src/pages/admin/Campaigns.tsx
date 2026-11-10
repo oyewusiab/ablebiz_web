@@ -33,9 +33,13 @@ import {
     APPROVED_CAMPAIGN_SERVICES,
     APPROVED_REFERRAL_MILESTONES,
     calculateReferralMilestoneReward,
+    CAMPAIGN_CLIENTS_SELECT_COLUMNS,
+    CAMPAIGN_INVOICES_SELECT_COLUMNS,
     CAMPAIGN_LEADS_SELECT_COLUMNS,
+    CAMPAIGN_PAYMENTS_SELECT_COLUMNS,
     deduplicateQualifiedReferrals,
     formatCampaignStatusLabel,
+    formatClientCode,
     formatLagosDateTime,
     getApprovedCampaignBaseline,
     getCampaignRolePermissions,
@@ -375,11 +379,11 @@ export function Campaigns() {
 
             // 2. Query Real Operational, CRM, Finance & Referral Tables Using Verified Schema Columns
             const [
-                leadsRes,
+                leadsInitialRes,
                 consultationsRes,
-                clientsRes,
-                invoicesRes,
-                paymentsRes,
+                clientsInitialRes,
+                invoicesInitialRes,
+                paymentsInitialRes,
                 referralsRes,
                 auditRes,
             ] = await Promise.all([
@@ -393,15 +397,15 @@ export function Campaigns() {
                     .order('created_at', { ascending: false }),
                 supabase
                     .from('clients')
-                    .select('id, client_code, full_name, phone, email, referral_code, created_at')
+                    .select(CAMPAIGN_CLIENTS_SELECT_COLUMNS)
                     .order('created_at', { ascending: false }),
                 supabase
                     .from('invoices')
-                    .select('*, clients(id, client_code, full_name, phone, email, referral_code), invoice_items(*)')
+                    .select(CAMPAIGN_INVOICES_SELECT_COLUMNS)
                     .order('created_at', { ascending: false }),
                 supabase
                     .from('payments')
-                    .select('id, invoice_id, amount, payment_date, is_verified, payment_method, reference_number')
+                    .select(CAMPAIGN_PAYMENTS_SELECT_COLUMNS)
                     .eq('is_verified', true)
                     .order('payment_date', { ascending: false }),
                 supabase
@@ -421,6 +425,64 @@ export function Campaigns() {
                     .order('created_at', { ascending: false })
                     .limit(30),
             ]);
+
+            // Resilient fallback if any explicit column or relational join encounters a schema cache variance
+            let leadsRes: { data: any[] | null; error: any } = leadsInitialRes;
+            if (leadsRes.error) {
+                const fallbackLeads = await supabase
+                    .from('leads')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+                if (!fallbackLeads.error) {
+                    leadsRes = fallbackLeads;
+                }
+            }
+
+            let clientsRes: { data: any[] | null; error: any } = clientsInitialRes;
+            if (clientsRes.error) {
+                const fallbackClients = await supabase
+                    .from('clients')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+                if (!fallbackClients.error) {
+                    clientsRes = fallbackClients;
+                }
+            }
+
+            let invoicesRes: { data: any[] | null; error: any } = invoicesInitialRes;
+            if (invoicesRes.error) {
+                const [fallbackInvoices, fallbackItems] = await Promise.all([
+                    supabase.from('invoices').select('*').order('created_at', { ascending: false }),
+                    supabase.from('invoice_items').select('*'),
+                ]);
+                if (!fallbackInvoices.error) {
+                    const itemsByInvoiceId = new Map<string, any[]>();
+                    (fallbackItems.data || []).forEach((item: any) => {
+                        const list = itemsByInvoiceId.get(item.invoice_id) || [];
+                        list.push(item);
+                        itemsByInvoiceId.set(item.invoice_id, list);
+                    });
+                    invoicesRes = {
+                        data: (fallbackInvoices.data || []).map((inv: any) => ({
+                            ...inv,
+                            invoice_items: itemsByInvoiceId.get(inv.id) || [],
+                        })),
+                        error: null,
+                    };
+                }
+            }
+
+            let paymentsRes: { data: any[] | null; error: any } = paymentsInitialRes;
+            if (paymentsRes.error) {
+                const fallbackPayments = await supabase
+                    .from('payments')
+                    .select('*')
+                    .eq('is_verified', true)
+                    .order('payment_date', { ascending: false });
+                if (!fallbackPayments.error) {
+                    paymentsRes = fallbackPayments;
+                }
+            }
 
             if (leadsRes.error) {
                 currentFailedSources.leads = true;
@@ -444,7 +506,7 @@ export function Campaigns() {
             }
 
             setFailedSources(currentFailedSources);
-            if (currentDiagnostics.length > 0) {
+            if (Object.keys(currentFailedSources).length > 0) {
                 setDiagnosticDetails(currentDiagnostics);
                 setQueryError(
                     'Some campaign figures could not be retrieved. Please try again. If the problem persists, contact your system administrator.'
@@ -598,13 +660,17 @@ export function Campaigns() {
                     discountPct = Math.round(((regularFee - promoFee) / regularFee) * 100);
                 }
 
+                const invClient =
+                    inv.clients || (inv.client_id ? clientByIdMap.get(inv.client_id) : null);
+
                 const linkedRefEvent = inv.client_id
                     ? referralByClientId.get(inv.client_id)
                     : null;
                 const refCode =
                     inv.referral_code ||
                     linkedRefEvent?.referrer_code ||
-                    inv.clients?.referral_code ||
+                    invClient?.referral_code ||
+                    invClient?.referred_by_code ||
                     '';
                 const refPartner = refCode
                     ? leadByReferralCodeMap.get(String(refCode).toUpperCase())
@@ -629,9 +695,9 @@ export function Campaigns() {
                     invoiceId: inv.id,
                     invoiceNumber: inv.invoice_number,
                     customerId: inv.client_id,
-                    customerCode: inv.clients?.client_code || '—',
-                    customerName: inv.clients?.full_name || 'Unknown Client',
-                    customerPhone: inv.clients?.phone || '—',
+                    customerCode: formatClientCode(inv.client_id, invClient?.client_code),
+                    customerName: invClient?.full_name || 'Unknown Client',
+                    customerPhone: invClient?.phone || '—',
                     servicePurchased:
                         matchedService?.service_name ||
                         itemDescriptions ||

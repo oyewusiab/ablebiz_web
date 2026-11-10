@@ -13,8 +13,12 @@ import {
   getMetricDefinition,
 } from "../metricRegistry";
 import {
+  CAMPAIGN_CLIENTS_SELECT_COLUMNS,
+  CAMPAIGN_INVOICES_SELECT_COLUMNS,
   CAMPAIGN_LEADS_SELECT_COLUMNS,
+  CAMPAIGN_PAYMENTS_SELECT_COLUMNS,
   formatCampaignStatusLabel,
+  formatClientCode,
   isLeadAttributedToCampaign,
   resolveLeadServiceInterest,
 } from "../../campaignEngine";
@@ -715,6 +719,17 @@ describe("ABLEBIZ BI & Executive Reporting Expansion — Comprehensive Suite", (
       assert.equal(selectedCols.includes("utm_campaign"), true);
       assert.equal(selectedCols.includes("utm_source"), true);
       assert.equal(selectedCols.includes("page_path"), true);
+    });
+
+    it("never selects non-existent columns (client_code or reference_number) from public.clients, public.invoices, or public.payments", () => {
+      assert.equal(CAMPAIGN_CLIENTS_SELECT_COLUMNS.includes("client_code"), false);
+      assert.equal(CAMPAIGN_INVOICES_SELECT_COLUMNS.includes("client_code"), false);
+      assert.equal(CAMPAIGN_PAYMENTS_SELECT_COLUMNS.includes("reference_number"), false);
+      assert.equal(CAMPAIGN_PAYMENTS_SELECT_COLUMNS.includes("receipt_number"), true);
+      assert.equal(CAMPAIGN_PAYMENTS_SELECT_COLUMNS.includes("transaction_reference"), true);
+      assert.equal(formatClientCode("12345678-aaaa-bbbb-cccc-1234567890ab"), "CL-123456");
+      assert.equal(formatClientCode("12345678-aaaa", "ABZ-001"), "ABZ-001");
+      assert.equal(formatClientCode(null), "—");
     });
 
     it("resolves lead requested service interest from consultation_requests, notes, or business_type", () => {

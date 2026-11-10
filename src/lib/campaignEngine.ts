@@ -1101,6 +1101,39 @@ export const CAMPAIGN_LEADS_SELECT_COLUMNS =
     'id, name, phone, email, source, referral_code, referred_by, business_name, business_type, state_of_operation, is_converted, converted_client_id, page_path, utm_source, utm_medium, utm_campaign, qualification_status, notes, created_at';
 
 /**
+ * Verified columns existing on `public.clients` in production Supabase schema.
+ * Note: `public.clients` does NOT have a `client_code` column.
+ */
+export const CAMPAIGN_CLIENTS_SELECT_COLUMNS =
+    'id, full_name, phone, email, referral_code, referred_by_code, acquisition_source, is_active, created_at';
+
+/**
+ * Verified relational select on `public.invoices` in production Supabase schema.
+ * Joins `public.clients` (using verified client columns) and `public.invoice_items`.
+ */
+export const CAMPAIGN_INVOICES_SELECT_COLUMNS =
+    '*, clients(id, full_name, phone, email, referral_code, referred_by_code), invoice_items(*)';
+
+/**
+ * Verified columns existing on `public.payments` in production Supabase schema.
+ * Note: `public.payments` uses `receipt_number` and `transaction_reference` (not `reference_number`).
+ */
+export const CAMPAIGN_PAYMENTS_SELECT_COLUMNS =
+    'id, receipt_number, invoice_id, client_id, amount, payment_date, is_verified, payment_method, transaction_reference, created_at';
+
+/**
+ * Formats a human-readable client reference code from a client UUID when no dedicated
+ * `client_code` column exists on `public.clients`.
+ */
+export function formatClientCode(clientId?: string | null, explicitCode?: string | null): string {
+    const trimmedExplicit = String(explicitCode || '').trim();
+    if (trimmedExplicit) return trimmedExplicit;
+    const trimmedId = String(clientId || '').trim();
+    if (!trimmedId) return '—';
+    return `CL-${trimmedId.replace(/-/g, '').slice(0, 6).toUpperCase()}`;
+}
+
+/**
  * Resolves a lead's requested service or business interest from verified schema fields
  * without querying any non-existent column.
  */
