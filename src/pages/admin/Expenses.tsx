@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
+import { SearchableSelect } from "../../components/ui/SearchableSelect";
 
 export interface ExpenseRecord {
   id: string;
@@ -391,34 +392,36 @@ export function ExpensesPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold text-slate-700">Vendor / Payee</label>
-                  <select
-                    value={formData.vendor_id}
-                    onChange={(e) => setFormData({ ...formData, vendor_id: e.target.value })}
-                    className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600"
-                  >
-                    <option value="">None / Direct Expense</option>
-                    {vendors.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.name}
-                      </option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    label="Vendor / Payee"
+                    placeholder="None / Direct Expense"
+                    searchPlaceholder="Search vendors..."
+                    allowClear={true}
+                    options={vendors.map((v) => ({
+                      value: v.id,
+                      label: v.name,
+                      keywords: [v.name],
+                    }))}
+                    value={formData.vendor_id || ""}
+                    onChange={(val) => setFormData({ ...formData, vendor_id: val })}
+                    onClear={() => setFormData({ ...formData, vendor_id: "" })}
+                  />
                 </div>
                 <div>
-                  <label className="font-semibold text-slate-700">Link to Service Request</label>
-                  <select
-                    value={formData.service_request_id}
-                    onChange={(e) => setFormData({ ...formData, service_request_id: e.target.value })}
-                    className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600"
-                  >
-                    <option value="">General Overhead</option>
-                    {serviceRequests.map((sr) => (
-                      <option key={sr.id} value={sr.id}>
-                        {sr.tracking_code}
-                      </option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    label="Link to Service Request"
+                    placeholder="General Overhead"
+                    searchPlaceholder="Filter requests..."
+                    allowClear={true}
+                    options={serviceRequests.map((sr) => ({
+                      value: sr.id,
+                      label: sr.tracking_code,
+                      keywords: [sr.tracking_code],
+                    }))}
+                    value={formData.service_request_id || ""}
+                    onChange={(val) => setFormData({ ...formData, service_request_id: val })}
+                    onClear={() => setFormData({ ...formData, service_request_id: "" })}
+                  />
                 </div>
               </div>
 

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
+import { SearchableSelect } from "../../components/ui/SearchableSelect";
 
 export interface TaskRecord {
   id: string;
@@ -416,17 +417,21 @@ export function TasksPage() {
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700">Assign To Officer</label>
-                <select
-                  value={formData.assigned_to}
-                  onChange={(e) => setFormData({ ...formData, assigned_to: e.target.value })}
-                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-2.5 outline-none focus:border-emerald-600"
-                >
-                  <option value="">-- Unassigned (Pool) --</option>
-                  {staffList.map((s) => (
-                    <option key={s.id} value={s.id}>{s.full_name}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  label="Assign To Officer"
+                  placeholder="-- Unassigned (Pool) --"
+                  searchPlaceholder="Filter staff members..."
+                  allowClear={true}
+                  options={staffList.map((s) => ({
+                    value: s.id,
+                    label: s.full_name,
+                    sublabel: s.role?.replace(/_/g, " "),
+                    keywords: [s.full_name, s.role || ""],
+                  }))}
+                  value={formData.assigned_to || ""}
+                  onChange={(val) => setFormData({ ...formData, assigned_to: val })}
+                  onClear={() => setFormData({ ...formData, assigned_to: "" })}
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">

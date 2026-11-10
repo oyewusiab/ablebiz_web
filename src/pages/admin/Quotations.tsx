@@ -23,6 +23,7 @@ import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
 import { DocumentHeader, DocumentFooter } from "../../components/admin/DocumentBranding";
 import { useBusinessProfile } from "../../lib/businessProfileContext";
+import { SearchableSelect } from "../../components/ui/SearchableSelect";
 
 export interface QuotationRecord {
   id: string;
@@ -769,56 +770,58 @@ export function QuotationsPage() {
               {/* Linked Entities */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div>
-                  <label className="font-semibold text-slate-700">Client *</label>
-                  <select
+                  <SearchableSelect
+                    label="Client"
                     required
+                    placeholder="Search and select client..."
+                    searchPlaceholder="Search by name or phone..."
+                    options={clients.map((c) => ({
+                      value: c.id,
+                      label: c.full_name,
+                      sublabel: c.phone || undefined,
+                      keywords: [c.full_name, c.phone || ""],
+                    }))}
                     value={formData.client_id}
-                    onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
-                    className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600"
-                  >
-                    <option value="">Select Client...</option>
-                    {clients.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.full_name} ({c.phone})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setFormData({ ...formData, client_id: val })}
+                  />
                 </div>
 
                 <div>
-                  <label className="font-semibold text-slate-700">Linked Business (Optional)</label>
-                  <select
-                    value={formData.business_id}
-                    onChange={(e) => setFormData({ ...formData, business_id: e.target.value })}
-                    className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600"
-                  >
-                    <option value="">None / General</option>
-                    {businesses
+                  <SearchableSelect
+                    label="Linked Business (Optional)"
+                    placeholder="Search and select business..."
+                    searchPlaceholder="Filter businesses..."
+                    allowClear={true}
+                    options={businesses
                       .filter((b) => !formData.client_id || b.client_id === formData.client_id)
-                      .map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.name}
-                        </option>
-                      ))}
-                  </select>
+                      .map((b) => ({
+                        value: b.id,
+                        label: b.name,
+                        keywords: [b.name],
+                      }))}
+                    value={formData.business_id || ""}
+                    onChange={(val) => setFormData({ ...formData, business_id: val })}
+                    onClear={() => setFormData({ ...formData, business_id: "" })}
+                  />
                 </div>
 
                 <div>
-                  <label className="font-semibold text-slate-700">Service Request (Optional)</label>
-                  <select
-                    value={formData.service_request_id}
-                    onChange={(e) => setFormData({ ...formData, service_request_id: e.target.value })}
-                    className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600"
-                  >
-                    <option value="">None</option>
-                    {serviceRequests
+                  <SearchableSelect
+                    label="Service Request (Optional)"
+                    placeholder="None"
+                    searchPlaceholder="Filter service requests..."
+                    allowClear={true}
+                    options={serviceRequests
                       .filter((sr) => !formData.client_id || sr.client_id === formData.client_id)
-                      .map((sr) => (
-                        <option key={sr.id} value={sr.id}>
-                          {sr.tracking_code}
-                        </option>
-                      ))}
-                  </select>
+                      .map((sr) => ({
+                        value: sr.id,
+                        label: sr.tracking_code,
+                        keywords: [sr.tracking_code],
+                      }))}
+                    value={formData.service_request_id || ""}
+                    onChange={(val) => setFormData({ ...formData, service_request_id: val })}
+                    onClear={() => setFormData({ ...formData, service_request_id: "" })}
+                  />
                 </div>
               </div>
 

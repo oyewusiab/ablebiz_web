@@ -15,6 +15,7 @@ import {
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
 import { ClientQuickActionsBar } from "../../components/admin/communication/ClientQuickActionsBar";
+import { SearchableSelect } from "../../components/ui/SearchableSelect";
 
 export interface BusinessRecord {
   id: string;
@@ -280,18 +281,20 @@ export function BusinessesPage() {
 
             <form onSubmit={handleCreateBusiness} className="space-y-3 text-xs">
               <div>
-                <label className="font-semibold text-slate-700">Select Client Owner *</label>
-                <select
+                <SearchableSelect
+                  label="Select Client Owner"
                   required
+                  placeholder="Choose registered client..."
+                  searchPlaceholder="Search client by name or phone..."
+                  options={clients.map((c) => ({
+                    value: c.id,
+                    label: c.full_name,
+                    sublabel: c.phone || undefined,
+                    keywords: [c.full_name, c.phone || "", c.email || ""],
+                  }))}
                   value={formData.client_id}
-                  onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
-                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600"
-                >
-                  <option value="">-- Choose registered client --</option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>{c.full_name}</option>
-                  ))}
-                </select>
+                  onChange={(val) => setFormData({ ...formData, client_id: val })}
+                />
               </div>
 
               <div>

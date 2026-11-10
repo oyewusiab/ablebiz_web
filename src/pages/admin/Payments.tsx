@@ -19,6 +19,9 @@ import { useAuth } from "../../auth/AuthContext";
 import { DocumentHeader, DocumentFooter } from "../../components/admin/DocumentBranding";
 import { useBusinessProfile } from "../../lib/businessProfileContext";
 import { ClientQuickActionsBar } from "../../components/admin/communication/ClientQuickActionsBar";
+import { SearchableSelect } from "../../components/ui/SearchableSelect";
+import { DatePickerInput } from "../../components/ui/DatePickerInput";
+import { parseFlexibleDate, getTodayFormattedDDMMYYYY } from "../../utils/dateUtils";
 
 export interface PaymentRecord {
   id: string;
@@ -80,6 +83,7 @@ export function PaymentsPage() {
   const [formData, setFormData] = useState({
     invoice_id: "",
     amount: 0,
+    payment_date: getTodayFormattedDDMMYYYY(),
     payment_method: "bank_transfer",
     transaction_reference: "",
     bank_account_credited: defaultBankLabel,
@@ -197,6 +201,12 @@ export function PaymentsPage() {
       }
     }
 
+    const dateParse = parseFlexibleDate(formData.payment_date);
+    if (!dateParse.isValid || !dateParse.timezoneSafeIso) {
+      setFormError(dateParse.error || "Please enter a valid payment date in DD/MM/YYYY format.");
+      return;
+    }
+
     setSubmitting(true);
     setFormError("");
 
@@ -210,7 +220,7 @@ export function PaymentsPage() {
           invoice_id: formData.invoice_id,
           client_id: targetInv ? targetInv.client_id : null,
           amount: amt,
-          payment_date: new Date().toISOString(),
+          payment_date: dateParse.timezoneSafeIso,
           payment_method: formData.payment_method,
           transaction_reference: formData.transaction_reference || null,
           bank_account_credited: formData.bank_account_credited,
@@ -246,6 +256,7 @@ export function PaymentsPage() {
       setFormData({
         invoice_id: "",
         amount: 0,
+        payment_date: getTodayFormattedDDMMYYYY(),
         payment_method: "bank_transfer",
         transaction_reference: "",
         bank_account_credited: defaultBankLabel,
@@ -625,12 +636,21 @@ export function PaymentsPage() {
 
             <form onSubmit={handleRecordPayment} className="space-y-3 text-xs">
               <div>
-                <label className="font-semibold text-slate-700">Outstanding Invoice *</label>
-                <select
+                <SearchableSelect
+                  label="Outstanding Invoice"
                   required
+                  placeholder="Search and select invoice..."
+                  searchPlaceholder="Search by invoice #, client name, or phone..."
+                  options={unpaidInvoices.map((inv) => ({
+                    value: inv.id,
+                    label: `${inv.invoice_number} — ${inv.client?.full_name || "Unknown"}`,
+                    sublabel: `Balance Due: ₦${Number(inv.balance_due).toLocaleString()} • ${inv.client?.phone || ""}`,
+                    badge: `₦${Number(inv.balance_due).toLocaleString()}`,
+                    badgeTone: "warning",
+                    keywords: [inv.invoice_number, inv.client?.full_name || "", inv.client?.phone || ""],
+                  }))}
                   value={formData.invoice_id}
-                  onChange={(e) => {
-                    const invId = e.target.value;
+                  onChange={(invId) => {
                     const inv = unpaidInvoices.find((i) => i.id === invId);
                     setFormData({
                       ...formData,
@@ -638,35 +658,39 @@ export function PaymentsPage() {
                       amount: inv ? Number(inv.balance_due) : 0,
                     });
                   }}
-                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600"
-                >
-                  <option value="">Select Invoice...</option>
-                  {unpaidInvoices.map((inv) => (
-                    <option key={inv.id} value={inv.id}>
-                      {inv.invoice_number} — {inv.client?.full_name} (Balance: ₦{Number(inv.balance_due).toLocaleString()})
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
 
-              <div>
-                <label className="font-semibold text-slate-700">Payment Amount (₦) *</label>
-                <input
-                  type="number"
-                  required
-                  min="1"
-                  step="0.01"
-                  value={formData.amount}
-                  onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
-                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600 text-sm font-bold text-slate-900"
-                />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="font-semibold text-slate-700">Payment Amount (₦) *</label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    step="0.01"
+                    value={formData.amount}
+                    onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
+                    className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600 text-sm font-bold text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <DatePickerInput
+                    label="Payment Date"
+                    required
+                    value={formData.payment_date}
+                    onChange={(formatted) => setFormData({ ...formData, payment_date: formatted })}
+                    hint="Manual DD/MM/YYYY or calendar picker"
+                  />
+                </div>
               </div>
 
               <div>
                 <label className="font-semibold text-slate-700">Payment Method *</label>
                 <select
                   value={formData.payment_method}
-                  onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, payment_method: e.target.value as any })}
                   className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600"
                 >
                   <option value="bank_transfer">Bank Transfer</option>
@@ -689,18 +713,21 @@ export function PaymentsPage() {
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700">Bank Account Credited *</label>
-                <select
+                <SearchableSelect
+                  label="Bank Account Credited"
+                  required
+                  placeholder="Select settlement bank account..."
+                  searchPlaceholder="Filter bank accounts..."
+                  options={bankOptionsList.map((b) => ({
+                    value: b.value,
+                    label: b.label,
+                    badge: b.isDefault ? "Default" : undefined,
+                    badgeTone: "info",
+                    keywords: [b.label],
+                  }))}
                   value={formData.bank_account_credited}
-                  onChange={(e) => setFormData({ ...formData, bank_account_credited: e.target.value })}
-                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600 bg-white"
-                >
-                  {bankOptionsList.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label} {opt.isDefault ? "(Default Settlement)" : ""}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setFormData({ ...formData, bank_account_credited: val })}
+                />
               </div>
 
               <div>

@@ -63,8 +63,7 @@ export function AdminPortalLayout() {
   const isSuper = profile?.role === "super_admin" || profile?.role === "admin";
 
   const handleLogout = async () => {
-    await logout();
-    navigate("/admin/login");
+    await logout("logout");
   };
 
   // Conceptual 10-section Navigation Hierarchy

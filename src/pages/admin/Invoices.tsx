@@ -23,6 +23,9 @@ import { DocumentHeader, DocumentFooter } from "../../components/admin/DocumentB
 import { useBusinessProfile } from "../../lib/businessProfileContext";
 import { ClientQuickActionsBar } from "../../components/admin/communication/ClientQuickActionsBar";
 import { CommunicationHistoryPanel } from "../../components/admin/communication/CommunicationHistoryPanel";
+import { SearchableSelect } from "../../components/ui/SearchableSelect";
+import { DatePickerInput } from "../../components/ui/DatePickerInput";
+import { parseFlexibleDate, getTodayFormattedDDMMYYYY } from "../../utils/dateUtils";
 
 export interface InvoiceRecord {
   id: string;
@@ -132,6 +135,7 @@ export function InvoicesPage() {
   const [paymentModalInvoice, setPaymentModalInvoice] = useState<InvoiceRecord | null>(null);
   const [paymentData, setPaymentData] = useState({
     amount: 0,
+    payment_date: getTodayFormattedDDMMYYYY(),
     payment_method: "bank_transfer",
     transaction_reference: "",
     bank_account_credited: defaultBankLabel,
@@ -463,6 +467,12 @@ export function InvoicesPage() {
       }
     }
 
+    const dateParse = parseFlexibleDate(paymentData.payment_date);
+    if (!dateParse.isValid || !dateParse.timezoneSafeIso) {
+      alert(dateParse.error || "Please enter a valid payment date in DD/MM/YYYY format.");
+      return;
+    }
+
     setRecordingPayment(true);
     try {
       const recNumber = await generateReceiptNumber();
@@ -475,7 +485,7 @@ export function InvoicesPage() {
           invoice_id: paymentModalInvoice.id,
           client_id: paymentModalInvoice.client_id,
           amount: amt,
-          payment_date: new Date().toISOString(),
+          payment_date: dateParse.timezoneSafeIso,
           payment_method: paymentData.payment_method,
           transaction_reference: paymentData.transaction_reference || null,
           bank_account_credited: paymentData.bank_account_credited,
@@ -507,6 +517,7 @@ export function InvoicesPage() {
       setPaymentModalInvoice(null);
       setPaymentData({
         amount: 0,
+        payment_date: getTodayFormattedDDMMYYYY(),
         payment_method: "bank_transfer",
         transaction_reference: "",
         bank_account_credited: defaultBankLabel,
@@ -743,6 +754,7 @@ export function InvoicesPage() {
                                 setPaymentModalInvoice(inv);
                                 setPaymentData({
                                   amount: Number(inv.balance_due),
+                                  payment_date: getTodayFormattedDDMMYYYY(),
                                   payment_method: "bank_transfer",
                                   transaction_reference: "",
                                   bank_account_credited: inv.bank_account_credited || defaultBankLabel,
@@ -790,38 +802,39 @@ export function InvoicesPage() {
             <form onSubmit={handleCreateInvoice} className="space-y-4 text-xs">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <div>
-                  <label className="font-semibold text-slate-700">Client *</label>
-                  <select
+                  <SearchableSelect
+                    label="Client"
                     required
+                    placeholder="Search and select client..."
+                    searchPlaceholder="Search by name or phone..."
+                    options={clients.map((c) => ({
+                      value: c.id,
+                      label: c.full_name,
+                      sublabel: c.phone || undefined,
+                      keywords: [c.full_name, c.phone || ""],
+                    }))}
                     value={formData.client_id}
-                    onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
-                    className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600"
-                  >
-                    <option value="">Select Client...</option>
-                    {clients.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.full_name} ({c.phone})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setFormData({ ...formData, client_id: val })}
+                  />
                 </div>
 
                 <div>
-                  <label className="font-semibold text-slate-700">Linked Business (Optional)</label>
-                  <select
-                    value={formData.business_id}
-                    onChange={(e) => setFormData({ ...formData, business_id: e.target.value })}
-                    className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600"
-                  >
-                    <option value="">None / General</option>
-                    {businesses
+                  <SearchableSelect
+                    label="Linked Business (Optional)"
+                    placeholder="Search and select business..."
+                    searchPlaceholder="Filter businesses..."
+                    allowClear={true}
+                    options={businesses
                       .filter((b) => !formData.client_id || b.client_id === formData.client_id)
-                      .map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.name}
-                        </option>
-                      ))}
-                  </select>
+                      .map((b) => ({
+                        value: b.id,
+                        label: b.name,
+                        keywords: [b.name],
+                      }))}
+                    value={formData.business_id || ""}
+                    onChange={(val) => setFormData({ ...formData, business_id: val })}
+                    onClear={() => setFormData({ ...formData, business_id: "" })}
+                  />
                 </div>
 
                 <div>
@@ -1210,6 +1223,7 @@ export function InvoicesPage() {
                     setPaymentModalInvoice(selectedInvoice);
                     setPaymentData({
                       amount: Number(selectedInvoice.balance_due),
+                      payment_date: getTodayFormattedDDMMYYYY(),
                       payment_method: "bank_transfer",
                       transaction_reference: "",
                       bank_account_credited: selectedInvoice.bank_account_credited || defaultBankLabel,
@@ -1244,17 +1258,29 @@ export function InvoicesPage() {
             </div>
 
             <form onSubmit={handleRecordPayment} className="space-y-3 text-xs">
-              <div>
-                <label className="font-semibold text-slate-700">Payment Amount (₦) *</label>
-                <input
-                  type="number"
-                  required
-                  min="1"
-                  step="0.01"
-                  value={paymentData.amount}
-                  onChange={(e) => setPaymentData({ ...paymentData, amount: parseFloat(e.target.value) || 0 })}
-                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-[#0A2558] focus:ring-1 focus:ring-[#0A2558]/20 text-sm font-bold text-slate-900"
-                />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="font-semibold text-slate-700">Payment Amount (₦) *</label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    step="0.01"
+                    value={paymentData.amount}
+                    onChange={(e) => setPaymentData({ ...paymentData, amount: parseFloat(e.target.value) || 0 })}
+                    className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-[#0A2558] focus:ring-1 focus:ring-[#0A2558]/20 text-sm font-bold text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <DatePickerInput
+                    label="Payment Date"
+                    required
+                    value={paymentData.payment_date}
+                    onChange={(formatted) => setPaymentData({ ...paymentData, payment_date: formatted })}
+                    hint="Manual DD/MM/YYYY or calendar picker"
+                  />
+                </div>
               </div>
 
               <div>
@@ -1284,19 +1310,28 @@ export function InvoicesPage() {
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700">Bank Account Credited *</label>
-                <select
+                <SearchableSelect
+                  label="Bank Account Credited"
+                  required
+                  placeholder="Select settlement bank account..."
+                  searchPlaceholder="Filter bank accounts..."
+                  options={[
+                    ...bankOptionsList.map((opt) => ({
+                      value: opt.value,
+                      label: opt.label,
+                      badge: opt.isDefault ? "Default" : undefined,
+                      badgeTone: "info" as const,
+                      keywords: [opt.label],
+                    })),
+                    {
+                      value: "Cash / POS / Other",
+                      label: "Cash / POS / Other",
+                      sublabel: "Non-bank or physical cash settlement",
+                    },
+                  ]}
                   value={paymentData.bank_account_credited}
-                  onChange={(e) => setPaymentData({ ...paymentData, bank_account_credited: e.target.value })}
-                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-[#0A2558] focus:ring-1 focus:ring-[#0A2558]/20 bg-white"
-                >
-                  {bankOptionsList.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label} {opt.isDefault ? "(Default Settlement)" : ""}
-                    </option>
-                  ))}
-                  <option value="Cash / POS / Other">Cash / POS / Other</option>
-                </select>
+                  onChange={(val) => setPaymentData({ ...paymentData, bank_account_credited: val })}
+                />
               </div>
 
               <div>

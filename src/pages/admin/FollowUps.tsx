@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
+import { SearchableSelect } from "../../components/ui/SearchableSelect";
 
 export interface FollowUpRecord {
   id: string;
@@ -249,17 +250,21 @@ export function FollowUpsPage() {
             <h2 className="text-base font-bold text-slate-900">Schedule Follow-up</h2>
             <form onSubmit={handleCreateFollowUp} className="mt-4 space-y-3 text-xs">
               <div>
-                <label className="font-semibold text-slate-700">Target Client</label>
-                <select
-                  value={formData.client_id}
-                  onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
-                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600"
-                >
-                  <option value="">-- General follow-up (unlinked) --</option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>{c.full_name} ({c.phone})</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  label="Target Client"
+                  placeholder="-- General follow-up (unlinked) --"
+                  searchPlaceholder="Search clients..."
+                  allowClear={true}
+                  options={clients.map((c) => ({
+                    value: c.id,
+                    label: c.full_name,
+                    sublabel: c.phone || undefined,
+                    keywords: [c.full_name, c.phone || ""],
+                  }))}
+                  value={formData.client_id || ""}
+                  onChange={(val) => setFormData({ ...formData, client_id: val })}
+                  onClear={() => setFormData({ ...formData, client_id: "" })}
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">

@@ -28,6 +28,7 @@ import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
 import { ClientQuickActionsBar } from "../../components/admin/communication/ClientQuickActionsBar";
 import { CommunicationHistoryPanel } from "../../components/admin/communication/CommunicationHistoryPanel";
+import { SearchableSelect } from "../../components/ui/SearchableSelect";
 
 export interface ServiceRequestRecord {
   id: string;
@@ -764,51 +765,59 @@ export function ServiceRequestsPage() {
 
             <form onSubmit={handleCreateRequest} className="mt-4 space-y-3.5 text-xs">
               <div>
-                <label className="font-semibold text-slate-700">Client *</label>
-                <select
+                <SearchableSelect
+                  label="Client"
+                  required
+                  placeholder="Search and select client..."
+                  searchPlaceholder="Search by name or phone..."
+                  options={clientsList.map((c) => ({
+                    value: c.id,
+                    label: c.full_name,
+                    sublabel: c.phone || undefined,
+                    keywords: [c.full_name, c.phone || "", c.email || ""],
+                  }))}
                   value={newClientId}
-                  onChange={(e) => setNewClientId(e.target.value)}
-                  required
-                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-blue-600"
-                >
-                  <option value="">Select Client...</option>
-                  {clientsList.map((c) => (
-                    <option key={c.id} value={c.id}>{c.full_name} ({c.phone})</option>
-                  ))}
-                </select>
+                  onChange={(val) => setNewClientId(val)}
+                />
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700">Business (Optional)</label>
-                <select
-                  value={newBusinessId}
-                  onChange={(e) => setNewBusinessId(e.target.value)}
-                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-blue-600"
-                >
-                  <option value="">Select Existing Business...</option>
-                  {businessesList
+                <SearchableSelect
+                  label="Business (Optional)"
+                  placeholder="Select existing business..."
+                  searchPlaceholder="Filter businesses..."
+                  allowClear={true}
+                  options={businessesList
                     .filter((b) => !newClientId || b.client_id === newClientId)
-                    .map((b) => (
-                      <option key={b.id} value={b.id}>{b.name}</option>
-                    ))}
-                </select>
+                    .map((b) => ({
+                      value: b.id,
+                      label: b.name,
+                      sublabel: b.registration_number ? `RC: ${b.registration_number}` : undefined,
+                      keywords: [b.name, b.registration_number || ""],
+                    }))}
+                  value={newBusinessId}
+                  onChange={(val) => setNewBusinessId(val)}
+                  onClear={() => setNewBusinessId("")}
+                />
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700">Service from Catalogue *</label>
-                <select
-                  value={newServiceId}
-                  onChange={(e) => setNewServiceId(e.target.value)}
+                <SearchableSelect
+                  label="Service from Catalogue"
                   required
-                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-blue-600 font-semibold"
-                >
-                  <option value="">Select Service...</option>
-                  {servicesCatalog.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({s.category.replace(/_/g, " ")})
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Select service..."
+                  searchPlaceholder="Search service catalogue..."
+                  options={servicesCatalog.map((s) => ({
+                    value: s.id,
+                    label: s.name,
+                    sublabel: `Fee: ₦${Number(s.default_fee_ngn || 0).toLocaleString()}`,
+                    badge: s.category.replace(/_/g, " "),
+                    badgeTone: "info" as const,
+                    keywords: [s.name, s.category],
+                  }))}
+                  value={newServiceId}
+                  onChange={(val) => setNewServiceId(val)}
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -838,17 +847,23 @@ export function ServiceRequestsPage() {
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700">Assigned Staff</label>
-                <select
+                <SearchableSelect
+                  label="Assigned Staff"
+                  placeholder="Unassigned (select staff)..."
+                  searchPlaceholder="Filter staff members..."
+                  allowClear={true}
+                  options={staffList.map((st) => ({
+                    value: st.id,
+                    label: st.full_name,
+                    sublabel: st.department || undefined,
+                    badge: st.role.replace(/_/g, " "),
+                    badgeTone: "default" as const,
+                    keywords: [st.full_name, st.role, st.department || ""],
+                  }))}
                   value={newAssignedStaffId}
-                  onChange={(e) => setNewAssignedStaffId(e.target.value)}
-                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-blue-600"
-                >
-                  <option value="">Unassigned</option>
-                  {staffList.map((st) => (
-                    <option key={st.id} value={st.id}>{st.full_name} ({st.role.replace(/_/g, " ")})</option>
-                  ))}
-                </select>
+                  onChange={(val) => setNewAssignedStaffId(val)}
+                  onClear={() => setNewAssignedStaffId("")}
+                />
               </div>
 
               <div>

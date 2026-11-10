@@ -1,6 +1,16 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Session, User as SupabaseAuthUser } from "@supabase/supabase-js";
 import { supabase, supabaseEnabled } from "../lib/supabaseClient";
+import { InactivityWarningModal } from "../components/admin/InactivityWarningModal";
+import {
+  recordUserActivity,
+  clearActivityTracker,
+  getRemainingInactivitySeconds,
+  isSessionExpiredByInactivity,
+  subscribeToAuthBroadcast,
+  broadcastAuthMessage,
+  INACTIVITY_WARNING_MS,
+} from "./sessionManager";
 
 export type StaffRole =
   | "super_admin"
@@ -83,7 +93,7 @@ interface AuthContextType {
   isLoading: boolean;
   authError: string | null;
   login: (email: string, pass: string) => Promise<{ ok: boolean; message?: string }>;
-  logout: () => Promise<void>;
+  logout: (reason?: string) => Promise<void>;
   hasPermission: (module: string, action?: PermissionAction) => boolean;
   refreshProfile: () => Promise<void>;
 }
@@ -234,6 +244,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [permissionsList, setPermissionsList] = useState<RolePermissionRule[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [showInactivityWarning, setShowInactivityWarning] = useState(false);
+  const [remainingSeconds, setRemainingSeconds] = useState(120);
 
   // Keep track of resolved user ID to prevent redundant resolution calls and avoid races
   const resolvedUidRef = useRef<string | null>(null);
@@ -371,6 +383,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfile(prof);
           setPermissionsList(perms);
           setAuthError(null);
+          recordUserActivity(false);
         } else {
           resolvedUidRef.current = null;
           setProfile(null);
@@ -390,6 +403,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     // 1. Initial Session Check on mount/reload with invalid token recovery
+    if (isSessionExpiredByInactivity()) {
+      console.warn("[Auth] Initial mount check: session expired due to inactivity while away.");
+      supabase.auth.signOut({ scope: "local" }).catch(() => {});
+      clearActivityTracker();
+      resolvedUidRef.current = null;
+      setSession(null);
+      setProfile(null);
+      setPermissionsList([]);
+      setIsLoading(false);
+      return;
+    }
+
     supabase.auth
       .getSession()
       .then(({ data: { session: initSession }, error }) => {
@@ -475,6 +500,109 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       subscription.unsubscribe();
     };
   }, []);
+
+  // 4. Inactivity Monitoring, Multi-Tab Sync & Sleep/Wake Detection
+  useEffect(() => {
+    if (!session?.user || !profile) {
+      setShowInactivityWarning(false);
+      return;
+    }
+
+    // Check if computer was shut down or slept past the inactivity limit
+    if (isSessionExpiredByInactivity()) {
+      console.warn("[Auth] Inactivity limit exceeded while away. Logging out.");
+      logout("inactivity");
+      return;
+    }
+
+    recordUserActivity(false);
+
+    // Throttle user activity events (max once every 2.5s) to preserve performance
+    let lastRecorded = Date.now();
+    const handleMeaningfulActivity = () => {
+      const now = Date.now();
+      if (now - lastRecorded > 2500) {
+        lastRecorded = now;
+        recordUserActivity(true);
+        if (showInactivityWarning) {
+          setShowInactivityWarning(false);
+        }
+      }
+    };
+
+    const activityEvents = ["mousedown", "keydown", "touchstart", "scroll", "wheel", "mousemove"];
+    activityEvents.forEach((ev) => {
+      window.addEventListener(ev, handleMeaningfulActivity, { passive: true });
+    });
+
+    // 1-second ticker to check countdown
+    const ticker = setInterval(() => {
+      const remainingSecs = getRemainingInactivitySeconds();
+      setRemainingSeconds(remainingSecs);
+
+      if (remainingSecs <= 0) {
+        clearInterval(ticker);
+        console.warn("[Auth] Inactivity timeout reached. Logging out.");
+        logout("inactivity");
+      } else if (remainingSecs <= Math.floor(INACTIVITY_WARNING_MS / 1000)) {
+        setShowInactivityWarning(true);
+      } else if (showInactivityWarning) {
+        setShowInactivityWarning(false);
+      }
+    }, 1000);
+
+    // Multi-tab synchronization
+    const unsubscribeBroadcast = subscribeToAuthBroadcast((msg) => {
+      if (msg.type === "LOGOUT") {
+        console.log("[Auth] Cross-tab logout signal received");
+        logout(msg.reason || "cross_tab");
+      } else if (msg.type === "ACTIVITY_PING") {
+        lastRecorded = msg.timestamp;
+        setShowInactivityWarning(false);
+      } else if (msg.type === "SESSION_EXTENDED") {
+        setShowInactivityWarning(false);
+      }
+    });
+
+    // Visibility / Focus handler (detects wake-up from sleep or tab switch)
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === "visible") {
+        if (isSessionExpiredByInactivity()) {
+          console.warn("[Auth] Inactivity threshold exceeded upon return");
+          logout("inactivity");
+          return;
+        }
+
+        // Validate token refresh if access token expired while away
+        if (supabase && session?.expires_at && session.expires_at * 1000 < Date.now()) {
+          try {
+            const { data: refData, error: refErr } = await supabase.auth.refreshSession();
+            if (refErr || !refData.session) {
+              console.warn("[Auth] Refresh token expired while away:", refErr?.message);
+              logout("session_expired");
+            } else {
+              setSession(refData.session);
+            }
+          } catch {
+            logout("session_expired");
+          }
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleVisibilityChange);
+
+    return () => {
+      activityEvents.forEach((ev) => {
+        window.removeEventListener(ev, handleMeaningfulActivity);
+      });
+      clearInterval(ticker);
+      unsubscribeBroadcast();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleVisibilityChange);
+    };
+  }, [session?.user?.id, profile?.id]);
 
   const refreshProfile = async () => {
     if (!supabase) return;
@@ -575,21 +703,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPermissionsList(perms);
     setAuthError(null);
     setIsLoading(false);
+    recordUserActivity(true);
+    broadcastAuthMessage({ type: "LOGIN", userId: prof.id });
     return { ok: true };
   };
 
-  const logout = async () => {
+  const logout = async (reason?: string) => {
     resolvedUidRef.current = null;
     setProfile(null);
     setSession(null);
     setPermissionsList([]);
     setAuthError(null);
     setIsLoading(false);
+    setShowInactivityWarning(false);
+    clearActivityTracker();
+
+    // Broadcast logout across tabs
+    broadcastAuthMessage({ type: "LOGOUT", reason });
+
     if (supabase) {
       try {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: "global" });
       } catch (err) {
-        console.warn("[Auth] signOut error:", err);
+        console.warn("[Auth] Global signOut error, falling back to local:", err);
+        try {
+          await supabase.auth.signOut({ scope: "local" });
+        } catch {
+          // Ignore
+        }
+      }
+    }
+
+    // Purge local storage tokens
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith("sb-") || k.startsWith("ablebiz_"))) {
+          if (k !== "ablebiz_theme") {
+            keysToRemove.push(k);
+          }
+        }
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+      sessionStorage.clear();
+    } catch {
+      // Ignore
+    }
+
+    // Redirect to login if on protected route
+    if (typeof window !== "undefined") {
+      const currentPath = window.location.pathname;
+      if (currentPath.startsWith("/admin") && !currentPath.startsWith("/admin/login")) {
+        const query = reason ? `?reason=${encodeURIComponent(reason)}` : "?reason=logout";
+        window.location.href = `/admin/login${query}`;
       }
     }
   };
@@ -659,7 +826,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [suiteUser, profile, session, isLoading, authError]
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  const handleContinueSession = () => {
+    recordUserActivity(true);
+    setShowInactivityWarning(false);
+    broadcastAuthMessage({ type: "SESSION_EXTENDED" });
+  };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      <InactivityWarningModal
+        isOpen={showInactivityWarning}
+        remainingSeconds={remainingSeconds}
+        onContinue={handleContinueSession}
+        onLogout={() => logout("manual")}
+      />
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {

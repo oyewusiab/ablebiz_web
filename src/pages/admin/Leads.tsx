@@ -17,6 +17,7 @@ import {
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
 import { ClientQuickActionsBar } from "../../components/admin/communication/ClientQuickActionsBar";
+import { SearchableSelect } from "../../components/ui/SearchableSelect";
 
 export interface LeadRecord {
   id: string;
@@ -382,17 +383,21 @@ export function LeadsPipelinePage() {
 
             <div className="mt-4 space-y-3 text-xs">
               <div>
-                <label className="font-semibold text-slate-700">Link to Existing Client (Optional)</label>
-                <select
+                <SearchableSelect
+                  label="Link to Existing Client (Optional)"
+                  placeholder="-- Create new client from lead details --"
+                  searchPlaceholder="Search existing clients..."
+                  allowClear={true}
+                  options={existingClients.map((c) => ({
+                    value: c.id,
+                    label: c.full_name,
+                    sublabel: c.phone || undefined,
+                    keywords: [c.full_name, c.phone || "", c.email || ""],
+                  }))}
                   value={selectedExistingId}
-                  onChange={(e) => setSelectedExistingId(e.target.value)}
-                  className="mt-1 h-9 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600"
-                >
-                  <option value="">-- Create new client from lead details --</option>
-                  {existingClients.map((c) => (
-                    <option key={c.id} value={c.id}>{c.full_name} ({c.phone})</option>
-                  ))}
-                </select>
+                  onChange={(val) => setSelectedExistingId(val)}
+                  onClear={() => setSelectedExistingId("")}
+                />
               </div>
 
               {!selectedExistingId && (

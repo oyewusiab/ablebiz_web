@@ -16,7 +16,41 @@ import { supabase, supabaseEnabled } from "../../lib/supabaseClient";
 export function AdminLoginPage() {
   const location = useLocation();
   const from = location.state?.from?.pathname || "/admin/dashboard";
-  const incomingMessage = location.state?.message;
+  const searchParams = new URLSearchParams(location.search);
+  const reason = searchParams.get("reason");
+
+  const getReasonFeedback = (): { type: "info" | "warning" | "success"; text: string } | null => {
+    if (location.state?.message) {
+      return { type: "success", text: location.state.message };
+    }
+    if (!reason) return null;
+    switch (reason) {
+      case "inactivity":
+        return {
+          type: "warning",
+          text: "Your session has expired due to 30 minutes of inactivity. Please sign in again.",
+        };
+      case "session_expired":
+        return {
+          type: "warning",
+          text: "Your authenticated session has expired. Please sign in again.",
+        };
+      case "logout":
+        return {
+          type: "success",
+          text: "You have been successfully signed out of ABLEBIZ SUITE.",
+        };
+      case "cross_tab":
+        return {
+          type: "info",
+          text: "You were signed out from another browser window.",
+        };
+      default:
+        return null;
+    }
+  };
+
+  const reasonFeedback = getReasonFeedback();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -119,10 +153,22 @@ export function AdminLoginPage() {
 
         {/* Authentication Card */}
         <div className="rounded-2xl border border-white/15 bg-white/10 p-8 shadow-2xl backdrop-blur-xl">
-          {incomingMessage ? (
-            <div className="mb-4 flex items-start gap-3 rounded-xl border border-emerald-400/30 bg-emerald-500/20 px-4 py-3 text-sm text-emerald-200">
-              <CheckCircle2 className="h-5 w-5 shrink-0 mt-0.5" />
-              <span>{incomingMessage}</span>
+          {reasonFeedback ? (
+            <div
+              className={`mb-4 flex items-start gap-3 rounded-xl border px-4 py-3 text-sm ${
+                reasonFeedback.type === "warning"
+                  ? "border-amber-400/30 bg-amber-500/20 text-amber-200"
+                  : reasonFeedback.type === "info"
+                  ? "border-blue-400/30 bg-blue-500/20 text-blue-200"
+                  : "border-emerald-400/30 bg-emerald-500/20 text-emerald-200"
+              }`}
+            >
+              {reasonFeedback.type === "warning" ? (
+                <ShieldAlert className="h-5 w-5 shrink-0 mt-0.5 text-amber-400" />
+              ) : (
+                <CheckCircle2 className="h-5 w-5 shrink-0 mt-0.5 text-emerald-400" />
+              )}
+              <span>{reasonFeedback.text}</span>
             </div>
           ) : null}
 
