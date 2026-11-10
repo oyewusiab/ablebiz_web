@@ -23,6 +23,8 @@ import {
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
+import { ClientQuickActionsBar } from "../../components/admin/communication/ClientQuickActionsBar";
+import { CommunicationHistoryPanel } from "../../components/admin/communication/CommunicationHistoryPanel";
 
 export interface CacApplicationRecord {
   id: string;
@@ -78,6 +80,8 @@ export function CacOperationsPage() {
   const [workbenchTasks, setWorkbenchTasks] = useState<any[]>([]);
   const [workbenchDocs, setWorkbenchDocs] = useState<any[]>([]);
   const [loadingWorkbench, setLoadingWorkbench] = useState(false);
+  const [commRefreshTick, setCommRefreshTick] = useState(0);
+  const [showCommHistory, setShowCommHistory] = useState(true);
 
   // Auxiliary Options for Forms
   const [clientsList, setClientsList] = useState<any[]>([]);
@@ -640,6 +644,52 @@ export function CacOperationsPage() {
                   )}
                 </div>
 
+                {/* CAC Client Communication Bar */}
+                <div className="mt-4 pt-3 border-t border-slate-200/80">
+                  <ClientQuickActionsBar
+                    contactContext={{
+                      clientId: selectedApp.client_id,
+                      clientName: selectedApp.client?.full_name || "Client",
+                      phone: selectedApp.client?.phone || null,
+                      whatsappPhone: selectedApp.client?.phone || null,
+                      email: selectedApp.client?.email || null,
+                      businessId: selectedApp.business_id || null,
+                      businessName:
+                        selectedApp.approved_name ||
+                        selectedApp.business?.name ||
+                        selectedApp.proposed_name_1 ||
+                        null,
+                      businessType: selectedApp.application_type,
+                      businessRegNumber: selectedApp.certificate_number || null,
+                      serviceRequestId: selectedApp.service_request_id || null,
+                      serviceRequestCode:
+                        selectedApp.service_request?.tracking_code || null,
+                      serviceName: `${selectedApp.application_type.replace(/_/g, " ")} Registration`,
+                      assignedOfficerName:
+                        selectedApp.assigned_officer?.full_name || null,
+                      cacApplicationId: selectedApp.id,
+                      cacRegistrationType: selectedApp.application_type,
+                      cacApplicationRef:
+                        selectedApp.filing_reference_number ||
+                        selectedApp.reservation_code ||
+                        selectedApp.service_request?.tracking_code ||
+                        null,
+                      cacStage: selectedApp.current_stage,
+                      cacApprovalDate: selectedApp.approval_date || null,
+                      cacSubmissionDate: selectedApp.submission_date || null,
+                      cacCertificateNumber:
+                        selectedApp.certificate_number || null,
+                      cacRejectionReason: selectedApp.rejection_reason || null,
+                      cacRectificationNotes:
+                        selectedApp.rectification_notes || null,
+                    }}
+                    workflowContext="cac_operations"
+                    onViewHistory={() => setShowCommHistory((prev) => !prev)}
+                    onCommunicationLogged={() => setCommRefreshTick((t) => t + 1)}
+                    onContactUpdated={() => fetchApplications()}
+                  />
+                </div>
+
                 {/* 11-Stage Workflow Visualizer */}
                 <div className="mt-4 pt-3 border-t border-slate-200">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Workflow Progress</span>
@@ -762,6 +812,22 @@ export function CacOperationsPage() {
                     <pre className="whitespace-pre-wrap font-sans text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
                       {selectedApp.notes}
                     </pre>
+                  </div>
+                )}
+
+                {/* CAC Application Communication History */}
+                {showCommHistory && (
+                  <div className="pt-3 border-t border-slate-200">
+                    <h4 className="font-bold text-slate-900 mb-2">
+                      CAC Filing Communication History
+                    </h4>
+                    <CommunicationHistoryPanel
+                      clientId={selectedApp.client_id}
+                      serviceRequestId={selectedApp.service_request_id}
+                      cacApplicationId={selectedApp.id}
+                      refreshTrigger={commRefreshTick}
+                      maxItems={20}
+                    />
                   </div>
                 )}
               </div>

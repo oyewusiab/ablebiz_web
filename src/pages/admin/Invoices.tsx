@@ -21,6 +21,8 @@ import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
 import { DocumentHeader, DocumentFooter } from "../../components/admin/DocumentBranding";
 import { useBusinessProfile } from "../../lib/businessProfileContext";
+import { ClientQuickActionsBar } from "../../components/admin/communication/ClientQuickActionsBar";
+import { CommunicationHistoryPanel } from "../../components/admin/communication/CommunicationHistoryPanel";
 
 export interface InvoiceRecord {
   id: string;
@@ -76,6 +78,8 @@ export function InvoicesPage() {
   const [invoiceItems, setInvoiceItems] = useState<InvoiceItemRecord[]>([]);
   const [invoicePayments, setInvoicePayments] = useState<any[]>([]);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [commRefreshTick, setCommRefreshTick] = useState(0);
+  const [showCommHistory, setShowCommHistory] = useState(false);
 
   // Create Modal
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -1024,6 +1028,52 @@ export function InvoicesPage() {
                   ✕
                 </button>
               </div>
+            </div>
+
+            {/* Finance Communication Actions (No-Print) */}
+            <div className="no-print mb-4 p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+              <ClientQuickActionsBar
+                contactContext={{
+                  clientId: selectedInvoice.client_id,
+                  clientName: selectedInvoice.client?.full_name || "Client",
+                  phone: selectedInvoice.client?.phone || null,
+                  whatsappPhone: selectedInvoice.client?.phone || null,
+                  email: selectedInvoice.client?.email || null,
+                  businessId: selectedInvoice.business_id || null,
+                  businessName: selectedInvoice.business?.name || null,
+                  serviceRequestId: selectedInvoice.service_request_id || null,
+                  serviceRequestCode:
+                    selectedInvoice.service_request?.tracking_code || null,
+                  serviceName:
+                    invoiceItems[0]?.description ||
+                    selectedInvoice.business?.name ||
+                    "Professional Business Services",
+                  invoiceId: selectedInvoice.id,
+                  invoiceNumber: selectedInvoice.invoice_number,
+                  invoiceTotalAmount: Number(selectedInvoice.total_amount),
+                  invoiceBalanceDue: Number(selectedInvoice.balance_due),
+                  invoiceAmountPaid: Number(selectedInvoice.amount_paid),
+                  invoiceDueDate: selectedInvoice.due_date,
+                  receiptNumber: invoicePayments[0]?.receipt_number || null,
+                  verifiedPaymentDate: invoicePayments[0]?.payment_date || null,
+                  isPaymentVerified:
+                    Number(selectedInvoice.amount_paid) > 0 ||
+                    invoicePayments.length > 0,
+                }}
+                workflowContext="finance"
+                onViewHistory={() => setShowCommHistory((prev) => !prev)}
+                onCommunicationLogged={() => setCommRefreshTick((t) => t + 1)}
+              />
+              {showCommHistory && (
+                <div className="pt-2 border-t border-slate-200">
+                  <CommunicationHistoryPanel
+                    clientId={selectedInvoice.client_id}
+                    invoiceId={selectedInvoice.id}
+                    refreshTrigger={commRefreshTick}
+                    maxItems={10}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Printable Document */}

@@ -108,7 +108,8 @@ export function AdminPortalLayout() {
     {
       title: "COMMUNICATION",
       items: [
-        { name: "Client Communications", path: "/admin/communications", icon: MessageSquare, module: "crm" },
+        { name: "Client Communications", path: "/admin/communications", icon: MessageSquare },
+        { name: "Message Templates", path: "/admin/communication-templates", icon: Sparkles },
       ],
     },
     {

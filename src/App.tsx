@@ -101,8 +101,9 @@ export default function App() {
             <Route path="audit" element={<Navigate to="/admin/audit-logs" replace />} />
             <Route path="ai-secretary" element={<ProtectedRoute><AiSecretaryPage /></ProtectedRoute>} />
             <Route path="notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
-            {/* Communications */}
-            <Route path="communications" element={<ProtectedRoute requiredModule="crm"><ClientCommunicationsPage /></ProtectedRoute>} />
+            {/* Communications & Template Management */}
+            <Route path="communications" element={<ProtectedRoute><ClientCommunicationsPage /></ProtectedRoute>} />
+            <Route path="communication-templates" element={<ProtectedRoute><ClientCommunicationsPage /></ProtectedRoute>} />
             {/* Team / Staff & RBAC & HR Workspace */}
             <Route path="hr" element={<ProtectedRoute requiredModule="hr"><HrWorkspacePage /></ProtectedRoute>} />
             <Route path="hr/:section" element={<ProtectedRoute requiredModule="hr"><HrWorkspacePage /></ProtectedRoute>} />

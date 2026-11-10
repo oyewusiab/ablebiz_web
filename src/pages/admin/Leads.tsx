@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
+import { ClientQuickActionsBar } from "../../components/admin/communication/ClientQuickActionsBar";
 
 export interface LeadRecord {
   id: string;
@@ -301,6 +302,32 @@ export function LeadsPipelinePage() {
                       {lead.notes}
                     </p>
                   )}
+                </div>
+
+                {/* Direct Lead Communication Actions */}
+                <div className="mt-3 pt-2.5 border-t border-slate-100">
+                  <ClientQuickActionsBar
+                    contactContext={{
+                      leadId: lead.id,
+                      clientId: lead.converted_client_id || null,
+                      clientName: lead.name,
+                      phone: lead.phone,
+                      whatsappPhone: lead.phone,
+                      email: lead.email,
+                      serviceName: lead.service_needed || "Business Registration & Compliance",
+                      referralCode: lead.referral_code || null,
+                    }}
+                    workflowContext="leads"
+                    compact
+                    onCommunicationLogged={() => {
+                      if (lead.qualification_status === "new") {
+                        updateQualification(lead.id, "contacted");
+                      } else {
+                        fetchLeads();
+                      }
+                    }}
+                    onContactUpdated={() => fetchLeads()}
+                  />
                 </div>
               </div>
 

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
+import { ClientQuickActionsBar } from "../../components/admin/communication/ClientQuickActionsBar";
 
 export interface BusinessRecord {
   id: string;
@@ -236,6 +237,27 @@ export function BusinessesPage() {
                   </p>
                 )}
               </div>
+
+              {biz.client && (
+                <div className="mt-3 pt-2.5 border-t border-slate-100">
+                  <ClientQuickActionsBar
+                    contactContext={{
+                      clientId: biz.client_id,
+                      clientName: biz.client.full_name || "Client",
+                      phone: biz.client.phone || null,
+                      whatsappPhone: biz.client.phone || null,
+                      email: biz.client.email || null,
+                      businessId: biz.id,
+                      businessName: biz.name,
+                      businessType: biz.entity_type,
+                      businessRegNumber: biz.registration_number || null,
+                    }}
+                    workflowContext="client_360"
+                    compact
+                    onContactUpdated={() => fetchData()}
+                  />
+                </div>
+              )}
             </div>
           ))}
         </div>

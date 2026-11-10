@@ -23,6 +23,9 @@ import {
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
+import { ClientQuickActionsBar } from "../../components/admin/communication/ClientQuickActionsBar";
+import { CommunicationHistoryPanel } from "../../components/admin/communication/CommunicationHistoryPanel";
+import { assessClientContactQuality } from "../../lib/communications/contactUtils";
 
 export interface ClientRecord {
   id: string;
@@ -61,7 +64,8 @@ export function AdminClients() {
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [clientDetail, setClientDetail] = useState<ClientDetailData | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
-  const [active360Tab, setActive360Tab] = useState<"overview" | "businesses" | "requests" | "followups" | "timeline" | "finance">("overview");
+  const [active360Tab, setActive360Tab] = useState<"overview" | "communications" | "businesses" | "requests" | "followups" | "timeline" | "finance">("overview");
+  const [commRefreshTick, setCommRefreshTick] = useState(0);
 
   // Create Client Modal State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -376,10 +380,47 @@ export function AdminClients() {
                   </span>
                 </div>
 
+                {/* Direct Client Communication & Engagement Bar */}
+                <div className="mt-4 pt-3 border-t border-slate-200/80">
+                  <ClientQuickActionsBar
+                    contactContext={{
+                      clientId: clientDetail.id,
+                      clientName: clientDetail.full_name,
+                      phone: clientDetail.phone,
+                      whatsappPhone: clientDetail.alt_phone || clientDetail.phone,
+                      altPhone: clientDetail.alt_phone,
+                      email: clientDetail.email,
+                      businessId: clientDetail.businesses[0]?.id || null,
+                      businessName: clientDetail.businesses[0]?.name || null,
+                      businessType: clientDetail.businesses[0]?.entity_type || null,
+                      businessRegNumber: clientDetail.businesses[0]?.registration_number || null,
+                      referralCode: clientDetail.referral_code || null,
+                      serviceRequestId: clientDetail.service_requests[0]?.id || null,
+                      serviceRequestCode:
+                        clientDetail.service_requests[0]?.tracking_code ||
+                        clientDetail.service_requests[0]?.tracking_id ||
+                        null,
+                      serviceName: clientDetail.service_requests[0]?.service?.name || null,
+                      serviceStatus: clientDetail.service_requests[0]?.status || null,
+                    }}
+                    workflowContext="client_360"
+                    onViewHistory={() => setActive360Tab("communications")}
+                    onCommunicationLogged={() => {
+                      setCommRefreshTick((t) => t + 1);
+                      fetchClient360(clientDetail.id);
+                    }}
+                    onContactUpdated={() => {
+                      fetchClients();
+                      fetchClient360(clientDetail.id);
+                    }}
+                  />
+                </div>
+
                 {/* 360° Navigation Tabs */}
                 <div className="mt-4 flex gap-1 border-t border-slate-200 pt-3 overflow-x-auto">
                   {[
                     { id: "overview", label: "Overview", count: null },
+                    { id: "communications", label: "Communications", count: clientDetail.communications.length },
                     { id: "businesses", label: "Businesses", count: clientDetail.businesses.length },
                     { id: "requests", label: "Service Requests", count: clientDetail.service_requests.length },
                     { id: "followups", label: "Follow-ups", count: clientDetail.follow_ups.length },
@@ -410,8 +451,61 @@ export function AdminClients() {
 
               {/* Tab Contents */}
               <div className="p-5">
-                {active360Tab === "overview" && (
+                {active360Tab === "overview" && (() => {
+                  const quality = assessClientContactQuality({
+                    clientName: clientDetail.full_name,
+                    phone: clientDetail.phone,
+                    altPhone: clientDetail.alt_phone,
+                    email: clientDetail.email,
+                    businessName: clientDetail.businesses[0]?.name,
+                  });
+                  return (
                   <div className="space-y-4 text-xs">
+                    {/* Contact Information Quality Card */}
+                    <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          Verified Contact Channels
+                        </span>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                            quality.overallStatus === "complete"
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              : "bg-amber-50 text-amber-700 border border-amber-200"
+                          }`}
+                        >
+                          {quality.overallStatus === "complete"
+                            ? "All Channels Ready"
+                            : "Incomplete Contact Info"}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                        <div className="bg-slate-50 rounded-lg p-2.5">
+                          <span className="text-[10px] text-slate-400 block">Primary Phone</span>
+                          <span className="font-semibold text-slate-900">
+                            {quality.phone.valid ? quality.phone.displayInternational : clientDetail.phone || "Missing"}
+                          </span>
+                        </div>
+                        <div className="bg-slate-50 rounded-lg p-2.5">
+                          <span className="text-[10px] text-slate-400 block">WhatsApp Number</span>
+                          <span className="font-semibold text-emerald-800">
+                            {quality.whatsapp.valid ? quality.whatsapp.e164 : "Not Available"}
+                          </span>
+                        </div>
+                        <div className="bg-slate-50 rounded-lg p-2.5">
+                          <span className="text-[10px] text-slate-400 block">Email Address</span>
+                          <span className="font-semibold text-slate-900">
+                            {quality.email.valid ? quality.email.normalized : "No valid email"}
+                          </span>
+                        </div>
+                      </div>
+                      {quality.issues.length > 0 && (
+                        <p className="text-[11px] text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200">
+                          {quality.issues.join(" • ")}
+                        </p>
+                      )}
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4">
                       <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
                         <span className="text-[10px] font-semibold text-slate-400 uppercase">State & Address</span>
@@ -433,6 +527,14 @@ export function AdminClients() {
                       </div>
                     )}
                   </div>
+                  );
+                })()}
+
+                {active360Tab === "communications" && (
+                  <CommunicationHistoryPanel
+                    clientId={clientDetail.id}
+                    refreshTrigger={commRefreshTick}
+                  />
                 )}
 
                 {active360Tab === "businesses" && (

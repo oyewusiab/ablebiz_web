@@ -26,6 +26,8 @@ import {
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
+import { ClientQuickActionsBar } from "../../components/admin/communication/ClientQuickActionsBar";
+import { CommunicationHistoryPanel } from "../../components/admin/communication/CommunicationHistoryPanel";
 
 export interface ServiceRequestRecord {
   id: string;
@@ -94,6 +96,8 @@ export function ServiceRequestsPage() {
   // Workbench Quick Updates State
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [newChecklistText, setNewChecklistText] = useState("");
+  const [commRefreshTick, setCommRefreshTick] = useState(0);
+  const [showCommHistory, setShowCommHistory] = useState(true);
 
   // Role permissions
   const role = profile?.role;
@@ -543,6 +547,36 @@ export function ServiceRequestsPage() {
                   </span>
                 </div>
 
+                {/* Client Communication Bar for Service Request */}
+                <div className="mt-4 pt-3 border-t border-slate-200/80">
+                  <ClientQuickActionsBar
+                    contactContext={{
+                      clientId: selectedReq.client_id,
+                      clientName: selectedReq.client?.full_name || "Client",
+                      phone: selectedReq.client?.phone || null,
+                      whatsappPhone: selectedReq.client?.phone || null,
+                      email: selectedReq.client?.email || null,
+                      businessId: selectedReq.business_id || null,
+                      businessName: selectedReq.business?.name || null,
+                      serviceRequestId: selectedReq.id,
+                      serviceRequestCode: selectedReq.tracking_code,
+                      serviceName: selectedReq.service?.name || "Service Engagement",
+                      serviceStatus: selectedReq.status,
+                      assignedOfficerName: selectedReq.assigned_staff?.full_name || null,
+                      requestDate: selectedReq.created_at,
+                      missingItems: Array.isArray(selectedReq.requirements_checklist)
+                        ? selectedReq.requirements_checklist
+                            .filter((item) => !item.completed)
+                            .map((item) => item.title)
+                        : [],
+                    }}
+                    workflowContext="service_request"
+                    onViewHistory={() => setShowCommHistory((prev) => !prev)}
+                    onCommunicationLogged={() => setCommRefreshTick((t) => t + 1)}
+                    onContactUpdated={() => fetchRequests()}
+                  />
+                </div>
+
                 {/* Status Lifecycle Transition Buttons */}
                 {canEdit && (
                   <div className="mt-4 pt-3 border-t border-slate-200">
@@ -694,6 +728,21 @@ export function ServiceRequestsPage() {
                     <p className="whitespace-pre-wrap rounded-xl border border-slate-100 bg-slate-50 p-3 text-xs text-slate-600">
                       {selectedReq.notes}
                     </p>
+                  </div>
+                )}
+
+                {/* Service Request Communication History */}
+                {showCommHistory && (
+                  <div className="pt-3 border-t border-slate-200">
+                    <h4 className="font-bold text-slate-900 mb-2">
+                      Client Communication History ({selectedReq.tracking_code})
+                    </h4>
+                    <CommunicationHistoryPanel
+                      clientId={selectedReq.client_id}
+                      serviceRequestId={selectedReq.id}
+                      refreshTrigger={commRefreshTick}
+                      maxItems={20}
+                    />
                   </div>
                 )}
               </div>

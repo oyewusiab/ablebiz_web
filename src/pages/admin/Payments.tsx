@@ -18,6 +18,7 @@ import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
 import { DocumentHeader, DocumentFooter } from "../../components/admin/DocumentBranding";
 import { useBusinessProfile } from "../../lib/businessProfileContext";
+import { ClientQuickActionsBar } from "../../components/admin/communication/ClientQuickActionsBar";
 
 export interface PaymentRecord {
   id: string;
@@ -449,6 +450,43 @@ export function PaymentsPage() {
                   ✕
                 </button>
               </div>
+            </div>
+
+            {/* Verified Payment Confirmation Communication Bar (No-Print) */}
+            <div className="no-print mb-4 p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <ClientQuickActionsBar
+                contactContext={{
+                  clientId: selectedPayment.client_id,
+                  clientName: selectedPayment.client?.full_name || "Client",
+                  phone: selectedPayment.client?.phone || null,
+                  whatsappPhone: selectedPayment.client?.phone || null,
+                  email: selectedPayment.client?.email || null,
+                  serviceRequestCode:
+                    selectedPayment.invoice?.service_request?.tracking_code ||
+                    null,
+                  serviceName: "Corporate & Business Services",
+                  invoiceId: selectedPayment.invoice_id,
+                  invoiceNumber: selectedPayment.invoice?.invoice_number || null,
+                  invoiceTotalAmount: Number(
+                    selectedPayment.invoice?.total_amount ||
+                      selectedPayment.amount
+                  ),
+                  invoiceBalanceDue: Number(
+                    selectedPayment.invoice?.balance_due || 0
+                  ),
+                  invoiceAmountPaid: Number(
+                    selectedPayment.invoice?.amount_paid ||
+                      selectedPayment.amount
+                  ),
+                  paymentId: selectedPayment.id,
+                  receiptNumber: selectedPayment.receipt_number,
+                  verifiedPaymentDate: selectedPayment.payment_date,
+                  isPaymentVerified: Boolean(
+                    selectedPayment.is_verified || selectedPayment.receipt_number
+                  ),
+                }}
+                workflowContext="finance"
+              />
             </div>
 
             {/* Payment Receipt Printable Card */}
