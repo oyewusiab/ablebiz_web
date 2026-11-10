@@ -669,6 +669,44 @@ export function AdminReports() {
         </div>
       </div>
 
+      {/* Business-Friendly Data Query Warning Banner (if any table failed to load) */}
+      {rawDataset.failedSources && rawDataset.failedSources.length > 0 && (
+        <div className="no-print bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="text-xs text-amber-900 flex-1">
+            <p className="font-bold text-sm">
+              Unable to Load Complete Reporting Data
+            </p>
+            <p className="mt-1 text-amber-800">
+              Some reporting records could not be retrieved completely (
+              <strong>{rawDataset.failedSources.join(", ")}</strong>). Please
+              refresh the page or contact the system administrator if the issue
+              continues.
+            </p>
+            {(canonicalRole === "super_admin" || canonicalRole === "admin") &&
+              rawDataset.queryDiagnostics &&
+              rawDataset.queryDiagnostics.length > 0 && (
+                <details className="mt-2 bg-white/80 rounded-lg border border-amber-200 p-2.5 text-[11px] text-slate-700">
+                  <summary className="cursor-pointer font-semibold text-amber-900 select-none">
+                    Technical Diagnostic Details (Administrators Only)
+                  </summary>
+                  <ul className="mt-1.5 space-y-1 font-mono text-[10px] text-slate-600 list-disc list-inside">
+                    {rawDataset.queryDiagnostics.map((diag, idx) => (
+                      <li key={idx}>{diag}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+          </div>
+          <button
+            onClick={loadWorkspaceData}
+            className="px-3 py-1.5 bg-amber-800 text-white rounded-lg text-xs font-semibold hover:bg-amber-900 shrink-0"
+          >
+            Try Again
+          </button>
+        </div>
+      )}
+
       {/* Global Period & Comparison Bar (Always accessible in Overview & Generator) */}
       {(workspaceMode === "overview" || workspaceMode === "generator") && (
         <div className="no-print bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
@@ -1170,7 +1208,7 @@ export function AdminReports() {
                       {rep.authoritativeSources.map((src) => (
                         <span
                           key={src}
-                          className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-100 text-slate-600"
+                          className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600"
                         >
                           {src}
                         </span>
@@ -1590,15 +1628,14 @@ export function AdminReports() {
       {workspaceMode === "metric_registry" && (
         <div className="no-print bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
+              <div>
               <h2 className="text-lg font-bold text-slate-900">
-                Central Reporting Metric Definition Registry (
-                {METRIC_DEFINITIONS_LIST.length} Authoritative Metrics)
+                Business Metric Definitions & Calculation Guide (
+                {METRIC_DEFINITIONS_LIST.length} Standard Metrics)
               </h2>
               <p className="text-xs text-slate-500">
-                Single source of truth for formulas, database tables, date
-                fields, default filters, and known limitations across ABLEBIZ
-                Suite.
+                Plain-language definitions, calculation methods, and official
+                business data sources used across all ABLEBIZ Suite reports.
               </p>
             </div>
             <div className="relative w-full md:w-80">
@@ -1607,7 +1644,7 @@ export function AdminReports() {
                 type="text"
                 value={metricSearch}
                 onChange={(e) => setMetricSearch(e.target.value)}
-                placeholder="Search metric name, formula, or table..."
+                placeholder="Search metric name, description, or data source..."
                 className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
               />
             </div>
@@ -1626,34 +1663,35 @@ export function AdminReports() {
             }).map((m) => (
               <div
                 key={m.id}
-                className="rounded-xl border border-slate-200 p-4 bg-slate-50/50 space-y-2"
+                className="rounded-xl border border-slate-200 p-4 bg-slate-50/50 space-y-2.5"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm font-bold text-slate-900">
                     {m.name}
                   </span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-slate-200 text-slate-800">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase bg-slate-200 text-slate-800">
                     Unit: {m.unit}
                   </span>
                 </div>
-                <p className="text-xs text-slate-600">{m.description}</p>
-                <div className="text-[11px] bg-white p-2.5 rounded-lg border border-slate-200 font-mono text-slate-800">
-                  <strong>Formula:</strong> {m.calculationFormula}
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600">
+                <p className="text-xs text-slate-700 leading-relaxed">
+                  {m.description}
+                </p>
+                <div className="text-[11px] bg-white p-2.5 rounded-lg border border-slate-200 text-slate-800 space-y-1">
                   <div>
-                    <strong>Source Table:</strong>{" "}
-                    <code className="text-blue-700">{m.authoritativeSource}</code>
+                    <strong className="text-slate-900">
+                      How this is calculated:
+                    </strong>{" "}
+                    <span>{m.calculationFormula}</span>
                   </div>
                   <div>
-                    <strong>Date Field:</strong>{" "}
-                    <code className="text-emerald-700">
-                      {m.applicableDateField}
-                    </code>
+                    <strong className="text-slate-900">Data source:</strong>{" "}
+                    <span className="font-semibold text-blue-700">
+                      {m.authoritativeSource}
+                    </span>
                   </div>
                 </div>
                 <p className="text-[11px] text-amber-800 bg-amber-50 p-2 rounded border border-amber-200/70">
-                  <strong>Governance Note:</strong> {m.knownLimitations}
+                  <strong>Important Note:</strong> {m.knownLimitations}
                 </p>
               </div>
             ))}
@@ -2181,7 +2219,7 @@ function ExecutiveReportPreviewView({
 
                   <div className="flex items-baseline justify-between mt-2">
                     <span className="text-lg font-extrabold text-slate-900">
-                      {dim.score !== null ? `${dim.score}/100` : "N/A"}
+                      {dim.score !== null ? `${dim.score}/100` : dim.statusLabel}
                     </span>
                     <span
                       className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
@@ -2225,8 +2263,9 @@ function ExecutiveReportPreviewView({
                   </p>
                 </div>
 
-                <div className="mt-2 pt-2 border-t border-slate-200/60 text-[10px] font-mono text-slate-400">
-                  Source: {dim.authoritativeSources.join(", ")}
+                <div className="mt-2 pt-2 border-t border-slate-200/60 text-[10px] font-medium text-slate-500">
+                  <strong>Data source:</strong>{" "}
+                  {dim.authoritativeSources.join(", ")}
                 </div>
               </div>
             ))}
@@ -2507,21 +2546,29 @@ function ExecutiveReportPreviewView({
       {payload.metricDefinitionsUsed.length > 0 && (
         <div className="no-print bg-slate-50 rounded-2xl border border-slate-200 p-5">
           <div className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">
-            Authoritative Metric Definitions Used in This Report
+            Metric Definitions & How Figures Are Calculated
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {payload.metricDefinitionsUsed.map((m) => (
               <div
                 key={m.id}
-                className="bg-white p-3 rounded-xl border border-slate-200 text-[11px]"
+                className="bg-white p-3.5 rounded-xl border border-slate-200 text-[11px] space-y-1.5"
               >
-                <div className="font-bold text-slate-900">{m.name}</div>
-                <div className="font-mono text-slate-600 mt-1">
+                <div className="font-bold text-slate-900 text-xs">{m.name}</div>
+                <p className="text-slate-600 leading-relaxed">
+                  {m.description}
+                </p>
+                <div className="text-slate-700 pt-1 border-t border-slate-100">
+                  <strong className="text-slate-900">
+                    How this is calculated:
+                  </strong>{" "}
                   {m.calculationFormula}
                 </div>
-                <div className="text-slate-400 mt-1">
-                  Source: <code>{m.authoritativeSource}</code> (
-                  <code>{m.applicableDateField}</code>)
+                <div className="text-slate-600">
+                  <strong className="text-slate-900">Data source:</strong>{" "}
+                  <span className="font-semibold text-blue-700">
+                    {m.authoritativeSource}
+                  </span>
                 </div>
               </div>
             ))}

@@ -1,9 +1,199 @@
 import type { MetricDefinition, ReportCategoryId } from "./types";
 
 /**
- * Central Authoritative Metric Definition Registry (Part 7)
- * Defines every major reporting metric across ABLEBIZ Suite to guarantee
- * mathematical consistency across dashboards, reports, exports, and AI summaries.
+ * Translates technical database table identifiers into clear business-facing data source labels.
+ */
+const DATA_SOURCE_LABEL_MAP: Record<string, string> = {
+  "public.payments": "Payment Records",
+  payments: "Payment Records",
+  "public.invoices": "Invoice Records",
+  invoices: "Invoice Records",
+  "public.invoice_items": "Invoice Line Items",
+  invoice_items: "Invoice Line Items",
+  "public.quotations": "Quotation Records",
+  quotations: "Quotation Records",
+  "public.expenses": "Expense Records",
+  expenses: "Expense Records",
+  "public.vendors": "Vendor Records",
+  vendors: "Vendor Records",
+  "public.clients": "Client Records",
+  clients: "Client Records",
+  "public.businesses": "Registered Business Records",
+  businesses: "Registered Business Records",
+  "public.leads": "Lead Records",
+  leads: "Lead Records",
+  "public.consultation_requests": "Consultation Requests",
+  consultation_requests: "Consultation Requests",
+  "public.checklist_submissions": "Checklist Submissions",
+  checklist_submissions: "Checklist Submissions",
+  "public.service_requests": "Service Requests",
+  service_requests: "Service Requests",
+  "public.services_catalog": "Service Catalogue",
+  services_catalog: "Service Catalogue",
+  "public.services": "Service Catalogue",
+  services: "Service Catalogue",
+  "public.cac_applications": "CAC Registration Records",
+  cac_applications: "CAC Registration Records",
+  "public.cac_registrations": "CAC Registration Records",
+  cac_registrations: "CAC Registration Records",
+  "public.staff_profiles": "Staff Records",
+  staff_profiles: "Staff Records",
+  "public.tasks": "Staff Task Records",
+  tasks: "Staff Task Records",
+  "public.hr_tasks": "Staff Task Records",
+  hr_tasks: "Staff Task Records",
+  "public.hr_attendance_records": "Staff Attendance Records",
+  hr_attendance_records: "Staff Attendance Records",
+  "public.referral_events": "Referral Records",
+  referral_events: "Referral Records",
+  "public.referral_conversions": "Referral Records",
+  referral_conversions: "Referral Records",
+  "public.referral_reward_ledger": "Referral Reward Records",
+  referral_reward_ledger: "Referral Reward Records",
+  "public.campaign_referral_payouts": "Referral Reward Records",
+  campaign_referral_payouts: "Referral Reward Records",
+  "public.campaign_discounts": "Campaign Discount Records",
+  campaign_discounts: "Campaign Discount Records",
+  "public.campaigns": "Campaign Records",
+  campaigns: "Campaign Records",
+  "public.campaign_service_prices": "Campaign Service Pricing",
+  campaign_service_prices: "Campaign Service Pricing",
+  "public.documents": "Client & Compliance Documents",
+  documents: "Client & Compliance Documents",
+  "public.audit_logs": "Audit Log Records",
+  audit_logs: "Audit Log Records",
+  "public.roles_permissions": "Role & Permission Records",
+  roles_permissions: "Role & Permission Records",
+};
+
+export function formatDataSourceLabel(rawSource?: string | null): string {
+  const clean = String(rawSource || "").trim();
+  if (!clean) return "System Records";
+
+  const parts = clean
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const mapped = parts.map((part) => {
+    const lower = part.toLowerCase();
+    if (DATA_SOURCE_LABEL_MAP[lower]) {
+      return DATA_SOURCE_LABEL_MAP[lower];
+    }
+    const withoutSchema = lower.replace(/^public\./, "");
+    if (DATA_SOURCE_LABEL_MAP[withoutSchema]) {
+      return DATA_SOURCE_LABEL_MAP[withoutSchema];
+    }
+    return part
+      .replace(/^public\./i, "")
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (ch) => ch.toUpperCase());
+  });
+
+  return Array.from(new Set(mapped)).join(", ");
+}
+
+/**
+ * Translates raw database status values into readable business labels at the presentation layer
+ * without altering underlying database records.
+ */
+export function formatBusinessStatusLabel(rawStatus?: string | null): string {
+  const key = String(rawStatus || "").trim().toLowerCase();
+  switch (key) {
+    case "verified":
+    case "successful":
+      return "Confirmed";
+    case "unverified":
+      return "Awaiting Verification";
+    case "pending_verification":
+      return "Awaiting Verification";
+    case "pending":
+      return "Pending";
+    case "pending_payment":
+      return "Awaiting Payment";
+    case "in_progress":
+    case "processing":
+      return "In Progress";
+    case "under_review":
+      return "Under Review";
+    case "completed":
+      return "Completed";
+    case "approved":
+      return "Approved";
+    case "documents_received":
+      return "Approved (Documents Received)";
+    case "application_submitted":
+    case "submitted":
+      return "Submitted";
+    case "under_cac_review":
+      return "In Progress (Under CAC Review)";
+    case "new_request":
+      return "In Progress (New Request)";
+    case "documents_required":
+    case "awaiting_client_docs":
+    case "awaiting_client":
+      return "In Progress (Awaiting Client Documents)";
+    case "documents_verified":
+      return "In Progress (Documents Verified)";
+    case "name_search":
+      return "In Progress (Name Search)";
+    case "name_reserved":
+      return "In Progress (Name Reserved)";
+    case "application_prepared":
+      return "In Progress (Application Prepared)";
+    case "queried":
+      return "Queried by CAC";
+    case "rejected":
+      return "Rejected / Returned";
+    case "cancelled":
+      return "Cancelled";
+    case "cancelled_refunded":
+      return "Cancelled / Refunded";
+    case "refunded":
+      return "Refunded";
+    case "paid":
+      return "Paid";
+    case "partially_paid":
+      return "Partially Paid";
+    case "unpaid":
+    case "sent":
+      return "Unpaid";
+    case "overdue":
+      return "Overdue";
+    case "draft":
+      return "Draft";
+    case "qualified":
+      return "Qualified";
+    case "converted":
+      return "Converted";
+    case "disqualified":
+      return "Disqualified";
+    case "disputed":
+      return "Under Dispute";
+    case "payable":
+      return "Ready for Payout";
+    case "on_hold":
+      return "On Hold";
+    case "insufficient_data":
+      return "Insufficient Data";
+    case "query_failed":
+      return "Unable to Retrieve Data";
+    case "active":
+      return "Active";
+    case "inactive":
+      return "Inactive";
+    default:
+      if (!key) return "Not Available";
+      return key
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, (ch) => ch.toUpperCase());
+  }
+}
+
+/**
+ * Central Authoritative Metric Definition Registry
+ * Written in clear, plain business language so executives, managers, and staff
+ * can understand how every figure is calculated and where it comes from.
  */
 export const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
   // ============================================================================
@@ -11,120 +201,121 @@ export const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
   // ============================================================================
   invoices_issued_total: {
     id: "invoices_issued_total",
-    name: "Valid Invoices Issued (Contractual Billing)",
+    name: "Invoices Issued",
     category: "financial",
     description:
-      "Total contractual value of valid client invoices issued within the reporting period. Strictly excludes draft, cancelled, and refunded invoices. Does NOT represent cash collected.",
+      "Total value of valid customer invoices issued during the selected reporting period. Excludes draft, cancelled, and refunded invoices.",
     calculationFormula:
-      "SUM(invoices.total_amount) WHERE status NOT IN ('draft', 'cancelled', 'refunded') AND issue_date IN period",
-    authoritativeSource: "public.invoices",
-    applicableDateField: "issue_date (fallback: created_at)",
-    defaultFilters: "status NOT IN ('draft', 'cancelled', 'refunded')",
+      "Adds together the total billed amount on all valid invoices issued during the selected period.",
+    authoritativeSource: "Invoice Records",
+    applicableDateField: "Invoice Issue Date",
+    defaultFilters: "Valid issued invoices only (excludes draft, cancelled, and refunded invoices)",
     unit: "NGN",
     permissionsRequired: ["finance.view"],
     knownLimitations:
-      "Represents contractual billing obligations issued to clients, not actual cash received in the bank.",
+      "Shows total customer billing issued during the period, not cash already received in the bank.",
   },
 
   cash_collected_revenue: {
     id: "cash_collected_revenue",
-    name: "Verified Cash Collected (Realized Revenue)",
+    name: "Verified Cash Collected",
     category: "financial",
     description:
-      "Total verified cash inflows received from clients and reconciled against invoices during the reporting period.",
+      "Total payments received and confirmed during the selected reporting period.",
     calculationFormula:
-      "SUM(payments.amount) WHERE is_verified = true AND payment_date IN period",
-    authoritativeSource: "public.payments",
-    applicableDateField: "payment_date (fallback: created_at)",
-    defaultFilters: "is_verified = true",
+      "Adds together all confirmed payments received during the selected period.",
+    authoritativeSource: "Payment Records",
+    applicableDateField: "Payment Date",
+    defaultFilters: "Confirmed customer payments only",
     unit: "NGN",
     permissionsRequired: ["finance.view"],
     knownLimitations:
-      "Reflects cash-basis collections verified by finance staff. Unverified payment entries are excluded from realized revenue.",
+      "Includes only payments that have been confirmed by Finance. Unconfirmed payment entries are listed separately until verified.",
   },
 
   recognized_earned_revenue: {
     id: "recognized_earned_revenue",
-    name: "Earned Service Revenue (Paid & Partially Paid Billing)",
+    name: "Earned Service Revenue",
     category: "financial",
     description:
-      "Total paid amount recorded on valid invoices (excluding cancelled/refunded/draft), representing reconciled revenue earned against billed engagements.",
+      "Total payments recorded against valid customer invoices issued during the reporting period.",
     calculationFormula:
-      "SUM(invoices.amount_paid) WHERE status IN ('paid', 'partially_paid', 'sent', 'overdue') AND issue_date IN period",
-    authoritativeSource: "public.invoices, public.payments",
-    applicableDateField: "issue_date / payment_date",
-    defaultFilters: "status NOT IN ('draft', 'cancelled', 'refunded')",
+      "Adds together the paid portion of all valid customer invoices for the selected period.",
+    authoritativeSource: "Invoice and Payment Records",
+    applicableDateField: "Invoice Issue Date and Payment Date",
+    defaultFilters: "Valid active and paid invoices (excludes draft, cancelled, and refunded invoices)",
     unit: "NGN",
     permissionsRequired: ["finance.view"],
     knownLimitations:
-      "ABLEBIZ Suite operates cash-and-invoice milestone accounting; full accrual deferred-revenue schedules by percentage-of-completion are approximated via service_requests.progress_percent where linked.",
+      "Reflects payments matched to valid customer invoices in ABLEBIZ Suite.",
   },
 
   outstanding_receivables: {
     id: "outstanding_receivables",
-    name: "Outstanding Accounts Receivable",
+    name: "Outstanding Customer Payments",
     category: "financial",
     description:
-      "Total unpaid balance remaining on valid issued invoices. Never treated as collected revenue.",
+      "Total unpaid balances customers still owe ABLEBIZ.",
     calculationFormula:
-      "SUM(invoices.balance_due) WHERE status NOT IN ('draft', 'paid', 'cancelled', 'refunded') AND balance_due > 0",
-    authoritativeSource: "public.invoices",
-    applicableDateField: "issue_date",
-    defaultFilters: "status IN ('sent', 'partially_paid', 'overdue') AND balance_due > 0",
+      "Adds together the remaining balances on valid unpaid invoices.",
+    authoritativeSource: "Invoice Records",
+    applicableDateField: "Invoice Issue Date",
+    defaultFilters: "Unpaid and partially paid valid invoices with an outstanding balance",
     unit: "NGN",
     permissionsRequired: ["finance.view"],
     knownLimitations:
-      "Synchronized via database trigger trg_recalculate_invoice_payment from verified payment records.",
+      "Outstanding balances are never counted as cash collected until payment is received and confirmed.",
   },
 
   overdue_receivables: {
     id: "overdue_receivables",
-    name: "Overdue Accounts Receivable",
+    name: "Overdue Customer Payments",
     category: "financial",
     description:
-      "Portion of outstanding invoice balances where the contractual due_date has passed without full settlement.",
+      "Total unpaid invoice balances that have passed their agreed payment due date.",
     calculationFormula:
-      "SUM(invoices.balance_due) WHERE status NOT IN ('draft', 'paid', 'cancelled', 'refunded') AND balance_due > 0 AND due_date < CURRENT_DATE",
-    authoritativeSource: "public.invoices",
-    applicableDateField: "due_date",
-    defaultFilters: "balance_due > 0 AND due_date < now()",
+      "Adds together the remaining balances on valid unpaid invoices whose payment due date has passed.",
+    authoritativeSource: "Invoice Records",
+    applicableDateField: "Invoice Due Date",
+    defaultFilters: "Unpaid and partially paid invoices past their due date",
     unit: "NGN",
     permissionsRequired: ["finance.view"],
     knownLimitations:
-      "Requires accurate due_date entry at invoice creation (defaults to 7 days after issue_date).",
+      "Requires a payment due date to be recorded when the invoice is issued.",
   },
 
   recorded_expenses: {
     id: "recorded_expenses",
-    name: "Actual Recorded Expenses (Disbursements Paid)",
+    name: "Expenses Paid",
     category: "financial",
     description:
-      "Total verified operational expenses and statutory filing disbursements recorded in the expenses ledger.",
-    calculationFormula: "SUM(expenses.amount) WHERE expense_date IN period",
-    authoritativeSource: "public.expenses",
-    applicableDateField: "expense_date (fallback: created_at)",
-    defaultFilters: "amount > 0",
+      "Total recorded expenses paid by ABLEBIZ during the selected reporting period.",
+    calculationFormula:
+      "Adds together recorded expenses for the selected period using the system's expense date.",
+    authoritativeSource: "Expense Records",
+    applicableDateField: "Expense Date",
+    defaultFilters: "All recorded operational and statutory expenses in the period",
     unit: "NGN",
     permissionsRequired: ["finance.view"],
     knownLimitations:
-      "All rows in public.expenses represent paid disbursements. Unpaid vendor bills/accrued liabilities without an expense entry are not tracked in a separate accounts-payable table.",
+      "Reflects expenses recorded in the Expense Register. External costs not yet entered into the system are not included.",
   },
 
   catalog_estimated_cost: {
     id: "catalog_estimated_cost",
-    name: "Estimated Direct Service Cost Baseline",
+    name: "Estimated Direct Service Costs",
     category: "financial",
     description:
-      "Standard internal statutory/direct cost baseline defined in the Services Catalogue or snapshotted on campaign invoice items.",
+      "Standard estimated filing and direct delivery costs defined in the Service Catalogue for active service requests.",
     calculationFormula:
-      "SUM(services_catalog.internal_cost_estimate) across active service requests or invoice_items.direct_cost_snapshot",
-    authoritativeSource: "public.services_catalog, public.service_requests, public.invoice_items",
-    applicableDateField: "service_requests.created_at",
-    defaultFilters: "service_requests.status <> 'cancelled'",
+      "Adds together the standard direct cost estimates for active services delivered during the selected period.",
+    authoritativeSource: "Service Catalogue and Service Requests",
+    applicableDateField: "Service Request Date",
+    defaultFilters: "Active and completed service requests (excludes cancelled requests)",
     unit: "NGN",
     permissionsRequired: ["finance.view"],
     knownLimitations:
-      "Represents standard cost estimates for budgeting/variance comparison; actual profitability uses public.expenses where recorded.",
+      "Used as a baseline cost estimate for service margin comparisons alongside actual recorded expenses.",
   },
 
   gross_profit: {
@@ -132,16 +323,16 @@ export const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
     name: "Gross Operating Profit",
     category: "financial",
     description:
-      "Verified cash collected minus direct statutory and service delivery expenses linked to client engagements.",
+      "Confirmed cash received minus direct statutory filing and service delivery costs for the selected period.",
     calculationFormula:
-      "Cash Collected Revenue - Direct Statutory/Service Expenses (or Total Recorded Expenses when direct/overhead split is not tagged)",
-    authoritativeSource: "public.payments, public.expenses",
-    applicableDateField: "payment_date / expense_date",
-    defaultFilters: "is_verified = true",
+      "Confirmed cash received less direct service and statutory filing expenses.",
+    authoritativeSource: "Payment and Expense Records",
+    applicableDateField: "Payment Date and Expense Date",
+    defaultFilters: "Confirmed payments and recorded direct expenses",
     unit: "NGN",
     permissionsRequired: ["finance.view"],
     knownLimitations:
-      "Corporate income tax, depreciation, and unrecorded payroll accruals outside public.expenses are not automatically deducted.",
+      "Based on confirmed payments and recorded expenses in ABLEBIZ Suite.",
   },
 
   net_operating_profit: {
@@ -149,31 +340,33 @@ export const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
     name: "Net Operating Profit (Cash Basis)",
     category: "financial",
     description:
-      "Total verified cash collections minus all recorded statutory and operational expenses in the period.",
-    calculationFormula: "Cash Collected Revenue - Total Recorded Expenses",
-    authoritativeSource: "public.payments, public.expenses",
-    applicableDateField: "payment_date / expense_date",
-    defaultFilters: "payments.is_verified = true",
+      "Cash received minus recorded expenses for the selected period.",
+    calculationFormula:
+      "Confirmed cash received less recorded expenses.",
+    authoritativeSource: "Payment and Expense Records",
+    applicableDateField: "Payment Date and Expense Date",
+    defaultFilters: "Confirmed payments and all recorded expenses in the selected period",
     unit: "NGN",
     permissionsRequired: ["finance.view"],
     knownLimitations:
-      "Cash-basis operating margin based on recorded payments and expenses in ABLEBIZ Suite. Excludes unrecorded external bank charges or tax provisions.",
+      "Cash-basis operating result based on confirmed payments and recorded expenses in ABLEBIZ Suite.",
   },
 
   profit_margin_percent: {
     id: "profit_margin_percent",
-    name: "Net Operating Profit Margin (%)",
+    name: "Net Profit Margin",
     category: "financial",
     description:
-      "Percentage of verified collected revenue retained after deducting all recorded expenses.",
-    calculationFormula: "(Net Operating Profit ÷ Cash Collected Revenue) × 100 (when Cash Collected Revenue > 0)",
-    authoritativeSource: "public.payments, public.expenses",
-    applicableDateField: "payment_date / expense_date",
-    defaultFilters: "Cash Collected Revenue > 0",
+      "Shows the percentage of confirmed cash received that remains after recorded expenses.",
+    calculationFormula:
+      "Net operating profit divided by confirmed cash received, multiplied by 100. If cash collected is zero, shows Not Available.",
+    authoritativeSource: "Payment and Expense Records",
+    applicableDateField: "Payment Date and Expense Date",
+    defaultFilters: "Requires confirmed cash received to be greater than zero",
     unit: "percentage",
     permissionsRequired: ["finance.view"],
     knownLimitations:
-      "Returns N/A (0%) when Cash Collected Revenue is zero in the selected period to avoid division-by-zero distortion.",
+      "Displays Not Available when confirmed cash received is zero for the selected period.",
   },
 
   // ============================================================================
@@ -181,81 +374,87 @@ export const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
   // ============================================================================
   total_leads_captured: {
     id: "total_leads_captured",
-    name: "Inbound Leads Captured",
+    name: "Customer Enquiries (Leads)",
     category: "crm",
     description:
-      "Total prospective client enquiries captured across consultation forms, checklists, Spin & Win, and partner referrals.",
-    calculationFormula: "COUNT(leads.id) WHERE created_at IN period",
-    authoritativeSource: "public.leads",
-    applicableDateField: "created_at",
-    defaultFilters: "All lead records in period",
+      "Total prospective customer enquiries received across consultations, checklists, promotional campaigns, and referrals.",
+    calculationFormula:
+      "Counts all new lead enquiries recorded during the selected period.",
+    authoritativeSource: "Lead Records",
+    applicableDateField: "Enquiry Date",
+    defaultFilters: "All lead enquiries recorded in the selected period",
     unit: "count",
     permissionsRequired: ["crm.view"],
-    knownLimitations: "Includes all inbound lead channels prior to qualification.",
+    knownLimitations:
+      "Includes all incoming enquiries before qualification or conversion into paying clients.",
   },
 
   qualified_leads_count: {
     id: "qualified_leads_count",
-    name: "Qualified & Converted Leads",
+    name: "Qualified & Converted Enquiries",
     category: "crm",
     description:
-      "Leads that have progressed to 'qualified' or 'converted' status or have a linked client record.",
+      "Number of prospective customer enquiries that have been qualified by staff or converted into registered clients.",
     calculationFormula:
-      "COUNT(leads.id) WHERE qualification_status IN ('qualified', 'converted') OR is_converted = true OR converted_client_id IS NOT NULL",
-    authoritativeSource: "public.leads",
-    applicableDateField: "created_at",
-    defaultFilters: "qualification_status IN ('qualified', 'converted') OR is_converted = true",
+      "Counts enquiries marked as Qualified or Converted, or linked to a registered client profile.",
+    authoritativeSource: "Lead Records",
+    applicableDateField: "Enquiry Date",
+    defaultFilters: "Enquiries marked Qualified or Converted",
     unit: "count",
     permissionsRequired: ["crm.view"],
-    knownLimitations: "Relies on staff updating lead qualification status or executing Convert Lead.",
+    knownLimitations:
+      "Depends on staff updating enquiry status or converting leads to client profiles.",
   },
 
   lead_conversion_rate: {
     id: "lead_conversion_rate",
-    name: "Lead-to-Client Conversion Rate (%)",
+    name: "Enquiry-to-Client Conversion Rate",
     category: "crm",
     description:
-      "Percentage of eligible leads in the reporting cohort that formally converted into paying/registered clients.",
+      "Percentage of prospective customer enquiries from the selected period that became registered clients.",
     calculationFormula:
-      "(COUNT(leads WHERE is_converted = true OR converted_client_id IS NOT NULL OR qualification_status = 'converted') ÷ COUNT(eligible leads)) × 100",
-    authoritativeSource: "public.leads, public.clients",
-    applicableDateField: "leads.created_at",
-    defaultFilters: "All leads in selected cohort (excluding duplicate test rows)",
+      "Converted enquiries divided by total enquiries received in the selected period, multiplied by 100.",
+    authoritativeSource: "Lead and Client Records",
+    applicableDateField: "Enquiry Date",
+    defaultFilters: "All customer enquiries in the selected period",
     unit: "percentage",
     permissionsRequired: ["crm.view"],
     knownLimitations:
-      "Cohort-based calculation: measures conversion of leads created within the period (unlike dividing all-time clients by leads).",
+      "Measures conversion of enquiries received within the selected reporting period.",
   },
 
   new_clients_acquired: {
     id: "new_clients_acquired",
-    name: "New Clients Acquired",
+    name: "New Clients",
     category: "crm",
-    description: "Number of new client profiles onboarded in the Client 360° directory during the period.",
-    calculationFormula: "COUNT(clients.id) WHERE created_at IN period",
-    authoritativeSource: "public.clients",
-    applicableDateField: "created_at",
-    defaultFilters: "is_active = true",
+    description:
+      "Number of clients registered with ABLEBIZ during the selected reporting period.",
+    calculationFormula:
+      "Counts new client records created during the selected period.",
+    authoritativeSource: "Client Records",
+    applicableDateField: "Client Registration Date",
+    defaultFilters: "Active client profiles registered in the period",
     unit: "count",
     permissionsRequired: ["crm.view"],
-    knownLimitations: "Includes both converted leads and direct walk-in client creations.",
+    knownLimitations:
+      "Includes both converted enquiries and direct walk-in client registrations.",
   },
 
   repeat_client_engagement_rate: {
     id: "repeat_client_engagement_rate",
-    name: "Multi-Service / Repeat Client Rate (%)",
+    name: "Repeat Client Rate",
     category: "crm",
     description:
-      "Percentage of active clients who have engaged ABLEBIZ for two or more service requests or registered multiple businesses.",
+      "Percentage of active clients who have engaged ABLEBIZ for two or more services or business registrations.",
     calculationFormula:
-      "(COUNT(clients with >= 2 service_requests OR >= 2 businesses) ÷ COUNT(clients with >= 1 service_request OR business)) × 100",
-    authoritativeSource: "public.clients, public.service_requests, public.businesses",
-    applicableDateField: "service_requests.created_at",
-    defaultFilters: "service_requests.status <> 'cancelled'",
+      "Clients with two or more service requests or registered businesses divided by all clients with at least one service or business, multiplied by 100.",
+    authoritativeSource: "Client Records and Service Requests",
+    applicableDateField: "Service Request Date",
+    defaultFilters: "Active non-cancelled service engagements",
     unit: "percentage",
     permissionsRequired: ["crm.view"],
     knownLimitations:
-      "Measures repeat service engagement rather than subscription churn, as ABLEBIZ provides transactional & annual statutory services rather than recurring monthly subscriptions.",
+      "Measures repeat service requests and multi-business engagements across the client base.",
   },
 
   // ============================================================================
@@ -263,51 +462,53 @@ export const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
   // ============================================================================
   cac_completion_rate: {
     id: "cac_completion_rate",
-    name: "CAC Registration Completion Rate (%)",
+    name: "CAC Registration Progress Rate",
     category: "operations",
     description:
-      "Percentage of valid CAC filing applications (excluding cancelled) in the cohort that reached 'approved', 'documents_received', or 'completed'.",
+      "Shows the percentage of eligible CAC registration applications that have reached the defined progress milestones.",
     calculationFormula:
-      "(COUNT(cac_applications WHERE current_stage IN ('approved', 'documents_received', 'completed')) ÷ COUNT(cac_applications WHERE current_stage <> 'cancelled')) × 100",
-    authoritativeSource: "public.cac_applications",
-    applicableDateField: "created_at",
-    defaultFilters: "current_stage <> 'cancelled'",
+      "Counts eligible CAC registration applications that have reached Approved or Completed status, divided by all non-cancelled CAC applications in the period, multiplied by 100. Detailed CAC reports also show Submitted, In Progress, Approved, Completed, and Cancelled applications separately.",
+    authoritativeSource: "CAC Registration Records",
+    applicableDateField: "Application Date",
+    defaultFilters: "All eligible CAC applications (excludes cancelled applications)",
     unit: "percentage",
     permissionsRequired: ["operations.view"],
-    knownLimitations: "Recent applications submitted near the end of a period may still be in progress.",
+    knownLimitations:
+      "Applications submitted near the end of the reporting period may still be under CAC review.",
   },
 
   cac_average_turnaround_days: {
     id: "cac_average_turnaround_days",
-    name: "Average CAC Filing Turnaround Time (Days)",
+    name: "Average CAC Processing Time (Days)",
     category: "operations",
     description:
-      "Mean calendar days elapsed from filing submission/creation to approval/completion for completed or approved CAC applications with valid timestamps.",
+      "Average number of calendar days taken from application submission to approval or completion for CAC registrations.",
     calculationFormula:
-      "AVG(COALESCE(approval_date, updated_at) - COALESCE(submission_date, created_at)) in days for completed/approved records",
-    authoritativeSource: "public.cac_applications",
-    applicableDateField: "created_at / submission_date / approval_date",
-    defaultFilters: "current_stage IN ('approved', 'documents_received', 'completed') with valid timestamps",
+      "Calculates the average number of days between submission date and approval or completion date across finalized CAC applications.",
+    authoritativeSource: "CAC Registration Records",
+    applicableDateField: "Submission Date and Approval Date",
+    defaultFilters: "Approved and completed CAC registration applications",
     unit: "days",
     permissionsRequired: ["operations.view"],
     knownLimitations:
-      "Records missing explicit submission_date or approval_date fall back to created_at / updated_at and are flagged in data completeness notes.",
+      "Uses recorded application and approval dates when explicit filing timestamps are not entered separately.",
   },
 
   service_request_completion_rate: {
     id: "service_request_completion_rate",
-    name: "Service Request Completion Rate (%)",
+    name: "Service Delivery Completion Rate",
     category: "operations",
     description:
-      "Percentage of non-cancelled service requests in the period that have been marked 'completed'.",
+      "Percentage of active customer service requests during the period that have been fully completed.",
     calculationFormula:
-      "(COUNT(service_requests WHERE status = 'completed') ÷ COUNT(service_requests WHERE status <> 'cancelled')) × 100",
-    authoritativeSource: "public.service_requests",
-    applicableDateField: "created_at",
-    defaultFilters: "status <> 'cancelled'",
+      "Completed service requests divided by all non-cancelled service requests in the period, multiplied by 100.",
+    authoritativeSource: "Service Requests",
+    applicableDateField: "Service Request Date",
+    defaultFilters: "All non-cancelled service requests",
     unit: "percentage",
     permissionsRequired: ["operations.view"],
-    knownLimitations: "Reflects operational closure in Suite.",
+    knownLimitations:
+      "Reflects service requests marked as Completed in the Service Delivery workspace.",
   },
 
   // ============================================================================
@@ -315,36 +516,36 @@ export const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
   // ============================================================================
   staff_task_completion_rate: {
     id: "staff_task_completion_rate",
-    name: "Operational Task Completion Rate (%)",
+    name: "Staff Task Completion Rate",
     category: "hr",
     description:
-      "Percentage of assigned non-cancelled operational tasks completed within the reporting period.",
+      "Percentage of assigned staff tasks completed during the selected reporting period.",
     calculationFormula:
-      "(COUNT(tasks WHERE status = 'completed') ÷ COUNT(tasks WHERE status <> 'cancelled')) × 100",
-    authoritativeSource: "public.tasks",
-    applicableDateField: "created_at",
-    defaultFilters: "status <> 'cancelled'",
+      "Completed staff tasks divided by all non-cancelled tasks assigned in the period, multiplied by 100.",
+    authoritativeSource: "Staff Task Records",
+    applicableDateField: "Task Creation Date",
+    defaultFilters: "All non-cancelled staff tasks",
     unit: "percentage",
     permissionsRequired: ["operations.view", "hr.view"],
     knownLimitations:
-      "Measures logged task completion in public.tasks; does not rank staff on unlogged offline work.",
+      "Measures tasks logged in the system and does not include offline activities not entered as tasks.",
   },
 
   staff_attendance_rate: {
     id: "staff_attendance_rate",
-    name: "Attendance Punctuality & Presence Rate (%)",
+    name: "Staff Attendance Rate",
     category: "hr",
     description:
-      "Percentage of recorded attendance logs where staff status is 'present' or 'remote' (on-time presence).",
+      "Percentage of recorded attendance entries where staff were present or working remotely.",
     calculationFormula:
-      "(COUNT(hr_attendance_records WHERE status IN ('present', 'remote', 'late')) ÷ COUNT(hr_attendance_records)) × 100",
-    authoritativeSource: "public.hr_attendance_records",
-    applicableDateField: "attendance_date",
-    defaultFilters: "All recorded attendance logs in period",
+      "Present and remote attendance entries divided by total recorded attendance entries in the period, multiplied by 100.",
+    authoritativeSource: "Staff Attendance Records",
+    applicableDateField: "Attendance Date",
+    defaultFilters: "All recorded attendance entries in the selected period",
     unit: "percentage",
     permissionsRequired: ["hr.view"],
     knownLimitations:
-      "Calculated strictly from logged attendance rows; if attendance logging is not yet populated for a period, reports state 'Insufficient attendance logs'.",
+      "Calculated from recorded attendance logs; shows Insufficient Data if attendance records are not yet logged for the period.",
   },
 
   // ============================================================================
@@ -352,36 +553,36 @@ export const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
   // ============================================================================
   verified_successful_referrals: {
     id: "verified_successful_referrals",
-    name: "Verified Successful Referrals",
+    name: "Successful Referrals",
     category: "marketing",
     description:
-      "Count of deduplicated referrals strictly verified as 'successful' after meeting all 5 qualification criteria (new customer, eligible service, full payment in window, prior attribution, not cancelled/refunded).",
+      "Number of unique referrals that have been verified as successful under the approved referral programme rules.",
     calculationFormula:
-      "COUNT(DISTINCT deduplicated customer referrals WHERE verification_status = 'successful')",
-    authoritativeSource: "public.referral_events, public.campaign_referral_payouts",
-    applicableDateField: "created_at",
-    defaultFilters: "verification_status = 'successful' (deduplicated per customer)",
+      "Counts unique referred customers whose referrals have been confirmed after meeting all programme qualification rules (new customer, eligible service, full payment within campaign window, prior referral attribution, and not cancelled or refunded).",
+    authoritativeSource: "Referral Records",
+    applicableDateField: "Referral Date",
+    defaultFilters: "Confirmed referrals only (one referral counted per unique new customer)",
     unit: "count",
     permissionsRequired: ["crm.view", "reports.view"],
     knownLimitations:
-      "Pending, under_review, disputed, disqualified, and cancelled_refunded referrals are strictly excluded.",
+      "Referrals awaiting verification, under review, disputed, disqualified, or cancelled are excluded from confirmed totals.",
   },
 
   referral_reward_liability: {
     id: "referral_reward_liability",
-    name: "Cumulative Referral Reward Liability (Earned vs Payable)",
+    name: "Referral Rewards Earned",
     category: "marketing",
     description:
-      "Total cumulative milestone rewards earned by referrers based on verified successful referral counts (1=₦2,000; 3=₦7,500; 5=₦15,000; 10=₦35,000 cumulative, never additive).",
+      "Total cumulative milestone rewards earned by referrers from confirmed successful referrals (1 referral = ₦2,000; 3 referrals = ₦7,500; 5 referrals = ₦15,000; 10 referrals = ₦35,000 total).",
     calculationFormula:
-      "SUM(ablebiz_calculate_referral_milestone_reward(verified_referrals_per_referrer).totalRewardEarned)",
-    authoritativeSource: "public.campaign_referral_payouts, public.referral_events",
-    applicableDateField: "created_at",
-    defaultFilters: "verification_status = 'successful'",
+      "Calculates each referrer's cumulative milestone reward based on their confirmed referral count and adds the totals together.",
+    authoritativeSource: "Referral Records and Referral Reward Records",
+    applicableDateField: "Referral Date",
+    defaultFilters: "Confirmed referrals only",
     unit: "NGN",
     permissionsRequired: ["reports.view"],
     knownLimitations:
-      "Milestones are cumulative totals (e.g. reaching 3 referrals yields ₦7,500 total, NOT ₦2,000 + ₦7,500).",
+      "Milestone rewards are cumulative totals rather than separate bonuses added on top of earlier milestones.",
   },
 
   // ============================================================================
@@ -389,20 +590,20 @@ export const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
   // ============================================================================
   organisational_health_score: {
     id: "organisational_health_score",
-    name: "Composite Organisational Health Score",
+    name: "Organisational Health Score",
     category: "executive",
     description:
-      "Transparent, weighted 0–100 composite index across up to 8 operational, financial, CRM, staffing, and governance dimensions using only verified available data.",
+      "Overall 0–100 business health score combining financial performance, payment collection, customer growth, service delivery, CAC processing, staff execution, and compliance.",
     calculationFormula:
-      "SUM(DimensionScore_i × Weight_i) ÷ SUM(Weight_i for dimensions with available data)",
+      "Calculates a weighted average across all business health dimensions that have verified data available for the period.",
     authoritativeSource:
-      "public.invoices, public.payments, public.expenses, public.clients, public.leads, public.service_requests, public.cac_applications, public.tasks, public.documents",
-    applicableDateField: "Selected reporting period",
-    defaultFilters: "Dimensions without data are excluded from denominator",
+      "Invoice Records, Payment Records, Expense Records, Client Records, Lead Records, Service Requests, CAC Registration Records, Staff Task Records",
+    applicableDateField: "Selected Reporting Period",
+    defaultFilters: "Includes only dimensions with verified data in the period",
     unit: "score",
     permissionsRequired: ["reports.view"],
     knownLimitations:
-      "Requires at least 3 dimensions with active data to compute a composite score; otherwise outputs 'Insufficient data for assessment'.",
+      "Requires at least three business dimensions with active records to calculate a combined score; otherwise displays Insufficient Data.",
   },
 };
 

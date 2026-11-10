@@ -1085,3 +1085,157 @@ export async function fetchAuthoritativeCampaignBundle(
 export function invalidateCampaignCache(): void {
     cachedPublicBundle = null;
 }
+
+// ==============================================================================
+// VERIFIED SCHEMA HELPERS FOR CAMPAIGN LEADS & BUSINESS STATUS PRESENTATION
+// ==============================================================================
+
+/**
+ * Verified columns existing on `public.leads` in production Supabase schema.
+ * Note: `public.leads` does NOT have `business_interest` or a JSONB `utm` column;
+ * service interest is stored in `public.consultation_requests.service_needed`,
+ * `public.leads.notes` ("Service: ..."), or `public.leads.business_type`,
+ * and UTM parameters are top-level columns (`utm_source`, `utm_medium`, `utm_campaign`, `page_path`).
+ */
+export const CAMPAIGN_LEADS_SELECT_COLUMNS =
+    'id, name, phone, email, source, referral_code, referred_by, business_name, business_type, state_of_operation, is_converted, converted_client_id, page_path, utm_source, utm_medium, utm_campaign, qualification_status, notes, created_at';
+
+/**
+ * Resolves a lead's requested service or business interest from verified schema fields
+ * without querying any non-existent column.
+ */
+export function resolveLeadServiceInterest(
+    lead?: {
+        notes?: string | null;
+        business_type?: string | null;
+        business_name?: string | null;
+    } | null,
+    consultationServiceNeeded?: string | null,
+    fallbackServiceDescription?: string | null
+): string {
+    const directConsultation = String(consultationServiceNeeded || '').trim();
+    if (directConsultation) {
+        return directConsultation;
+    }
+
+    const rawNotes = String(lead?.notes || '').trim();
+    if (rawNotes) {
+        const serviceMatch = rawNotes.match(/Service:\s*([^|\n\r]+)/i);
+        if (serviceMatch && serviceMatch[1]?.trim()) {
+            return serviceMatch[1].trim();
+        }
+    }
+
+    const businessType = String(lead?.business_type || '').trim();
+    if (businessType) {
+        return businessType;
+    }
+
+    const fallback = String(fallbackServiceDescription || '').trim();
+    if (fallback) {
+        return fallback;
+    }
+
+    return 'Business Registration';
+}
+
+/**
+ * Determines whether a lead record is attributed to the campaign either by falling within
+ * the campaign date window or via top-level UTM / promo page path fields on `public.leads`.
+ */
+export function isLeadAttributedToCampaign(
+    lead: {
+        created_at?: string | null;
+        source?: string | null;
+        utm_campaign?: string | null;
+        utm_source?: string | null;
+        page_path?: string | null;
+        utm?: { utm_campaign?: string | null; utm_source?: string | null } | null;
+        [key: string]: any;
+    },
+    startMs: number,
+    endMs: number,
+    campaignSlug: string = OFFICE_OPENING_CAMPAIGN_SLUG
+): boolean {
+    const createdMs = lead?.created_at ? new Date(lead.created_at).getTime() : NaN;
+    const inWindow = !Number.isNaN(createdMs) && createdMs >= startMs && createdMs <= endMs;
+
+    const utmCampaign = String(lead?.utm_campaign || lead?.utm?.utm_campaign || '').trim();
+    const utmSource = String(lead?.utm_source || lead?.utm?.utm_source || '').trim();
+    const pagePath = String(lead?.page_path || '').trim();
+
+    const hasCampaignAttribution =
+        utmCampaign === campaignSlug ||
+        utmSource === 'office_opening_promo_page' ||
+        pagePath.includes('office-opening-promo');
+
+    return inWindow || hasCampaignAttribution;
+}
+
+/**
+ * Translates raw internal campaign/referral/payment status codes into clear,
+ * user-friendly business labels for tables, badges, and exports.
+ */
+export function formatCampaignStatusLabel(status?: string | null): string {
+    const key = String(status || '').trim().toLowerCase();
+    switch (key) {
+        case 'verified':
+        case 'successful':
+        case 'qualified':
+            return 'Confirmed';
+        case 'pending_verification':
+        case 'pending':
+            return 'Awaiting Verification';
+        case 'pending_payment':
+            return 'Awaiting Payment';
+        case 'under_review':
+            return 'Under Review';
+        case 'payable':
+            return 'Ready for Payout';
+        case 'processing':
+            return 'Processing';
+        case 'paid':
+            return 'Paid';
+        case 'partially_paid':
+            return 'Partially Paid';
+        case 'unpaid':
+        case 'sent':
+            return 'Unpaid';
+        case 'overdue':
+            return 'Overdue';
+        case 'on_hold':
+            return 'On Hold';
+        case 'disqualified':
+            return 'Disqualified';
+        case 'disputed':
+            return 'Under Dispute';
+        case 'cancelled':
+            return 'Cancelled';
+        case 'cancelled_refunded':
+            return 'Cancelled / Refunded';
+        case 'refunded':
+            return 'Refunded';
+        case 'draft':
+            return 'Draft';
+        case 'active':
+            return 'Active';
+        case 'scheduled':
+            return 'Scheduled';
+        case 'paused':
+            return 'Paused';
+        case 'completed':
+            return 'Completed';
+        case 'archived':
+            return 'Archived';
+        case 'insufficient_data':
+            return 'Insufficient Data';
+        case 'query_failed':
+            return 'Unable to Retrieve Data';
+        default:
+            if (!key) return 'Not Available';
+            return key
+                .replace(/_/g, ' ')
+                .replace(/\b\w/g, (ch) => ch.toUpperCase());
+    }
+}
+

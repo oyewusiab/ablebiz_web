@@ -7,7 +7,11 @@ import {
   calculateReferralMilestoneReward,
   getApprovedCampaignBaseline,
 } from "../campaignEngine";
-import { getMetricDefinitionsByIds } from "./metricRegistry";
+import {
+  formatBusinessStatusLabel,
+  formatDataSourceLabel,
+  getMetricDefinitionsByIds,
+} from "./metricRegistry";
 import { getReportById } from "./reportCatalogue";
 import {
   canAccessReport,
@@ -65,6 +69,8 @@ export interface ReportingRawDataset {
   hrAnnouncements: any[];
   auditLogs: any[];
   inquiries: any[];
+  failedSources?: string[];
+  queryDiagnostics?: string[];
 }
 
 export function createEmptyReportingDataset(): ReportingRawDataset {
@@ -456,13 +462,103 @@ function isQualifiedLead(lead: any): boolean {
   );
 }
 
+export type CacLifecycleCategory =
+  | "submitted"
+  | "in_progress"
+  | "approved"
+  | "completed"
+  | "rejected"
+  | "cancelled";
+
+/**
+ * Classifies a CAC application record into one of the distinct business lifecycle stages:
+ * Submitted, In Progress, Approved, Completed, Rejected/Queried, or Cancelled.
+ */
+export function classifyCacApplicationStage(cac: any): CacLifecycleCategory {
+  const raw = String(
+    cac?.current_stage || cac?.stage || cac?.status || "intake"
+  )
+    .trim()
+    .toLowerCase();
+
+  if (raw === "cancelled") return "cancelled";
+  if (raw === "completed") return "completed";
+  if (raw === "approved" || raw === "documents_received") return "approved";
+  if (raw === "rejected" || raw === "queried" || raw === "returned") {
+    return "rejected";
+  }
+  if (raw === "application_submitted" || raw === "submitted") {
+    return "submitted";
+  }
+  return "in_progress";
+}
+
+export interface CacStageSummary {
+  total: number;
+  submitted: number;
+  inProgress: number;
+  approved: number;
+  completed: number;
+  rejectedOrQueried: number;
+  cancelled: number;
+  eligibleCount: number;
+  progressedCount: number;
+  progressRatePct: number | null;
+}
+
+export function summarizeCacStages(cacRecords: any[]): CacStageSummary {
+  let submitted = 0;
+  let inProgress = 0;
+  let approved = 0;
+  let completed = 0;
+  let rejectedOrQueried = 0;
+  let cancelled = 0;
+
+  for (const rec of cacRecords || []) {
+    const bucket = classifyCacApplicationStage(rec);
+    if (bucket === "submitted") submitted += 1;
+    else if (bucket === "in_progress") inProgress += 1;
+    else if (bucket === "approved") approved += 1;
+    else if (bucket === "completed") completed += 1;
+    else if (bucket === "rejected") rejectedOrQueried += 1;
+    else if (bucket === "cancelled") cancelled += 1;
+  }
+
+  const total = (cacRecords || []).length;
+  const eligibleCount = Math.max(0, total - cancelled);
+  const progressedCount = approved + completed;
+  const progressRatePct =
+    eligibleCount > 0 ? (progressedCount / eligibleCount) * 100 : null;
+
+  return {
+    total,
+    submitted,
+    inProgress,
+    approved,
+    completed,
+    rejectedOrQueried,
+    cancelled,
+    eligibleCount,
+    progressedCount,
+    progressRatePct,
+  };
+}
+
 function isCompletedRequest(req: any): boolean {
-  const status = String(req?.status || req?.stage || "").toLowerCase();
-  return status === "completed" || status === "approved";
+  const status = String(
+    req?.current_stage || req?.status || req?.stage || ""
+  ).toLowerCase();
+  return (
+    status === "completed" ||
+    status === "approved" ||
+    status === "documents_received"
+  );
 }
 
 function isQueriedOrRejectedRequest(req: any): boolean {
-  const status = String(req?.status || req?.stage || "").toLowerCase();
+  const status = String(
+    req?.current_stage || req?.status || req?.stage || ""
+  ).toLowerCase();
   return (
     status === "queried" ||
     status === "rejected" ||
@@ -472,18 +568,30 @@ function isQueriedOrRejectedRequest(req: any): boolean {
 }
 
 function isPendingRequest(req: any): boolean {
-  const status = String(req?.status || req?.stage || "").toLowerCase();
+  const status = String(
+    req?.current_stage || req?.status || req?.stage || ""
+  ).toLowerCase();
   return (
     status !== "completed" &&
     status !== "approved" &&
+    status !== "documents_received" &&
     status !== "cancelled" &&
     status !== "rejected"
   );
 }
 
 function computeTurnaroundDays(req: any, referenceNow: Date): number | null {
-  const start = parseRecordDate(req, ["submitted_at", "created_at"]);
-  const end = parseRecordDate(req, ["completed_at", "approved_at", "updated_at"]);
+  const start = parseRecordDate(req, [
+    "submission_date",
+    "submitted_at",
+    "created_at",
+  ]);
+  const end = parseRecordDate(req, [
+    "approval_date",
+    "completed_at",
+    "approved_at",
+    "updated_at",
+  ]);
   if (!start) return null;
   const finish = isCompletedRequest(req) ? end || referenceNow : referenceNow;
   const diffDays = (finish.getTime() - start.getTime()) / 86_400_000;
@@ -532,9 +640,9 @@ export function calculateOrganisationalHealth(params: {
       statusLabel: "Restricted by Role",
       contributingMetrics: ["cash_collected", "revenue_growth_rate"],
       calculationExplanation:
-        "Evaluates verified cash collection momentum and period-over-period revenue trajectory.",
+        "Evaluates confirmed customer payments received and period-over-period revenue trajectory.",
       measuredValueLabel: "Restricted",
-      authoritativeSources: ["public.payments", "public.invoices"],
+      authoritativeSources: ["Payment Records", "Invoice Records"],
       dataAvailable: false,
       limitationOrNote: "Requires financial viewing permissions.",
     });
@@ -548,11 +656,11 @@ export function calculateOrganisationalHealth(params: {
       statusLabel: "Insufficient Data",
       contributingMetrics: ["cash_collected", "revenue_growth_rate"],
       calculationExplanation:
-        "Evaluates verified cash collection momentum and period-over-period revenue trajectory.",
+        "Evaluates confirmed customer payments received and period-over-period revenue trajectory.",
       measuredValueLabel: "No revenue records in period",
-      authoritativeSources: ["public.payments", "public.invoices"],
+      authoritativeSources: ["Payment Records", "Invoice Records"],
       dataAvailable: false,
-      limitationOrNote: "No verified payments or issued invoices recorded in window.",
+      limitationOrNote: "No confirmed payments or issued invoices recorded in window.",
     });
   } else {
     const growth = params.revenueGrowthPct ?? 0;
@@ -583,12 +691,12 @@ export function calculateOrganisationalHealth(params: {
           : "Critical",
       contributingMetrics: ["cash_collected", "revenue_growth_rate"],
       calculationExplanation:
-        "Base score of 72 adjusted by period-over-period verified cash collection growth.",
+        "Base score of 72 adjusted by period-over-period confirmed cash collection growth.",
       measuredValueLabel:
         params.revenueGrowthPct !== null
           ? `${params.revenueGrowthPct >= 0 ? "+" : ""}${params.revenueGrowthPct.toFixed(1)}% vs prior period`
           : "Active collection baseline established",
-      authoritativeSources: ["public.payments", "public.invoices"],
+      authoritativeSources: ["Payment Records", "Invoice Records"],
       dataAvailable: true,
     });
   }
@@ -604,9 +712,9 @@ export function calculateOrganisationalHealth(params: {
       statusLabel: "Restricted by Role",
       contributingMetrics: ["net_profit", "net_profit_margin"],
       calculationExplanation:
-        "Evaluates net operating margin (Cash Collected minus Approved Operating Expenses).",
+        "Evaluates net operating profit margin (Confirmed Cash Received minus Recorded Expenses).",
       measuredValueLabel: "Restricted",
-      authoritativeSources: ["public.payments", "public.expenses"],
+      authoritativeSources: ["Payment Records", "Expense Records"],
       dataAvailable: false,
       limitationOrNote: "Requires financial viewing permissions.",
     });
@@ -620,11 +728,11 @@ export function calculateOrganisationalHealth(params: {
       statusLabel: "Insufficient Data",
       contributingMetrics: ["net_profit", "net_profit_margin"],
       calculationExplanation:
-        "Evaluates net operating margin (Cash Collected minus Approved Operating Expenses).",
+        "Evaluates net operating profit margin (Confirmed Cash Received minus Recorded Expenses).",
       measuredValueLabel: "No cash baseline for margin",
-      authoritativeSources: ["public.payments", "public.expenses"],
+      authoritativeSources: ["Payment Records", "Expense Records"],
       dataAvailable: false,
-      limitationOrNote: "Net margin requires verified cash inflows > ₦0.",
+      limitationOrNote: "Net margin requires confirmed cash received greater than ₦0.",
     });
   } else {
     const margin = params.netProfitMarginPct;
@@ -663,7 +771,7 @@ export function calculateOrganisationalHealth(params: {
       calculationExplanation:
         "Benchmarks net cash operating margin against healthy professional service targets (>= 25%).",
       measuredValueLabel: `${margin.toFixed(1)}% Net Margin`,
-      authoritativeSources: ["public.payments", "public.expenses"],
+      authoritativeSources: ["Payment Records", "Expense Records"],
       dataAvailable: true,
     });
   }
@@ -684,7 +792,7 @@ export function calculateOrganisationalHealth(params: {
       calculationExplanation:
         "Measures cash collection efficiency against issued invoices and overdue balance exposure.",
       measuredValueLabel: "Restricted",
-      authoritativeSources: ["public.invoices", "public.payments"],
+      authoritativeSources: ["Invoice Records", "Payment Records"],
       dataAvailable: false,
       limitationOrNote: "Requires financial viewing permissions.",
     });
@@ -703,7 +811,7 @@ export function calculateOrganisationalHealth(params: {
       calculationExplanation:
         "Measures cash collection efficiency against issued invoices and overdue balance exposure.",
       measuredValueLabel: "No billable invoices in period",
-      authoritativeSources: ["public.invoices", "public.payments"],
+      authoritativeSources: ["Invoice Records", "Payment Records"],
       dataAvailable: false,
       limitationOrNote: "No issued invoices in the selected period.",
     });
@@ -739,7 +847,7 @@ export function calculateOrganisationalHealth(params: {
       calculationExplanation:
         "Collection efficiency percentage penalized by overdue invoice share.",
       measuredValueLabel: `${collEff.toFixed(1)}% Collected (${(params.overdueSharePct ?? 0).toFixed(1)}% Overdue)`,
-      authoritativeSources: ["public.invoices", "public.payments"],
+      authoritativeSources: ["Invoice Records", "Payment Records"],
       dataAvailable: true,
     });
   }
@@ -757,7 +865,7 @@ export function calculateOrganisationalHealth(params: {
       calculationExplanation:
         "Evaluates new client onboarding volume and cohort lead-to-client conversion rate.",
       measuredValueLabel: "No leads/clients in period",
-      authoritativeSources: ["public.clients", "public.leads"],
+      authoritativeSources: ["Client Records", "Lead Records"],
       dataAvailable: false,
       limitationOrNote: "No client or lead records found in the reporting window.",
     });
@@ -793,7 +901,7 @@ export function calculateOrganisationalHealth(params: {
       calculationExplanation:
         "Combines cohort lead conversion rate with active new client onboarding.",
       measuredValueLabel: `${params.newClientsCount} New Clients | ${(params.leadConversionPct ?? 0).toFixed(1)}% Lead Conv.`,
-      authoritativeSources: ["public.clients", "public.leads"],
+      authoritativeSources: ["Client Records", "Lead Records"],
       dataAvailable: true,
     });
   }
@@ -814,7 +922,7 @@ export function calculateOrganisationalHealth(params: {
       calculationExplanation:
         "Measures service request completion ratio against active backlog.",
       measuredValueLabel: "No service requests in period",
-      authoritativeSources: ["public.service_requests"],
+      authoritativeSources: ["Service Requests"],
       dataAvailable: false,
       limitationOrNote: "No service requests recorded in the reporting period.",
     });
@@ -849,7 +957,7 @@ export function calculateOrganisationalHealth(params: {
       calculationExplanation:
         "Weighted completion ratio of active client service requests.",
       measuredValueLabel: `${comp.toFixed(1)}% Completion Rate`,
-      authoritativeSources: ["public.service_requests"],
+      authoritativeSources: ["Service Requests"],
       dataAvailable: true,
     });
   }
@@ -867,7 +975,7 @@ export function calculateOrganisationalHealth(params: {
       calculationExplanation:
         "Measures CAC filing turnaround speed and query/rejection minimization.",
       measuredValueLabel: "No CAC filings in period",
-      authoritativeSources: ["public.cac_registrations"],
+      authoritativeSources: ["CAC Registration Records"],
       dataAvailable: false,
       limitationOrNote: "No CAC registration filings in the reporting window.",
     });
@@ -908,7 +1016,7 @@ export function calculateOrganisationalHealth(params: {
       calculationExplanation:
         "Turnaround duration benchmark adjusted for CAC query/rejection frequency.",
       measuredValueLabel: `${turnaroundDays.toFixed(1)}d Avg Turnaround | ${(params.cacQueryRatePct ?? 0).toFixed(1)}% Query Rate`,
-      authoritativeSources: ["public.cac_registrations"],
+      authoritativeSources: ["CAC Registration Records"],
       dataAvailable: true,
     });
   }
@@ -926,7 +1034,7 @@ export function calculateOrganisationalHealth(params: {
       calculationExplanation:
         "Evaluates staff task completion rate and overdue task discipline.",
       measuredValueLabel: "No assigned tasks in period",
-      authoritativeSources: ["public.hr_tasks", "public.staff_profiles"],
+      authoritativeSources: ["Staff Task Records", "Staff Records"],
       dataAvailable: false,
       limitationOrNote: "No HR/operational task records found for this scope.",
     });
@@ -961,7 +1069,7 @@ export function calculateOrganisationalHealth(params: {
       calculationExplanation:
         "Task completion ratio adjusted for overdue task backlog.",
       measuredValueLabel: `${params.taskCompletionPct.toFixed(1)}% Task Completion (${params.overdueTasksCount} Overdue)`,
-      authoritativeSources: ["public.hr_tasks", "public.staff_profiles"],
+      authoritativeSources: ["Staff Task Records", "Staff Records"],
       dataAvailable: true,
     });
   }
@@ -980,11 +1088,11 @@ export function calculateOrganisationalHealth(params: {
         "campaign_discounted_registrations",
       ],
       calculationExplanation:
-        "Evaluates verified referral conversion rate and campaign registration traction.",
+        "Evaluates confirmed referral conversion rate and campaign registration traction.",
       measuredValueLabel: "No campaign/referral records in period",
       authoritativeSources: [
-        "public.referral_conversions",
-        "public.campaign_discounts",
+        "Referral Records",
+        "Campaign Discount Records",
       ],
       dataAvailable: false,
       limitationOrNote: "No campaign or referral records in the selected window.",
@@ -1022,11 +1130,11 @@ export function calculateOrganisationalHealth(params: {
         "campaign_discounted_registrations",
       ],
       calculationExplanation:
-        "Verified referral conversion ratio plus campaign service adoption.",
-      measuredValueLabel: `${params.campaignRegistrationsCount} Campaign Sales | ${(params.referralVerificationPct ?? 0).toFixed(1)}% Verified Referrals`,
+        "Confirmed referral conversion ratio plus campaign service adoption.",
+      measuredValueLabel: `${params.campaignRegistrationsCount} Campaign Sales | ${(params.referralVerificationPct ?? 0).toFixed(1)}% Confirmed Referrals`,
       authoritativeSources: [
-        "public.referral_conversions",
-        "public.campaign_discounts",
+        "Referral Records",
+        "Campaign Discount Records",
       ],
       dataAvailable: true,
     });
@@ -1220,8 +1328,9 @@ export function generateReportPayload(
       }
       if (
         filters.status !== "all" &&
-        String(cac.stage || cac.status || "").toLowerCase() !==
-          filters.status.toLowerCase()
+        String(
+          cac.current_stage || cac.stage || cac.status || ""
+        ).toLowerCase() !== filters.status.toLowerCase()
       ) {
         return false;
       }
@@ -1433,7 +1542,7 @@ export function generateReportPayload(
 
   const curCac = filterByWindow(
     scopedCacRegistrations,
-    ["submitted_at", "created_at"],
+    ["submission_date", "submitted_at", "created_at"],
     periodWindow.startDate,
     periodWindow.endDate
   );
@@ -1441,7 +1550,7 @@ export function generateReportPayload(
     periodWindow.comparisonStartDate && periodWindow.comparisonEndDate
       ? filterByWindow(
           scopedCacRegistrations,
-          ["submitted_at", "created_at"],
+          ["submission_date", "submitted_at", "created_at"],
           periodWindow.comparisonStartDate,
           periodWindow.comparisonEndDate
         )
@@ -1494,12 +1603,15 @@ export function generateReportPayload(
     ? prevInvoices.filter(isBillableInvoice)
     : null;
 
+  const getInvoiceTotal = (inv: any): number =>
+    Number(inv?.total ?? inv?.total_amount ?? 0);
+
   const invoicesIssuedAmount = billableCurInvoices.reduce(
-    (s, i) => s + Number(i.total || 0),
+    (s, i) => s + getInvoiceTotal(i),
     0
   );
   const prevInvoicesIssuedAmount = billablePrevInvoices
-    ? billablePrevInvoices.reduce((s, i) => s + Number(i.total || 0), 0)
+    ? billablePrevInvoices.reduce((s, i) => s + getInvoiceTotal(i), 0)
     : null;
 
   const verifiedCurPayments = curPayments.filter(isVerifiedPayment);
@@ -1518,8 +1630,15 @@ export function generateReportPayload(
   const outstandingInvoicesList = billableCurInvoices.filter((inv) => {
     const st = String(inv.status || "").toLowerCase();
     return (
-      (st === "issued" || st === "partially_paid" || st === "overdue" || st === "unpaid") &&
-      Number(inv.balance_due ?? Number(inv.total || 0) - Number(inv.amount_paid || 0)) > 0
+      (st === "issued" ||
+        st === "sent" ||
+        st === "partially_paid" ||
+        st === "overdue" ||
+        st === "unpaid") &&
+      Number(
+        inv.balance_due ??
+          getInvoiceTotal(inv) - Number(inv.amount_paid || 0)
+      ) > 0
     );
   });
 
@@ -1527,7 +1646,8 @@ export function generateReportPayload(
     (s, i) =>
       s +
       Number(
-        i.balance_due ?? Math.max(0, Number(i.total || 0) - Number(i.amount_paid || 0))
+        i.balance_due ??
+          Math.max(0, getInvoiceTotal(i) - Number(i.amount_paid || 0))
       ),
     0
   );
@@ -1538,6 +1658,7 @@ export function generateReportPayload(
           const st = String(inv.status || "").toLowerCase();
           return (
             st === "issued" ||
+            st === "sent" ||
             st === "partially_paid" ||
             st === "overdue" ||
             st === "unpaid"
@@ -1548,7 +1669,7 @@ export function generateReportPayload(
             s +
             Number(
               i.balance_due ??
-                Math.max(0, Number(i.total || 0) - Number(i.amount_paid || 0))
+                Math.max(0, getInvoiceTotal(i) - Number(i.amount_paid || 0))
             ),
           0
         )
@@ -1565,7 +1686,8 @@ export function generateReportPayload(
     (s, i) =>
       s +
       Number(
-        i.balance_due ?? Math.max(0, Number(i.total || 0) - Number(i.amount_paid || 0))
+        i.balance_due ??
+          Math.max(0, getInvoiceTotal(i) - Number(i.amount_paid || 0))
       ),
     0
   );
@@ -1656,6 +1778,7 @@ export function generateReportPayload(
       ? (completedPrevRequests.length / prevServiceRequests.length) * 100
       : null;
 
+  const cacStageSummary = summarizeCacStages(curCac);
   const completedCurCac = curCac.filter(isCompletedRequest);
   const pendingCurCac = curCac.filter(isPendingRequest);
   const queriedCurCac = curCac.filter(isQueriedOrRejectedRequest);
@@ -1810,10 +1933,11 @@ export function generateReportPayload(
           title:
             inv.client_name ||
             clientById.get(inv.client_id)?.full_name ||
+            clientById.get(inv.client_id)?.company_name ||
             "Client Invoice",
-          subtitle: `Status: ${String(inv.status || "issued").toUpperCase()}`,
-          status: String(inv.status || "issued"),
-          amountOrMetric: formatMetricValue(Number(inv.total || 0), "NGN"),
+          subtitle: `Status: ${formatBusinessStatusLabel(inv.status || "issued")}`,
+          status: formatBusinessStatusLabel(inv.status || "issued"),
+          amountOrMetric: formatMetricValue(getInvoiceTotal(inv), "NGN"),
           dateLabel: new Date(
             inv.issue_date || inv.created_at || referenceNow
           ).toLocaleDateString("en-NG"),
@@ -1834,9 +1958,12 @@ export function generateReportPayload(
           title:
             pay.payer_name ||
             clientById.get(pay.client_id)?.full_name ||
-            "Verified Payment",
+            clientById.get(pay.client_id)?.company_name ||
+            "Confirmed Payment",
           subtitle: `Method: ${String(pay.payment_method || "bank_transfer").replace(/_/g, " ")}`,
-          status: pay.is_verified !== false ? "verified" : "pending",
+          status: formatBusinessStatusLabel(
+            pay.is_verified !== false ? "verified" : "pending_verification"
+          ),
           amountOrMetric: formatMetricValue(Number(pay.amount || 0), "NGN"),
           dateLabel: new Date(
             pay.payment_date || pay.created_at || referenceNow
@@ -1854,7 +1981,7 @@ export function generateReportPayload(
           reference: exp.expense_number || `EXP-${String(exp.id).slice(0, 6)}`,
           title: exp.title || exp.description || exp.category || "Operating Expense",
           subtitle: `Category: ${exp.category || "General"}`,
-          status: String(exp.approval_status || "approved"),
+          status: formatBusinessStatusLabel(exp.approval_status || "approved"),
           amountOrMetric: formatMetricValue(Number(exp.amount || 0), "NGN"),
           dateLabel: new Date(
             exp.expense_date || exp.created_at || referenceNow
@@ -1871,9 +1998,9 @@ export function generateReportPayload(
       items: curClients.slice(0, 25).map((cl) => ({
         id: String(cl.id),
         reference: cl.client_code || `CL-${String(cl.id).slice(0, 6)}`,
-        title: cl.full_name || cl.company_name || "Client Record",
+        title: cl.full_name || cl.contact_person || cl.company_name || "Client Record",
         subtitle: cl.company_name || cl.source || "Direct Client",
-        status: cl.status || "active",
+        status: formatBusinessStatusLabel(cl.status || "active"),
         amountOrMetric: cl.client_type || "Corporate/Individual",
         dateLabel: new Date(cl.created_at || referenceNow).toLocaleDateString(
           "en-NG"
@@ -1889,9 +2016,9 @@ export function generateReportPayload(
       items: curLeads.slice(0, 25).map((ld) => ({
         id: String(ld.id),
         reference: `LD-${String(ld.id).slice(0, 6)}`,
-        title: ld.full_name || ld.business_name || "Lead Enquiry",
-        subtitle: `Source: ${ld.source || "Direct"} • Service: ${ld.service_interest || "General"}`,
-        status: String(
+        title: ld.full_name || ld.name || ld.business_name || "Lead Enquiry",
+        subtitle: `Source: ${ld.source || "Direct"} • Service: ${ld.service_interest || ld.business_type || "General"}`,
+        status: formatBusinessStatusLabel(
           ld.qualification_status || (ld.is_converted ? "converted" : "new")
         ),
         amountOrMetric: ld.is_converted ? "Converted" : "In Pipeline",
@@ -1914,7 +2041,7 @@ export function generateReportPayload(
           clientById.get(sr.client_id)?.full_name ||
           sr.client_name ||
           "Client Request",
-        status: String(sr.status || "pending"),
+        status: formatBusinessStatusLabel(sr.status || "pending"),
         amountOrMetric: sr.priority ? `Priority: ${sr.priority}` : "Standard",
         dateLabel: new Date(
           sr.submitted_at || sr.created_at || referenceNow
@@ -1934,14 +2061,16 @@ export function generateReportPayload(
           cac.proposed_name_1 ||
           cac.business_name ||
           "CAC Registration Filing",
-        subtitle: `Type: ${String(cac.registration_type || "incorporation").replace(/_/g, " ")}`,
-        status: String(cac.stage || cac.status || "intake"),
+        subtitle: `Type: ${String(cac.registration_type || cac.application_type || "incorporation").replace(/_/g, " ")}`,
+        status: formatBusinessStatusLabel(
+          cac.current_stage || cac.stage || cac.status || "intake"
+        ),
         amountOrMetric:
           Number(cac.query_count || 0) > 0
             ? `${cac.query_count} Query(s)`
             : "Clean Filing",
         dateLabel: new Date(
-          cac.submitted_at || cac.created_at || referenceNow
+          cac.submission_date || cac.submitted_at || cac.created_at || referenceNow
         ).toLocaleDateString("en-NG"),
         route: "/admin/cac-operations",
         entityType: "cac_registration",
@@ -1956,7 +2085,7 @@ export function generateReportPayload(
         reference: cd.promo_code || `PRM-${String(cd.id).slice(0, 6)}`,
         title: cd.client_name || cd.service_name || "Campaign Registration",
         subtitle: `${cd.service_name || "Eligible Service"} (${cd.discount_percentage || 0}% Off)`,
-        status: String(cd.status || "applied"),
+        status: formatBusinessStatusLabel(cd.status || "applied"),
         amountOrMetric: formatMetricValue(Number(cd.discounted_price || 0), "NGN"),
         dateLabel: new Date(
           cd.applied_at || cd.created_at || referenceNow
@@ -1989,7 +2118,7 @@ export function generateReportPayload(
           ),
           tone: "emerald",
           interpretation:
-            "Actual verified cash inflows received into company accounts (excludes unpaid invoices).",
+            "Total payments received and confirmed during the selected reporting period (excludes unpaid invoices).",
           isPositiveWhenUp: true,
           drillDownRoute: "/admin/payments",
           drillDownKey: "payments",
@@ -2013,7 +2142,7 @@ export function generateReportPayload(
         {
           id: "kpi_expenses_incurred",
           metricId: "expenses_incurred",
-          label: "Operating Expenses",
+          label: "Expenses Paid",
           unit: "NGN",
           comparison: computePeriodComparison(
             expensesIncurredAmount,
@@ -2021,7 +2150,7 @@ export function generateReportPayload(
             "NGN"
           ),
           tone: "amber",
-          interpretation: `${approvedCurExpenses.length} approved operating expense entries.`,
+          interpretation: `${approvedCurExpenses.length} recorded operating expense entries.`,
           isPositiveWhenUp: false,
           drillDownRoute: "/admin/expenses",
           drillDownKey: "expenses",
@@ -2029,7 +2158,7 @@ export function generateReportPayload(
         {
           id: "kpi_net_profit",
           metricId: "net_profit",
-          label: "Net Operating Surplus (Cash)",
+          label: "Net Operating Profit (Cash Basis)",
           unit: "NGN",
           comparison: computePeriodComparison(
             netProfitCashBasis,
@@ -2039,8 +2168,8 @@ export function generateReportPayload(
           tone: netProfitCashBasis >= 0 ? "emerald" : "rose",
           interpretation:
             netProfitMarginPct !== null
-              ? `Net Operating Margin: ${netProfitMarginPct.toFixed(1)}% of verified cash collected.`
-              : "Awaiting verified cash inflows to compute net percentage margin.",
+              ? `Net Profit Margin: ${netProfitMarginPct.toFixed(1)}% of confirmed cash received.`
+              : "Net Profit Margin: Not Available (no confirmed cash received in this period).",
           isPositiveWhenUp: true,
           drillDownRoute: "/admin/payments",
           drillDownKey: "payments",
@@ -2048,7 +2177,7 @@ export function generateReportPayload(
         {
           id: "kpi_outstanding_receivables",
           metricId: "outstanding_receivables",
-          label: "Outstanding Receivables",
+          label: "Outstanding Customer Payments",
           unit: "NGN",
           comparison: computePeriodComparison(
             outstandingReceivablesAmount,
@@ -2072,7 +2201,7 @@ export function generateReportPayload(
       {
         id: "kpi_new_clients",
         metricId: "new_clients_acquired",
-        label: "Clients Acquired",
+        label: "New Clients",
         unit: "count",
         comparison: computePeriodComparison(
           curClients.length,
@@ -2096,7 +2225,7 @@ export function generateReportPayload(
           "count"
         ),
         tone: "purple",
-        interpretation: `${pendingCurRequests.length} pending in active queue (${(serviceCompletionRatePct ?? 0).toFixed(1)}% completion rate).`,
+        interpretation: `${pendingCurRequests.length} in progress in active queue (${(serviceCompletionRatePct ?? 0).toFixed(1)}% completion rate).`,
         isPositiveWhenUp: true,
         drillDownRoute: "/admin/service-requests",
         drillDownKey: "service_requests",
@@ -2112,7 +2241,7 @@ export function generateReportPayload(
           "count"
         ),
         tone: "navy",
-        interpretation: `${completedCurCac.length} approved, ${queriedCurCac.length} queried/returned, ${avgCacTurnaroundDays.toFixed(1)}d avg turnaround.`,
+        interpretation: `${cacStageSummary.completed} completed, ${cacStageSummary.approved} approved, ${cacStageSummary.inProgress + cacStageSummary.submitted} in progress/submitted, ${queriedCurCac.length} queried (${cacStageSummary.progressRatePct !== null ? `${cacStageSummary.progressRatePct.toFixed(1)}% progress rate` : "Not Available"}).`,
         isPositiveWhenUp: true,
         drillDownRoute: "/admin/cac-operations",
         drillDownKey: "cac_operations",
@@ -2169,7 +2298,7 @@ export function generateReportPayload(
         id: "chart_exec_financial_architecture",
         title: "Financial Recognition Architecture (Accrual vs Cash)",
         subtitle:
-          "Clear separation between Invoices Issued, Verified Cash Collected, Outstanding Receivables, and Operating Expenses",
+          "Clear separation between Invoices Issued, Verified Cash Collected, Outstanding Customer Payments, and Expenses Paid",
         type: "bar",
         unit: "NGN",
         primarySeriesLabel: "Current Period (₦)",
@@ -2190,21 +2319,21 @@ export function generateReportPayload(
             color: "#059669",
           },
           {
-            label: "Outstanding A/R",
+            label: "Outstanding Payments",
             value: outstandingReceivablesAmount,
             secondaryValue: prevOutstandingAmount ?? 0,
             formattedValue: formatMetricValue(outstandingReceivablesAmount, "NGN"),
             color: "#d97706",
           },
           {
-            label: "Expenses Incurred",
+            label: "Expenses Paid",
             value: expensesIncurredAmount,
             secondaryValue: prevExpensesIncurredAmount ?? 0,
             formattedValue: formatMetricValue(expensesIncurredAmount, "NGN"),
             color: "#dc2626",
           },
           {
-            label: "Net Cash Surplus",
+            label: "Net Cash Profit",
             value: Math.max(0, netProfitCashBasis),
             secondaryValue: Math.max(0, prevNetProfitCashBasis ?? 0),
             formattedValue: formatMetricValue(netProfitCashBasis, "NGN"),
@@ -2221,7 +2350,7 @@ export function generateReportPayload(
       subtitle: "Cross-departmental performance indicators, baselines, and management status",
       columns: [
         { key: "pillar", header: "Organisational Pillar", align: "left" },
-        { key: "metric", header: "Authoritative Indicator", align: "left" },
+        { key: "metric", header: "Performance Indicator", align: "left" },
         { key: "current", header: "Current Period", align: "right", format: "mono" },
         { key: "previous", header: "Comparison Baseline", align: "right", format: "mono" },
         { key: "variance", header: "Period Change", align: "right", format: "mono" },
@@ -2256,40 +2385,40 @@ export function generateReportPayload(
               },
               {
                 pillar: "Finance — Credit Control",
-                metric: "Outstanding Receivables (Overdue)",
+                metric: "Outstanding Customer Payments (Overdue)",
                 current: `${formatMetricValue(outstandingReceivablesAmount, "NGN")} (${formatMetricValue(overdueReceivablesAmount, "NGN")})`,
                 previous: formatMetricValue(prevOutstandingAmount, "NGN"),
                 variance: `${overdueInvoicesList.length} Overdue`,
                 status: overdueInvoicesList.length > 0 ? "Action Required" : "On Track",
               },
               {
-                pillar: "Finance — Cost & Surplus",
-                metric: "Net Cash Operating Surplus",
+                pillar: "Finance — Cost & Profit",
+                metric: "Net Operating Profit (Cash Basis)",
                 current: formatMetricValue(netProfitCashBasis, "NGN"),
                 previous: formatMetricValue(prevNetProfitCashBasis, "NGN"),
                 variance:
                   netProfitMarginPct !== null
                     ? `${netProfitMarginPct.toFixed(1)}% Margin`
-                    : "N/A",
+                    : "Not Available",
                 status: netProfitCashBasis >= 0 ? "Surplus" : "Deficit",
               },
             ]
           : []),
         {
           pillar: "CRM & Acquisition",
-          metric: "New Clients Onboarded",
+          metric: "New Clients",
           current: String(curClients.length),
-          previous: prevClients ? String(prevClients.length) : "N/A",
+          previous: prevClients ? String(prevClients.length) : "Not Available",
           variance: `${leadConversionRatePct.toFixed(1)}% Lead Conv.`,
           status: curClients.length > 0 ? "Active Growth" : "Monitor",
         },
         {
           pillar: "Service Delivery",
-          metric: "Completed vs Pending Requests",
-          current: `${completedCurRequests.length} Completed / ${pendingCurRequests.length} Pending`,
+          metric: "Completed vs In-Progress Requests",
+          current: `${completedCurRequests.length} Completed / ${pendingCurRequests.length} In Progress`,
           previous: completedPrevRequests
             ? `${completedPrevRequests.length} Completed`
-            : "N/A",
+            : "Not Available",
           variance: `${(serviceCompletionRatePct ?? 0).toFixed(1)}% Rate`,
           status:
             (serviceCompletionRatePct ?? 100) >= 70
@@ -2298,22 +2427,25 @@ export function generateReportPayload(
         },
         {
           pillar: "CAC Operations",
-          metric: "Filings & Query Rate",
-          current: `${curCac.length} Filings (${queriedCurCac.length} Queried)`,
-          previous: prevCac ? `${prevCac.length} Filings` : "N/A",
-          variance: `${avgCacTurnaroundDays.toFixed(1)}d Avg Turnaround`,
-          status: queriedCurCac.length === 0 ? "Clean" : "Queries Active",
+          metric: "CAC Registration Progress & Stage Breakdown",
+          current: `${cacStageSummary.completed} Completed | ${cacStageSummary.approved} Approved | ${cacStageSummary.inProgress + cacStageSummary.submitted} In Progress`,
+          previous: prevCac ? `${prevCac.length} Filings` : "Not Available",
+          variance:
+            cacStageSummary.progressRatePct !== null
+              ? `${cacStageSummary.progressRatePct.toFixed(1)}% Progress Rate`
+              : "Not Available",
+          status: queriedCurCac.length === 0 ? "On Track" : "Queries Active",
         },
         {
           pillar: "Marketing & Referrals",
-          metric: "Verified Referrals & Campaign Sales",
+          metric: "Successful Referrals & Campaign Sales",
           current: `${verifiedCurReferrals.length} Referrals | ${curDiscounts.length} Promo Sales`,
-          previous: prevReferrals ? `${prevReferrals.length} Referrals` : "N/A",
+          previous: prevReferrals ? `${prevReferrals.length} Referrals` : "Not Available",
           variance: formatMetricValue(totalReferralLiabilityPayable, "NGN") + " Payable",
           status:
             pendingVerificationReferrals.length > 0
-              ? `${pendingVerificationReferrals.length} Pending Audit`
-              : "Verified",
+              ? `${pendingVerificationReferrals.length} Awaiting Verification`
+              : "Confirmed",
         },
       ],
       emptyMessage: "No operational records found for the selected period.",
@@ -2332,7 +2464,7 @@ export function generateReportPayload(
           "NGN"
         ),
         tone: "navy",
-        interpretation: `${billableCurInvoices.length} issued invoices (excludes drafts/cancelled).`,
+        interpretation: `${billableCurInvoices.length} issued invoices (excludes drafts and cancelled invoices).`,
         isPositiveWhenUp: true,
         drillDownRoute: "/admin/invoices",
         drillDownKey: "invoices",
@@ -2340,7 +2472,7 @@ export function generateReportPayload(
       {
         id: "fin_cash_collected",
         metricId: "cash_collected",
-        label: "Cash Collected (Verified)",
+        label: "Verified Cash Collected",
         unit: "NGN",
         comparison: computePeriodComparison(
           cashCollectedAmount,
@@ -2348,7 +2480,7 @@ export function generateReportPayload(
           "NGN"
         ),
         tone: "emerald",
-        interpretation: `${verifiedCurPayments.length} verified payment receipts (${(collectionEfficiencyPct ?? 0).toFixed(1)}% collection rate).`,
+        interpretation: `${verifiedCurPayments.length} confirmed payment receipts (${(collectionEfficiencyPct ?? 0).toFixed(1)}% collection rate).`,
         isPositiveWhenUp: true,
         drillDownRoute: "/admin/payments",
         drillDownKey: "payments",
@@ -2356,7 +2488,7 @@ export function generateReportPayload(
       {
         id: "fin_outstanding_ar",
         metricId: "outstanding_receivables",
-        label: "Outstanding Receivables",
+        label: "Outstanding Customer Payments",
         unit: "NGN",
         comparison: computePeriodComparison(
           outstandingReceivablesAmount,
@@ -2364,7 +2496,7 @@ export function generateReportPayload(
           "NGN"
         ),
         tone: "amber",
-        interpretation: `Uncollected balance across ${outstandingInvoicesList.length} open invoices.`,
+        interpretation: `Unpaid customer balances across ${outstandingInvoicesList.length} open invoices.`,
         isPositiveWhenUp: false,
         drillDownRoute: "/admin/invoices",
         drillDownKey: "invoices",
@@ -2372,11 +2504,11 @@ export function generateReportPayload(
       {
         id: "fin_overdue_ar",
         metricId: "overdue_receivables",
-        label: "Overdue Receivables",
+        label: "Overdue Customer Payments",
         unit: "NGN",
         comparison: computePeriodComparison(overdueReceivablesAmount, null, "NGN"),
         tone: overdueReceivablesAmount > 0 ? "rose" : "slate",
-        interpretation: `${overdueInvoicesList.length} invoice(s) past due_date requiring credit follow-up.`,
+        interpretation: `${overdueInvoicesList.length} invoice(s) past their payment due date requiring credit follow-up.`,
         isPositiveWhenUp: false,
         drillDownRoute: "/admin/invoices",
         drillDownKey: "invoices",
@@ -2384,7 +2516,7 @@ export function generateReportPayload(
       {
         id: "fin_expenses_incurred",
         metricId: "expenses_incurred",
-        label: "Expenses Incurred (Approved)",
+        label: "Expenses Paid",
         unit: "NGN",
         comparison: computePeriodComparison(
           expensesIncurredAmount,
@@ -2400,7 +2532,7 @@ export function generateReportPayload(
       {
         id: "fin_net_profit",
         metricId: "net_profit",
-        label: "Net Operating Surplus (Cash)",
+        label: "Net Operating Profit (Cash Basis)",
         unit: "NGN",
         comparison: computePeriodComparison(
           netProfitCashBasis,
@@ -2410,8 +2542,8 @@ export function generateReportPayload(
         tone: netProfitCashBasis >= 0 ? "emerald" : "rose",
         interpretation:
           netProfitMarginPct !== null
-            ? `Net Profit Margin: ${netProfitMarginPct.toFixed(1)}% (Cash Collected minus Approved Expenses).`
-            : "No verified cash collected in period to compute percentage margin.",
+            ? `Net Profit Margin: ${netProfitMarginPct.toFixed(1)}% (Confirmed cash received minus recorded expenses).`
+            : "Net Profit Margin: Not Available (no confirmed cash received in this period).",
         isPositiveWhenUp: true,
         drillDownRoute: "/admin/payments",
         drillDownKey: "payments",
@@ -2423,7 +2555,7 @@ export function generateReportPayload(
       report.id === "budget_vs_actual_report"
     ) {
       dataLimitations.push(
-        "Formal departmental budget target tables (financial_budgets) are not yet configured in the database schema. This report compares current period actuals against prior-period historical baselines."
+        "Formal departmental budget targets are not yet configured in the system. This report compares current period actual performance against prior-period historical baselines."
       );
     }
 
@@ -2443,7 +2575,7 @@ export function generateReportPayload(
       {
         id: "chart_fin_cash_vs_accrual",
         title: "Billing, Cash Collection & Expense Comparison",
-        subtitle: "Invoices Issued vs Verified Cash Collected vs Operating Expenses",
+        subtitle: "Invoices Issued vs Verified Cash Collected vs Expenses Paid",
         type: "comparison_bar",
         unit: "NGN",
         primarySeriesLabel: "Current Period (₦)",
@@ -2464,21 +2596,21 @@ export function generateReportPayload(
             color: "#059669",
           },
           {
-            label: "Outstanding A/R",
+            label: "Outstanding Payments",
             value: outstandingReceivablesAmount,
             secondaryValue: prevOutstandingAmount ?? 0,
             formattedValue: formatMetricValue(outstandingReceivablesAmount, "NGN"),
             color: "#d97706",
           },
           {
-            label: "Overdue A/R",
+            label: "Overdue Payments",
             value: overdueReceivablesAmount,
             secondaryValue: 0,
             formattedValue: formatMetricValue(overdueReceivablesAmount, "NGN"),
             color: "#dc2626",
           },
           {
-            label: "Expenses Incurred",
+            label: "Expenses Paid",
             value: expensesIncurredAmount,
             secondaryValue: prevExpensesIncurredAmount ?? 0,
             formattedValue: formatMetricValue(expensesIncurredAmount, "NGN"),
@@ -2513,9 +2645,9 @@ export function generateReportPayload(
       tables.push(
         {
           id: "table_fin_invoices",
-          title: "Invoice & Receivables Ledger",
+          title: "Invoice & Customer Receivables Ledger",
           subtitle:
-            "Distinguishes total billed amount, verified amount paid, and uncollected balance due",
+            "Distinguishes total billed amount, confirmed amount paid, and unpaid customer balance",
           drillDownRoute: "/admin/invoices",
           columns: [
             { key: "invoice_number", header: "Invoice #", format: "mono" },
@@ -2548,7 +2680,7 @@ export function generateReportPayload(
             },
           ],
           rows: billableCurInvoices.map((inv) => {
-            const total = Number(inv.total || 0);
+            const total = getInvoiceTotal(inv);
             const paid = Number(inv.amount_paid || 0);
             const bal = Number(inv.balance_due ?? Math.max(0, total - paid));
             return {
@@ -2557,13 +2689,14 @@ export function generateReportPayload(
               client_name:
                 inv.client_name ||
                 clientById.get(inv.client_id)?.full_name ||
+                clientById.get(inv.client_id)?.company_name ||
                 "Client",
               issue_date: inv.issue_date || inv.created_at || "—",
               due_date: inv.due_date || "—",
               total,
               amount_paid: paid,
               balance_due: bal,
-              status: String(inv.status || "issued").toUpperCase(),
+              status: formatBusinessStatusLabel(inv.status || "issued"),
             };
           }),
           totalsRow: {
@@ -2584,7 +2717,8 @@ export function generateReportPayload(
         {
           id: "table_fin_payments",
           title: "Verified Cash Collection Register",
-          subtitle: "Actual cash receipts verified in public.payments",
+          subtitle:
+            "Confirmed customer payment receipts recorded during the selected period",
           drillDownRoute: "/admin/payments",
           columns: [
             { key: "reference", header: "Reference #", format: "mono" },
@@ -2599,7 +2733,7 @@ export function generateReportPayload(
             },
             {
               key: "status",
-              header: "Verification",
+              header: "Confirmation Status",
               align: "center",
               format: "badge",
             },
@@ -2612,6 +2746,7 @@ export function generateReportPayload(
             payer:
               p.payer_name ||
               clientById.get(p.client_id)?.full_name ||
+              clientById.get(p.client_id)?.company_name ||
               "Client Payment",
             method: String(p.payment_method || "bank_transfer").replace(
               /_/g,
@@ -2619,17 +2754,19 @@ export function generateReportPayload(
             ),
             date: p.payment_date || p.created_at || "—",
             amount: Number(p.amount || 0),
-            status: p.is_verified !== false ? "VERIFIED" : "UNVERIFIED",
+            status: formatBusinessStatusLabel(
+              p.is_verified !== false ? "verified" : "pending_verification"
+            ),
           })),
           totalsRow: {
             reference: "TOTAL",
-            payer: `${verifiedCurPayments.length} Verified Receipt(s)`,
+            payer: `${verifiedCurPayments.length} Confirmed Receipt(s)`,
             method: "",
             date: "",
             amount: cashCollectedAmount,
             status: "",
           },
-          emptyMessage: "No verified payments recorded in the selected period.",
+          emptyMessage: "No confirmed payments recorded in the selected period.",
         }
       );
     }
@@ -2638,7 +2775,7 @@ export function generateReportPayload(
       {
         id: "crm_new_clients",
         metricId: "new_clients_acquired",
-        label: "New Clients Onboarded",
+        label: "New Clients",
         unit: "count",
         comparison: computePeriodComparison(
           curClients.length,
@@ -2707,7 +2844,7 @@ export function generateReportPayload(
       report.id === "client_retention_report"
     ) {
       dataLimitations.push(
-        "ABLEBIZ Suite operates primarily on transactional corporate registration and compliance filings rather than recurring SaaS subscriptions. Retention is measured via verified repeat service requests per client."
+        "ABLEBIZ Suite operates primarily on transactional corporate registration and compliance filings rather than recurring subscriptions. Retention is measured via verified repeat service requests per client."
       );
     }
 
@@ -2756,11 +2893,11 @@ export function generateReportPayload(
           ],
           rows: curClients.map((c) => ({
             client_code: c.client_code || `CL-${String(c.id).slice(0, 6)}`,
-            name: c.full_name || c.company_name || "Client",
+            name: c.full_name || c.contact_person || c.company_name || "Client",
             type: c.client_type || "Corporate",
             source: c.source || "Direct",
             created_at: c.created_at || "—",
-            status: String(c.status || "active").toUpperCase(),
+            status: formatBusinessStatusLabel(c.status || "active"),
           })),
           emptyMessage: "No client records onboarded in the selected period.",
         },
@@ -2782,13 +2919,14 @@ export function generateReportPayload(
             },
           ],
           rows: curLeads.map((l) => ({
-            name: l.full_name || l.business_name || "Prospect",
-            service_interest: l.service_interest || "Corporate Service",
+            name: l.full_name || l.name || l.business_name || "Prospect",
+            service_interest:
+              l.service_interest || l.business_type || "Corporate Service",
             source: l.source || "Direct",
             created_at: l.created_at || "—",
-            status: String(
+            status: formatBusinessStatusLabel(
               l.qualification_status || (l.is_converted ? "converted" : "new")
-            ).toUpperCase(),
+            ),
           })),
           emptyMessage: "No lead records found in the selected period.",
         }
@@ -2831,7 +2969,7 @@ export function generateReportPayload(
       {
         id: "ops_pending_requests",
         metricId: "service_requests_pending",
-        label: "Pending / In-Progress Queue",
+        label: "In-Progress Service Queue",
         unit: "count",
         comparison: computePeriodComparison(
           pendingCurRequests.length,
@@ -2855,7 +2993,24 @@ export function generateReportPayload(
           "count"
         ),
         tone: "purple",
-        interpretation: `${completedCurCac.length} approved, ${pendingCurCac.length} active, ${queriedCurCac.length} queried.`,
+        interpretation: `${cacStageSummary.submitted} submitted, ${cacStageSummary.inProgress} in progress, ${cacStageSummary.approved} approved, ${cacStageSummary.completed} completed, ${cacStageSummary.cancelled + cacStageSummary.rejectedOrQueried} cancelled/rejected.`,
+        isPositiveWhenUp: true,
+        drillDownRoute: "/admin/cac-operations",
+        drillDownKey: "cac_operations",
+      },
+      {
+        id: "ops_cac_progress_rate",
+        metricId: "cac_approved_completed",
+        label: "CAC Registration Progress Rate",
+        unit: "percentage",
+        comparison: computePeriodComparison(
+          cacStageSummary.progressRatePct ?? 0,
+          null,
+          "percentage"
+        ),
+        tone:
+          (cacStageSummary.progressRatePct ?? 0) >= 70 ? "emerald" : "blue",
+        interpretation: `${cacStageSummary.progressedCount} of ${cacStageSummary.eligibleCount} eligible applications reached Approved (${cacStageSummary.approved}) or Completed (${cacStageSummary.completed}) milestones.`,
         isPositiveWhenUp: true,
         drillDownRoute: "/admin/cac-operations",
         drillDownKey: "cac_operations",
@@ -2867,7 +3022,7 @@ export function generateReportPayload(
         unit: "days",
         comparison: computePeriodComparison(avgCacTurnaroundDays, null, "days"),
         tone: avgCacTurnaroundDays <= 7 ? "emerald" : "amber",
-        interpretation: `Median Turnaround: ${medianCacTurnaroundDays.toFixed(1)} days across ${cacTurnarounds.length} completed filings.`,
+        interpretation: `Median Turnaround: ${medianCacTurnaroundDays.toFixed(1)} days across ${cacTurnarounds.length} progressed filings.`,
         isPositiveWhenUp: false,
         drillDownRoute: "/admin/cac-operations",
         drillDownKey: "cac_operations",
@@ -2879,17 +3034,19 @@ export function generateReportPayload(
       report.id === "sla_and_deadline_report"
     ) {
       dataLimitations.push(
-        "Formal per-service SLA target hours are only evaluated where explicit target_completion_date / due_date timestamps exist on the service request or task; no artificial SLA targets are fabricated."
+        "Formal per-service SLA target hours are only evaluated where explicit target completion dates or task due dates are recorded on the service request or task; no artificial SLA targets are fabricated."
       );
     }
 
     const stageDistribution = new Map<string, number>();
     for (const c of curCac) {
-      const st = String(c.stage || c.status || "intake").replace(/_/g, " ");
+      const st = formatBusinessStatusLabel(
+        c.current_stage || c.stage || c.status || "intake"
+      );
       stageDistribution.set(st, (stageDistribution.get(st) || 0) + 1);
     }
     for (const sr of curServiceRequests) {
-      const st = `SR: ${String(sr.status || "pending").replace(/_/g, " ")}`;
+      const st = `Service Request: ${formatBusinessStatusLabel(sr.status || "pending")}`;
       stageDistribution.set(st, (stageDistribution.get(st) || 0) + 1);
     }
 
@@ -2903,7 +3060,7 @@ export function generateReportPayload(
       points: Array.from(stageDistribution.entries())
         .sort((a, b) => b[1] - a[1])
         .map(([stage, cnt]) => ({
-          label: stage.toUpperCase(),
+          label: stage,
           value: cnt,
           formattedValue: `${cnt}`,
           color: "#1e3a8a",
@@ -2913,6 +3070,93 @@ export function generateReportPayload(
 
     if (canSeeDetailedRecords) {
       tables.push(
+        {
+          id: "table_ops_cac_stage_summary",
+          title: "CAC Application Stage Breakdown",
+          subtitle:
+            "Clearly distinguishes Submitted, In Progress, Approved, Completed, and Cancelled/Rejected CAC applications",
+          drillDownRoute: "/admin/cac-operations",
+          columns: [
+            { key: "stage_group", header: "Application Stage Category" },
+            { key: "description", header: "What This Stage Means" },
+            {
+              key: "count",
+              header: "Application Count",
+              align: "right",
+              format: "number",
+            },
+            {
+              key: "share",
+              header: "Share of Total (%)",
+              align: "right",
+              format: "percentage",
+            },
+          ],
+          rows: [
+            {
+              stage_group: "Submitted",
+              description:
+                "Applications formally submitted and awaiting CAC examination",
+              count: cacStageSummary.submitted,
+              share:
+                cacStageSummary.total > 0
+                  ? (cacStageSummary.submitted / cacStageSummary.total) * 100
+                  : 0,
+            },
+            {
+              stage_group: "In Progress",
+              description:
+                "Active applications in intake, document verification, name reservation, or CAC review",
+              count: cacStageSummary.inProgress,
+              share:
+                cacStageSummary.total > 0
+                  ? (cacStageSummary.inProgress / cacStageSummary.total) * 100
+                  : 0,
+            },
+            {
+              stage_group: "Approved (Documents Received)",
+              description:
+                "Applications approved by CAC or with official documents received, awaiting final handover",
+              count: cacStageSummary.approved,
+              share:
+                cacStageSummary.total > 0
+                  ? (cacStageSummary.approved / cacStageSummary.total) * 100
+                  : 0,
+            },
+            {
+              stage_group: "Completed",
+              description:
+                "Applications fully completed and delivered to the client",
+              count: cacStageSummary.completed,
+              share:
+                cacStageSummary.total > 0
+                  ? (cacStageSummary.completed / cacStageSummary.total) * 100
+                  : 0,
+            },
+            {
+              stage_group: "Queried / Rejected",
+              description:
+                "Applications returned with official CAC queries or rejected",
+              count: cacStageSummary.rejectedOrQueried,
+              share:
+                cacStageSummary.total > 0
+                  ? (cacStageSummary.rejectedOrQueried / cacStageSummary.total) *
+                    100
+                  : 0,
+            },
+            {
+              stage_group: "Cancelled",
+              description:
+                "Withdrawn or cancelled applications (excluded from progress rate denominator)",
+              count: cacStageSummary.cancelled,
+              share:
+                cacStageSummary.total > 0
+                  ? (cacStageSummary.cancelled / cacStageSummary.total) * 100
+                  : 0,
+            },
+          ],
+          emptyMessage: "No CAC applications recorded in the selected period.",
+        },
         {
           id: "table_ops_cac",
           title: "CAC Registration Operations Ledger",
@@ -2935,14 +3179,15 @@ export function generateReportPayload(
                 c.rc_number || c.tracking_code || `CAC-${String(c.id).slice(0, 6)}`,
               business_name:
                 c.proposed_name_1 || c.business_name || "CAC Application",
-              type: String(c.registration_type || "incorporation").replace(
-                /_/g,
-                " "
-              ),
+              type: String(
+                c.registration_type || c.application_type || "incorporation"
+              ).replace(/_/g, " "),
               officer: officer?.full_name || "Unassigned",
               turnaround: days !== null ? Number(days.toFixed(1)) : 0,
               queries: Number(c.query_count || 0),
-              stage: String(c.stage || c.status || "intake").toUpperCase(),
+              stage: formatBusinessStatusLabel(
+                c.current_stage || c.stage || c.status || "intake"
+              ),
             };
           }),
           emptyMessage: "No CAC registration filings in the selected period.",
@@ -2973,7 +3218,7 @@ export function generateReportPayload(
                 "Client",
               officer: officer?.full_name || "Unassigned",
               age_days: days !== null ? Number(days.toFixed(1)) : 0,
-              status: String(sr.status || "pending").toUpperCase(),
+              status: formatBusinessStatusLabel(sr.status || "pending"),
             };
           }),
           emptyMessage: "No service requests found in the selected period.",
@@ -3014,7 +3259,7 @@ export function generateReportPayload(
         unit: "count",
         comparison: computePeriodComparison(overdueTasks.length, null, "count"),
         tone: overdueTasks.length > 0 ? "rose" : "slate",
-        interpretation: "Tasks past due_date requiring supervisor review.",
+        interpretation: "Tasks past their due date requiring supervisor review.",
         isPositiveWhenUp: false,
         drillDownRoute: "/admin/hr",
       },
@@ -3032,7 +3277,7 @@ export function generateReportPayload(
 
     if (report.id === "hr_attendance" || report.id === "attendance_report") {
       dataLimitations.push(
-        "Biometric/daily clock-in attendance logs (attendance_logs) are not currently enabled in the schema; staff activity is measured using verified leave records, assigned operational workload, and audit timestamps."
+        "Biometric or daily clock-in attendance logs are not currently enabled; staff activity is measured using verified leave records, assigned operational workload, and system activity timestamps."
       );
     }
 
@@ -3716,51 +3961,98 @@ export async function fetchAuthorizedReportingDataset(
   caller: ReportingCallerContext
 ): Promise<ReportingRawDataset> {
   const dataset = createEmptyReportingDataset();
+  dataset.failedSources = [];
+  dataset.queryDiagnostics = [];
   const role = normalizeStaffRole(caller.role) || "viewer";
   const profile = getRoleReportAccessProfile(role, caller.hasPermission);
 
-  const safeFetch = async (table: string, limit = 1000): Promise<any[]> => {
+  const safeFetch = async (
+    table: string,
+    friendlyLabel?: string,
+    limit = 1000
+  ): Promise<any[]> => {
     try {
       const { data, error } = await supabaseClient
         .from(table)
         .select("*")
         .limit(limit);
-      if (error || !Array.isArray(data)) return [];
+      if (error) {
+        const msg = String(error.message || "");
+        const isMissingOptionalTable =
+          msg.includes("does not exist") || msg.includes("schema cache");
+        if (friendlyLabel && !isMissingOptionalTable) {
+          dataset.failedSources?.push(friendlyLabel);
+          dataset.queryDiagnostics?.push(`${friendlyLabel} (${table}): ${msg}`);
+        }
+        return [];
+      }
+      if (!Array.isArray(data)) return [];
       return data;
-    } catch {
+    } catch (err: any) {
+      if (friendlyLabel) {
+        dataset.failedSources?.push(friendlyLabel);
+        dataset.queryDiagnostics?.push(
+          `${friendlyLabel} (${table}): ${err?.message || "Unexpected error"}`
+        );
+      }
       return [];
     }
+  };
+
+  const safeFetchWithFallback = async (
+    primaryTable: string,
+    fallbackTable: string,
+    friendlyLabel: string,
+    limit = 1000
+  ): Promise<any[]> => {
+    const primaryData = await safeFetch(primaryTable, friendlyLabel, limit);
+    if (primaryData.length > 0) return primaryData;
+    return safeFetch(fallbackTable, undefined, limit);
   };
 
   const tasks: Promise<void>[] = [];
 
   // Operational & CRM tables accessible to authorized roles
   tasks.push(
-    safeFetch("clients").then((r) => {
+    safeFetch("clients", "Client Records").then((r) => {
       dataset.clients = r;
     }),
-    safeFetch("leads").then((r) => {
+    safeFetch("leads", "Lead Records").then((r) => {
       dataset.leads = r;
     }),
     safeFetch("businesses").then((r) => {
       dataset.businesses = r;
     }),
-    safeFetch("service_requests").then((r) => {
+    safeFetch("service_requests", "Service Requests").then((r) => {
       dataset.serviceRequests = r;
     }),
-    safeFetch("cac_registrations").then((r) => {
+    safeFetchWithFallback(
+      "cac_applications",
+      "cac_registrations",
+      "CAC Registration Records"
+    ).then((r) => {
       dataset.cacRegistrations = r;
     }),
-    safeFetch("services").then((r) => {
+    safeFetchWithFallback(
+      "services_catalog",
+      "services",
+      "Service Catalogue"
+    ).then((r) => {
       dataset.services = r;
     }),
-    safeFetch("staff_profiles").then((r) => {
+    safeFetch("staff_profiles", "Staff Records").then((r) => {
       dataset.staffProfiles = r;
     }),
-    safeFetch("hr_tasks").then((r) => {
-      dataset.hrTasks = r;
-    }),
-    safeFetch("leave_requests").then((r) => {
+    safeFetchWithFallback("tasks", "hr_tasks", "Staff Task Records").then(
+      (r) => {
+        dataset.hrTasks = r;
+      }
+    ),
+    safeFetchWithFallback(
+      "hr_leave_requests",
+      "leave_requests",
+      "Leave Records"
+    ).then((r) => {
       dataset.leaveRequests = r;
     }),
     safeFetch("campaigns").then((r) => {
@@ -3772,32 +4064,53 @@ export async function fetchAuthorizedReportingDataset(
     safeFetch("referrers").then((r) => {
       dataset.referrers = r;
     }),
-    safeFetch("referral_conversions").then((r) => {
-      dataset.referralConversions = r;
+    safeFetchWithFallback(
+      "referral_events",
+      "referral_conversions",
+      "Referral Records"
+    ).then((r) => {
+      dataset.referralConversions = r.map((ev: any) => ({
+        ...ev,
+        payment_verified:
+          ev.payment_verified ?? ev.is_verified === true,
+        verification_status:
+          ev.verification_status ??
+          (ev.is_verified ? "verified" : ev.status || "pending"),
+        referrer_code: ev.referrer_code || ev.referral_code,
+      }));
     }),
-    safeFetch("referral_reward_ledger").then((r) => {
-      dataset.referralRewardLedger = r;
+    safeFetchWithFallback(
+      "campaign_referral_payouts",
+      "referral_reward_ledger",
+      "Referral Reward Records"
+    ).then((r) => {
+      dataset.referralRewardLedger = r.map((p: any) => ({
+        ...p,
+        payout_status: p.payout_status || p.status || "pending",
+        reward_amount:
+          p.reward_amount ?? p.total_amount_paid ?? p.cash_reward_earned ?? 0,
+      }));
     }),
-    safeFetch("spin_the_wheel_entries").then((r) => {
+    safeFetchWithFallback("spin_entries", "spin_the_wheel_entries", "Promotional Spin Entries").then((r) => {
       dataset.spinEntries = r;
     })
   );
 
   if (profile.canViewSensitiveFinancials) {
     tasks.push(
-      safeFetch("invoices").then((r) => {
+      safeFetch("invoices", "Invoice Records").then((r) => {
         dataset.invoices = r;
       }),
-      safeFetch("payments").then((r) => {
+      safeFetch("payments", "Payment Records").then((r) => {
         dataset.payments = r;
       }),
-      safeFetch("expenses").then((r) => {
+      safeFetch("expenses", "Expense Records").then((r) => {
         dataset.expenses = r;
       }),
-      safeFetch("quotations").then((r) => {
+      safeFetch("quotations", "Quotation Records").then((r) => {
         dataset.quotations = r;
       }),
-      safeFetch("vendors").then((r) => {
+      safeFetch("vendors", "Vendor Records").then((r) => {
         dataset.vendors = r;
       })
     );
@@ -3805,7 +4118,7 @@ export async function fetchAuthorizedReportingDataset(
 
   if (profile.canViewSecurityAudit) {
     tasks.push(
-      safeFetch("audit_logs", 500).then((r) => {
+      safeFetch("audit_logs", "System Activity Logs", 500).then((r) => {
         dataset.auditLogs = r;
       })
     );

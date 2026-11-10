@@ -1,4 +1,5 @@
 import type { ReportCatalogueEntry, ReportCategoryId } from "./types";
+import { formatDataSourceLabel } from "./metricRegistry";
 
 export interface ReportCategoryMeta {
   id: ReportCategoryId;
@@ -75,7 +76,7 @@ export const REPORT_CATEGORIES: ReportCategoryMeta[] = [
   },
 ];
 
-export const REPORT_CATALOGUE: ReportCatalogueEntry[] = [
+export const RAW_REPORT_CATALOGUE: ReportCatalogueEntry[] = [
   // ============================================================================
   // CATEGORY A: EXECUTIVE & ORGANISATIONAL HEALTH REPORTS (10 REPORTS)
   // ============================================================================
@@ -634,7 +635,7 @@ export const REPORT_CATALOGUE: ReportCatalogueEntry[] = [
     title: "Budget & Cost Baseline vs Actual Report",
     shortTitle: "Budget vs Actual",
     description:
-      "Compares standard service cost baselines (services_catalog.internal_cost_estimate) and campaign performance targets against actual recorded expenses and revenue.",
+      "Compares standard service cost baselines from the Service Catalogue and campaign performance targets against actual recorded expenses and revenue.",
     purpose: "Variance analysis between standard cost/revenue baselines and actual execution.",
     applicableRoles: ["super_admin", "admin", "accounts_officer"],
     defaultScopeByRole: { super_admin: "organisation", admin: "organisation", accounts_officer: "organisation" },
@@ -1462,7 +1463,7 @@ export const REPORT_CATALOGUE: ReportCatalogueEntry[] = [
     title: "SLA & Target Completion Deadline Report",
     shortTitle: "SLA & Deadlines",
     description:
-      "Evaluates service requests with target_completion_date, operational tasks with due_date, and services_catalog expected_turnaround_days benchmarks.",
+      "Evaluates service requests with target completion dates, operational tasks with due dates, and Service Catalogue expected turnaround benchmarks.",
     purpose: "Tracks on-time vs overdue delivery against recorded target dates.",
     applicableRoles: [
       "super_admin",
@@ -1499,7 +1500,7 @@ export const REPORT_CATALOGUE: ReportCatalogueEntry[] = [
     title: "Operational Bottleneck Report",
     shortTitle: "Bottleneck Analysis",
     description:
-      "Pinpoints workflow stages where requests accumulate or stall (e.g., documents_required, under_cac_review, awaiting_client, unverified documents, overloaded officers).",
+      "Pinpoints workflow stages where requests accumulate or stall (such as Awaiting Client Documents, Under CAC Review, Unverified Documents, or high officer workloads).",
     purpose: "Diagnostic report for Operations Manager and Executive leadership.",
     applicableRoles: ["super_admin", "admin", "operations_manager"],
     defaultScopeByRole: {
@@ -1589,7 +1590,7 @@ export const REPORT_CATALOGUE: ReportCatalogueEntry[] = [
     title: "Attendance & Punctuality Report",
     shortTitle: "Attendance Report",
     description:
-      "Analyzes recorded daily attendance logs (present, remote, late, absent, half_day, on_leave, excused) and pending attendance correction requests.",
+      "Analyzes recorded daily attendance entries (Present, Remote, Late, Absent, Half Day, On Leave, Excused) and pending attendance correction requests.",
     purpose: "Monitors workforce attendance patterns and punctuality compliance.",
     applicableRoles: ["super_admin", "admin", "operations_manager"],
     defaultScopeByRole: {
@@ -1616,7 +1617,7 @@ export const REPORT_CATALOGUE: ReportCatalogueEntry[] = [
     title: "Leave Utilization & Requests Report",
     shortTitle: "Leave Report",
     description:
-      "Tracks staff leave applications by leave type (annual, sick, casual, maternity, study), approval status (approved, pending, rejected, correction_requested), and working days utilized.",
+      "Tracks staff leave applications by leave type (Annual, Sick, Casual, Maternity, Study), approval status (Approved, Pending, Rejected, Correction Requested), and working days utilized.",
     purpose: "Workforce availability planning and leave governance tracking.",
     applicableRoles: ["super_admin", "admin", "operations_manager"],
     defaultScopeByRole: {
@@ -1678,7 +1679,7 @@ export const REPORT_CATALOGUE: ReportCatalogueEntry[] = [
     title: "Task Completion Report",
     shortTitle: "Task Completion",
     description:
-      "Detailed analysis of task statuses (todo, in_progress, review, completed, cancelled), priority levels, and on-time vs overdue completion.",
+      "Detailed analysis of task statuses (To Do, In Progress, Review, Completed, Cancelled), priority levels, and on-time vs overdue completion.",
     purpose: "Monitors operational task execution discipline.",
     applicableRoles: [
       "super_admin",
@@ -1830,7 +1831,7 @@ export const REPORT_CATALOGUE: ReportCatalogueEntry[] = [
     title: "Campaign Performance Report",
     shortTitle: "Campaign Performance",
     description:
-      "Evaluates active and historical campaigns against configured performance_targets (inquiries, new customers, service transactions, referral participants, successful referrals).",
+      "Evaluates active and historical campaigns against configured performance targets (inquiries, new customers, service transactions, referral participants, successful referrals).",
     purpose: "Tracks target vs actual attainment across promotional campaigns.",
     applicableRoles: [
       "super_admin",
@@ -1982,7 +1983,7 @@ export const REPORT_CATALOGUE: ReportCatalogueEntry[] = [
     title: "Referral Payout Report",
     shortTitle: "Referral Payouts",
     description:
-      "Itemized disbursement register of referral reward payouts by status (pending_verification, verified, payable, processing, paid, on_hold, disqualified), bank details, and transfer references.",
+      "Itemized disbursement register of referral reward payouts by status (Awaiting Verification, Confirmed, Ready for Payout, Processing, Paid, On Hold, Disqualified), bank details, and transfer references.",
     purpose: "Audit trail for finance payout approvals and bank transfer disbursements.",
     applicableRoles: ["super_admin", "admin", "accounts_officer"],
     defaultScopeByRole: {
@@ -2127,7 +2128,7 @@ export const REPORT_CATALOGUE: ReportCatalogueEntry[] = [
     title: "Audit Log Report",
     shortTitle: "Audit Log",
     description:
-      "Chronological register of immutable security and operational audit log events (`public.audit_logs`) by staff actor, action type, and target entity.",
+      "Chronological register of security and operational audit log events by staff member, action type, and affected record.",
     purpose: "Security governance and forensic audit review.",
     applicableRoles: ["super_admin", "admin"],
     defaultScopeByRole: { super_admin: "organisation", admin: "organisation" },
@@ -2172,7 +2173,7 @@ export const REPORT_CATALOGUE: ReportCatalogueEntry[] = [
     title: "User Access & Provisioning Report",
     shortTitle: "User Access",
     description:
-      "Reviews staff authentication status (`auth_status`), active/inactive flags, first-login password change enforcement (`must_change_password`), and account hygiene.",
+      "Reviews staff authentication status, active/inactive status, first-login password change requirements, and account security hygiene.",
     purpose: "Access control audit and identity reconciliation.",
     applicableRoles: ["super_admin", "admin"],
     defaultScopeByRole: { super_admin: "organisation", admin: "organisation" },
@@ -2191,7 +2192,7 @@ export const REPORT_CATALOGUE: ReportCatalogueEntry[] = [
     title: "Role Assignment & RBAC Report",
     shortTitle: "Role Assignments",
     description:
-      "Documents the canonical 8-tier role distribution across staff members alongside module-level permission rules configured in `public.roles_permissions`.",
+      "Documents the 8-tier staff role distribution across team members alongside module-level access permissions.",
     purpose: "Verifies least-privilege RBAC alignment.",
     applicableRoles: ["super_admin", "admin"],
     defaultScopeByRole: { super_admin: "organisation", admin: "organisation" },
@@ -2240,7 +2241,7 @@ export const REPORT_CATALOGUE: ReportCatalogueEntry[] = [
     title: "Statutory & Compliance Deadline Report",
     shortTitle: "Compliance Deadlines",
     description:
-      "Monitors registered businesses approaching or past their `annual_return_due_date`, documents with `expiry_date`, and service requests approaching `target_completion_date`.",
+      "Monitors registered businesses approaching or past their annual return due dates, documents with upcoming expiry dates, and service requests approaching target completion dates.",
     purpose: "Tracks statutory CAC annual returns and document expiry deadlines.",
     applicableRoles: [
       "super_admin",
@@ -2276,7 +2277,7 @@ export const REPORT_CATALOGUE: ReportCatalogueEntry[] = [
     title: "Pending Approval & Maker-Checker Report",
     shortTitle: "Pending Approvals",
     description:
-      "Consolidates all items awaiting management decision across the Suite: pending `staff_change_requests`, pending `hr_leave_requests`, pending `hr_attendance_corrections`, pending referral verifications, and quotations awaiting approval.",
+      "Consolidates all items awaiting management decision across the Suite: pending staff profile change requests, pending leave requests, pending attendance corrections, pending referral verifications, and quotations awaiting approval.",
     purpose: "Single-pane governance queue for management sign-off.",
     applicableRoles: ["super_admin", "admin", "operations_manager"],
     defaultScopeByRole: {
@@ -2366,6 +2367,13 @@ export const REPORT_CATALOGUE: ReportCatalogueEntry[] = [
     ],
   },
 ];
+
+export const REPORT_CATALOGUE: ReportCatalogueEntry[] = RAW_REPORT_CATALOGUE.map((entry) => ({
+  ...entry,
+  authoritativeSources: Array.from(
+    new Set(entry.authoritativeSources.map((src) => formatDataSourceLabel(src)))
+  ),
+}));
 
 const REPORT_ID_ALIASES: Record<string, string> = {
   executive_business_performance: "exec_business_performance",

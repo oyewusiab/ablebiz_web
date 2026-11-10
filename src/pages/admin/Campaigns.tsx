@@ -33,15 +33,19 @@ import {
     APPROVED_CAMPAIGN_SERVICES,
     APPROVED_REFERRAL_MILESTONES,
     calculateReferralMilestoneReward,
+    CAMPAIGN_LEADS_SELECT_COLUMNS,
     deduplicateQualifiedReferrals,
+    formatCampaignStatusLabel,
     formatLagosDateTime,
     getApprovedCampaignBaseline,
     getCampaignRolePermissions,
     getEffectiveCampaignStatusInLagos,
     invalidateCampaignCache,
+    isLeadAttributedToCampaign,
     isPaymentWithinCampaignWindowInLagos,
     matchServiceToCampaignPrice,
     OFFICE_OPENING_CAMPAIGN_SLUG,
+    resolveLeadServiceInterest,
     validateReferralQualification,
     type CampaignConfig,
     type CampaignConfiguredStatus,
@@ -150,11 +154,15 @@ export function Campaigns() {
 
     const [loading, setLoading] = useState(true);
     const [queryError, setQueryError] = useState<string | null>(null);
+    const [diagnosticDetails, setDiagnosticDetails] = useState<string[]>([]);
+    const [showDiagnostics, setShowDiagnostics] = useState(false);
+    const [failedSources, setFailedSources] = useState<Record<string, boolean>>({});
     const [migrationNotice, setMigrationNotice] = useState<string | null>(null);
     const [actionFeedback, setActionFeedback] = useState<{
         type: 'success' | 'error';
         message: string;
     } | null>(null);
+    const isAdminUser = profile?.role === 'super_admin' || profile?.role === 'admin';
 
     // Authoritative State
     const [campaign, setCampaign] = useState<CampaignConfig>(() =>
@@ -238,7 +246,13 @@ export function Campaigns() {
     const loadCampaignWorkspace = async () => {
         setLoading(true);
         setQueryError(null);
+        setDiagnosticDetails([]);
+        setShowDiagnostics(false);
+        setFailedSources({});
         setMigrationNotice(null);
+
+        const currentDiagnostics: string[] = [];
+        const currentFailedSources: Record<string, boolean> = {};
 
         try {
             // 1. Load Central Campaign Config from Supabase
@@ -260,10 +274,10 @@ export function Campaigns() {
                     campError.message?.includes('schema cache')
                 ) {
                     setMigrationNotice(
-                        'Notice: The campaign configuration tables (implementation/MIGRATION_OFFICE_OPENING_CAMPAIGN.sql) have not yet been executed on this Supabase instance. Displaying policy-baseline configuration alongside live CRM/Finance records.'
+                        'Campaign settings are currently using the standard approved Office Opening Promo policy defaults alongside your live client, invoice, and payment records.'
                     );
                 } else {
-                    throw new Error(`Failed to load campaign configuration: ${campError.message}`);
+                    currentDiagnostics.push(`Campaign Configuration: ${campError.message}`);
                 }
             } else if (campData) {
                 const effective = getEffectiveCampaignStatusInLagos(
@@ -313,8 +327,8 @@ export function Campaigns() {
                             .order('referrals_required', { ascending: true }),
                     ]);
 
-                if (srvErr) throw new Error(`Failed to load campaign pricing: ${srvErr.message}`);
-                if (msErr) throw new Error(`Failed to load campaign milestones: ${msErr.message}`);
+                if (srvErr) currentDiagnostics.push(`Campaign Service Pricing: ${srvErr.message}`);
+                if (msErr) currentDiagnostics.push(`Campaign Referral Milestones: ${msErr.message}`);
 
                 if (srvData && srvData.length > 0) {
                     activeServices = srvData.map((s: any) => ({
@@ -359,9 +373,10 @@ export function Campaigns() {
             setServicePrices(activeServices);
             setMilestones(activeMilestones);
 
-            // 2. Query Real Operational, CRM, Finance & Referral Tables (Never fabricate or hide errors)
+            // 2. Query Real Operational, CRM, Finance & Referral Tables Using Verified Schema Columns
             const [
                 leadsRes,
+                consultationsRes,
                 clientsRes,
                 invoicesRes,
                 paymentsRes,
@@ -370,7 +385,11 @@ export function Campaigns() {
             ] = await Promise.all([
                 supabase
                     .from('leads')
-                    .select('id, name, phone, email, business_interest, source, referral_code, referred_by, is_converted, converted_client_id, utm, created_at')
+                    .select(CAMPAIGN_LEADS_SELECT_COLUMNS)
+                    .order('created_at', { ascending: false }),
+                supabase
+                    .from('consultation_requests')
+                    .select('lead_id, service_needed')
                     .order('created_at', { ascending: false }),
                 supabase
                     .from('clients')
@@ -403,13 +422,37 @@ export function Campaigns() {
                     .limit(30),
             ]);
 
-            if (leadsRes.error) throw new Error(`Leads query failed: ${leadsRes.error.message}`);
-            if (clientsRes.error) throw new Error(`Clients query failed: ${clientsRes.error.message}`);
-            if (invoicesRes.error) throw new Error(`Invoices query failed: ${invoicesRes.error.message}`);
-            if (paymentsRes.error) throw new Error(`Payments query failed: ${paymentsRes.error.message}`);
-            if (referralsRes.error) throw new Error(`Referral events query failed: ${referralsRes.error.message}`);
+            if (leadsRes.error) {
+                currentFailedSources.leads = true;
+                currentDiagnostics.push(`Lead Records: ${leadsRes.error.message}`);
+            }
+            if (clientsRes.error) {
+                currentFailedSources.clients = true;
+                currentDiagnostics.push(`Client Records: ${clientsRes.error.message}`);
+            }
+            if (invoicesRes.error) {
+                currentFailedSources.invoices = true;
+                currentDiagnostics.push(`Invoice Records: ${invoicesRes.error.message}`);
+            }
+            if (paymentsRes.error) {
+                currentFailedSources.payments = true;
+                currentDiagnostics.push(`Payment Records: ${paymentsRes.error.message}`);
+            }
+            if (referralsRes.error) {
+                currentFailedSources.referrals = true;
+                currentDiagnostics.push(`Referral Records: ${referralsRes.error.message}`);
+            }
+
+            setFailedSources(currentFailedSources);
+            if (currentDiagnostics.length > 0) {
+                setDiagnosticDetails(currentDiagnostics);
+                setQueryError(
+                    'Some campaign figures could not be retrieved. Please try again. If the problem persists, contact your system administrator.'
+                );
+            }
 
             const allLeads = leadsRes.data || [];
+            const allConsultations = consultationsRes.data || [];
             const allClients = clientsRes.data || [];
             const allInvoices = invoicesRes.data || [];
             const allPayments = paymentsRes.data || [];
@@ -420,6 +463,13 @@ export function Campaigns() {
             }
 
             // Build lookup maps
+            const consultationServiceByLeadId = new Map<string, string>();
+            allConsultations.forEach((cr: any) => {
+                if (cr.lead_id && cr.service_needed && !consultationServiceByLeadId.has(cr.lead_id)) {
+                    consultationServiceByLeadId.set(cr.lead_id, String(cr.service_needed));
+                }
+            });
+
             const leadByIdMap = new Map<string, any>();
             const leadByReferralCodeMap = new Map<string, any>();
             allLeads.forEach((l: any) => {
@@ -443,15 +493,9 @@ export function Campaigns() {
             const startMs = new Date(activeCampaign.start_date).getTime();
             const endMs = new Date(activeCampaign.end_date).getTime();
 
-            const campaignLeads = allLeads.filter((l: any) => {
-                const createdMs = new Date(l.created_at).getTime();
-                const inWindow = createdMs >= startMs && createdMs <= endMs;
-                const hasUtm =
-                    l.utm &&
-                    (l.utm.utm_campaign === OFFICE_OPENING_CAMPAIGN_SLUG ||
-                        l.utm.utm_source === 'office_opening_promo_page');
-                return inWindow || hasUtm;
-            });
+            const campaignLeads = allLeads.filter((l: any) =>
+                isLeadAttributedToCampaign(l, startMs, endMs, OFFICE_OPENING_CAMPAIGN_SLUG)
+            );
             setCampaignInquiriesCount(campaignLeads.length);
 
             const campaignClients = allClients.filter((c: any) => {
@@ -662,8 +706,13 @@ export function Campaigns() {
 
                 const serviceName =
                     re.service_purchased ||
-                    refereeLead?.business_interest ||
-                    (paidInvoice?.invoice_items?.[0]?.description ?? 'Business Registration');
+                    resolveLeadServiceInterest(
+                        refereeLead,
+                        re.referee_lead_id
+                            ? consultationServiceByLeadId.get(re.referee_lead_id)
+                            : null,
+                        paidInvoice?.invoice_items?.[0]?.description
+                    );
 
                 const verStatus: ReferralVerificationStatus =
                     re.verification_status ||
@@ -832,9 +881,14 @@ export function Campaigns() {
             setPayoutRows(computedPayouts);
         } catch (err: any) {
             console.error('[Campaigns] Failed to load workspace:', err);
-            setQueryError(
+            const rawDetail =
                 err?.message ||
-                    'An unexpected database error occurred while loading campaign records.'
+                'An unexpected database error occurred while loading campaign records.';
+            setDiagnosticDetails((prev) =>
+                prev.length > 0 ? prev : [rawDetail]
+            );
+            setQueryError(
+                'Some campaign figures could not be retrieved. Please try again. If the problem persists, contact your system administrator.'
             );
         } finally {
             setLoading(false);
@@ -1410,23 +1464,46 @@ export function Campaigns() {
                 </div>
             </div>
 
-            {/* EXPLICIT QUERY ERROR ALERT (NEVER SILENTLY ZERO-FALLBACK) */}
+            {/* BUSINESS-FRIENDLY ERROR ALERT WITH ADMIN DIAGNOSTICS */}
             {queryError && (
                 <div className="rounded-2xl border-2 border-red-300 bg-red-50 p-5 text-red-900 shadow-xs">
                     <div className="flex items-start gap-3">
                         <AlertTriangle className="h-6 w-6 text-red-600 shrink-0 mt-0.5" />
-                        <div className="space-y-1">
+                        <div className="space-y-2 flex-1">
                             <div className="font-extrabold text-sm">
-                                Database Query Error — Metrics Not Zeroed
+                                Unable to Load Campaign Performance Data
                             </div>
                             <p className="text-xs text-red-800">{queryError}</p>
-                            <button
-                                type="button"
-                                onClick={loadCampaignWorkspace}
-                                className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-red-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-800"
-                            >
-                                Retry Database Query
-                            </button>
+                            <div className="flex flex-wrap items-center gap-3 pt-1">
+                                <button
+                                    type="button"
+                                    onClick={loadCampaignWorkspace}
+                                    className="inline-flex items-center gap-1.5 rounded-lg bg-red-700 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-red-800 transition"
+                                >
+                                    <RefreshCw className="h-3.5 w-3.5" /> Try Again
+                                </button>
+                                {isAdminUser && diagnosticDetails.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowDiagnostics((prev) => !prev)}
+                                        className="text-xs font-bold text-red-800 underline hover:text-red-950"
+                                    >
+                                        {showDiagnostics
+                                            ? 'Hide Technical Diagnostic Details'
+                                            : 'Technical Diagnostic Details (Administrators Only)'}
+                                    </button>
+                                )}
+                            </div>
+                            {isAdminUser && showDiagnostics && diagnosticDetails.length > 0 && (
+                                <div className="mt-3 rounded-xl border border-red-200 bg-white/90 p-3 text-[11px] font-mono text-slate-700 space-y-1">
+                                    <div className="font-sans font-bold text-slate-900 text-xs mb-1">
+                                        System Diagnostic Log (Visible to Administrators Only):
+                                    </div>
+                                    {diagnosticDetails.map((detail, idx) => (
+                                        <div key={idx}>• {detail}</div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -1498,7 +1575,7 @@ export function Campaigns() {
             {/* ========================================================================
                 TAB 1: CAMPAIGN OVERVIEW DASHBOARD (PART 3A)
                ======================================================================== */}
-            {activeTab === 'overview' && !queryError && (
+            {activeTab === 'overview' && (
                 <div className="space-y-6">
                     {/* 16 Required KPI Cards */}
                     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -1508,7 +1585,13 @@ export function Campaigns() {
                                 <Users className="h-4 w-4 text-blue-600" />
                             </div>
                             <div className="mt-2 text-3xl font-black text-slate-900">
-                                {dashboardMetrics.totalEnquiries}
+                                {failedSources.leads ? (
+                                    <span className="text-sm font-bold text-red-700">
+                                        Unable to Retrieve Data
+                                    </span>
+                                ) : (
+                                    dashboardMetrics.totalEnquiries
+                                )}
                             </div>
                             <div className="mt-1 text-xs text-slate-500">
                                 Target: {campaign.performance_targets.customer_inquiries}+ inquiries
@@ -1521,7 +1604,13 @@ export function Campaigns() {
                                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                             </div>
                             <div className="mt-2 text-3xl font-black text-slate-900">
-                                {dashboardMetrics.newCustomersAcquired}
+                                {failedSources.clients ? (
+                                    <span className="text-sm font-bold text-red-700">
+                                        Unable to Retrieve Data
+                                    </span>
+                                ) : (
+                                    dashboardMetrics.newCustomersAcquired
+                                )}
                             </div>
                             <div className="mt-1 text-xs text-slate-500">
                                 Target: {campaign.performance_targets.new_customers_acquired} new clients
@@ -1534,7 +1623,13 @@ export function Campaigns() {
                                 <FileSpreadsheet className="h-4 w-4 text-amber-600" />
                             </div>
                             <div className="mt-2 text-3xl font-black text-slate-900">
-                                {dashboardMetrics.campaignTransactionsCount}
+                                {failedSources.invoices || failedSources.payments ? (
+                                    <span className="text-sm font-bold text-red-700">
+                                        Unable to Retrieve Data
+                                    </span>
+                                ) : (
+                                    dashboardMetrics.campaignTransactionsCount
+                                )}
                             </div>
                             <div className="mt-1 text-xs text-slate-500">
                                 Target: {campaign.performance_targets.total_service_transactions}+ paid services ({dashboardMetrics.totalAllCampaignInvoices} total invoices)
@@ -1547,7 +1642,13 @@ export function Campaigns() {
                                 <Banknote className="h-4 w-4 text-emerald-600" />
                             </div>
                             <div className="mt-2 text-2xl font-black text-emerald-700">
-                                {formatNaira(dashboardMetrics.totalCampaignRevenue)}
+                                {failedSources.invoices || failedSources.payments ? (
+                                    <span className="text-sm font-bold text-red-700">
+                                        Unable to Retrieve Data
+                                    </span>
+                                ) : (
+                                    formatNaira(dashboardMetrics.totalCampaignRevenue)
+                                )}
                             </div>
                             <div className="mt-1 text-xs text-slate-500">
                                 Professional service fees collected
@@ -1560,7 +1661,13 @@ export function Campaigns() {
                                 <Tag className="h-4 w-4 text-amber-600" />
                             </div>
                             <div className="mt-2 text-2xl font-black text-amber-700">
-                                {formatNaira(dashboardMetrics.totalDiscountsGranted)}
+                                {failedSources.invoices ? (
+                                    <span className="text-sm font-bold text-red-700">
+                                        Unable to Retrieve Data
+                                    </span>
+                                ) : (
+                                    formatNaira(dashboardMetrics.totalDiscountsGranted)
+                                )}
                             </div>
                             <div className="mt-1 text-xs text-slate-500">
                                 Total professional fee savings given
@@ -1573,7 +1680,13 @@ export function Campaigns() {
                                 <TrendingUp className="h-4 w-4 text-blue-600" />
                             </div>
                             <div className="mt-2 text-2xl font-black text-[#0A2558]">
-                                {formatNaira(dashboardMetrics.totalGrossProfit)}
+                                {failedSources.invoices || failedSources.payments ? (
+                                    <span className="text-sm font-bold text-red-700">
+                                        Unable to Retrieve Data
+                                    </span>
+                                ) : (
+                                    formatNaira(dashboardMetrics.totalGrossProfit)
+                                )}
                             </div>
                             <div className="mt-1 text-xs text-slate-500">
                                 Promo fees minus direct service costs
@@ -1586,7 +1699,13 @@ export function Campaigns() {
                                 <Users className="h-4 w-4 text-indigo-600" />
                             </div>
                             <div className="mt-2 text-3xl font-black text-slate-900">
-                                {dashboardMetrics.referralParticipants}
+                                {failedSources.leads ? (
+                                    <span className="text-sm font-bold text-red-700">
+                                        Unable to Retrieve Data
+                                    </span>
+                                ) : (
+                                    dashboardMetrics.referralParticipants
+                                )}
                             </div>
                             <div className="mt-1 text-xs text-slate-500">
                                 Target: {campaign.performance_targets.referral_participants} active partners
@@ -1595,17 +1714,25 @@ export function Campaigns() {
 
                         <div className="rounded-2xl bg-white p-5 border border-slate-200/80 shadow-xs">
                             <div className="flex items-center justify-between text-xs font-bold text-slate-400 uppercase">
-                                <span>Referrals (Verified / Pending)</span>
+                                <span>Referrals (Confirmed / Awaiting)</span>
                                 <Award className="h-4 w-4 text-amber-500" />
                             </div>
                             <div className="mt-2 text-2xl font-black text-slate-900">
-                                <span className="text-emerald-700">
-                                    {dashboardMetrics.successfulReferrals}
-                                </span>{' '}
-                                /{' '}
-                                <span className="text-amber-600">
-                                    {dashboardMetrics.pendingReferrals}
-                                </span>
+                                {failedSources.referrals ? (
+                                    <span className="text-sm font-bold text-red-700">
+                                        Unable to Retrieve Data
+                                    </span>
+                                ) : (
+                                    <>
+                                        <span className="text-emerald-700">
+                                            {dashboardMetrics.successfulReferrals}
+                                        </span>{' '}
+                                        /{' '}
+                                        <span className="text-amber-600">
+                                            {dashboardMetrics.pendingReferrals}
+                                        </span>
+                                    </>
+                                )}
                             </div>
                             <div className="mt-1 text-xs text-slate-500">
                                 Target: {campaign.performance_targets.successful_referrals} successful referrals
@@ -1909,7 +2036,7 @@ export function Campaigns() {
                                     Approved Promotional Service Pricing Catalog
                                 </h2>
                                 <p className="text-xs text-slate-500">
-                                    Campaign prices do NOT overwrite standard `services_catalog` fees. Quotations and invoices store frozen price snapshots.
+                                    Campaign promotional prices do not overwrite your standard Service Catalogue fees. Quotations and invoices preserve the exact price agreed at the time of issue.
                                 </p>
                             </div>
                         </div>
@@ -2263,7 +2390,7 @@ export function Campaigns() {
                                                             : 'bg-amber-100 text-amber-800'
                                                     }`}
                                                 >
-                                                    {tx.paymentStatus}
+                                                    {formatCampaignStatusLabel(tx.paymentStatus)}
                                                 </span>
                                                 <div className="text-[10px] text-slate-400 mt-0.5">
                                                     {tx.paymentDate
@@ -2282,7 +2409,9 @@ export function Campaigns() {
                                                             : 'bg-rose-100 text-rose-800'
                                                     }`}
                                                 >
-                                                    {tx.campaignEligibilityStatus.replace('_', ' ')}
+                                                    {formatCampaignStatusLabel(
+                                                        tx.campaignEligibilityStatus
+                                                    )}
                                                 </span>
                                             </td>
                                             <td className="py-3 px-3">
@@ -2290,7 +2419,8 @@ export function Campaigns() {
                                                     {tx.referrerName}
                                                 </div>
                                                 <div className="font-mono text-[10px] text-amber-700 font-bold">
-                                                    {tx.referralCode} ({tx.referralStatus})
+                                                    {tx.referralCode} (
+                                                    {formatCampaignStatusLabel(tx.referralStatus)})
                                                 </div>
                                             </td>
                                             <td className="py-3 px-3">
@@ -2306,7 +2436,9 @@ export function Campaigns() {
                                                                 : 'bg-slate-100 text-slate-600'
                                                         }`}
                                                     >
-                                                        {tx.transactionVerificationStatus}
+                                                        {formatCampaignStatusLabel(
+                                                            tx.transactionVerificationStatus
+                                                        )}
                                                     </span>
                                                     {permissions.canVerifyReferrals && (
                                                         <button
@@ -2473,7 +2605,7 @@ export function Campaigns() {
                                                                 : 'bg-slate-100 text-slate-600'
                                                         }`}
                                                     >
-                                                        {p.paymentStatus.replace(/_/g, ' ')}
+                                                        {formatCampaignStatusLabel(p.paymentStatus)}
                                                     </span>
                                                     {p.paymentReference && (
                                                         <div className="font-mono text-[10px] text-slate-400 mt-0.5">
@@ -2633,7 +2765,9 @@ export function Campaigns() {
                                                                 : 'bg-blue-100 text-blue-800'
                                                         }`}
                                                     >
-                                                        {r.verificationStatus.replace(/_/g, ' ')}
+                                                        {formatCampaignStatusLabel(
+                                                            r.verificationStatus
+                                                        )}
                                                     </span>
                                                     {r.disqualificationReason && (
                                                         <div className="text-[10px] text-rose-600 mt-0.5">

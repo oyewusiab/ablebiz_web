@@ -8,8 +8,16 @@ import {
 } from "../reportCatalogue";
 import {
   METRIC_DEFINITIONS_LIST,
+  formatBusinessStatusLabel,
+  formatDataSourceLabel,
   getMetricDefinition,
 } from "../metricRegistry";
+import {
+  CAMPAIGN_LEADS_SELECT_COLUMNS,
+  formatCampaignStatusLabel,
+  isLeadAttributedToCampaign,
+  resolveLeadServiceInterest,
+} from "../../campaignEngine";
 import {
   canAccessReport,
   canExportReportFormat,
@@ -20,11 +28,13 @@ import {
 } from "../reportPermissions";
 import {
   calculateOrganisationalHealth,
+  classifyCacApplicationStage,
   computePeriodComparison,
   computePeriodWindow,
   createDefaultReportFilterState,
   createEmptyReportingDataset,
   generateReportPayload,
+  summarizeCacStages,
 } from "../reportEngine";
 import {
   buildReportCsvString,
@@ -47,16 +57,31 @@ describe("ABLEBIZ BI & Executive Reporting Expansion — Comprehensive Suite", (
       assert.equal(getReportsByCategory("compliance").length, 9);
     });
 
-    it("provides authoritative metric definitions with formulas, sources, and limitations", () => {
+    it("provides business-friendly metric definitions with plain-English formulas, sources, and limitations", () => {
       assert.ok(METRIC_DEFINITIONS_LIST.length >= 18);
       const cashMetric = getMetricDefinition("cash_collected");
       assert.ok(cashMetric);
-      assert.equal(cashMetric.authoritativeSource, "public.payments");
+      assert.equal(cashMetric.name, "Verified Cash Collected");
+      assert.equal(cashMetric.authoritativeSource, "Payment Records");
       assert.equal(cashMetric.unit, "NGN");
 
       const referralLiability = getMetricDefinition("referral_reward_liability");
       assert.ok(referralLiability);
-      assert.ok(referralLiability.calculationFormula.includes("ablebiz_calculate_referral_milestone_reward"));
+      assert.ok(referralLiability.calculationFormula.includes("milestone"));
+
+      // Ensure no raw SQL syntax or public.<table_name> leaks into user-facing metric definitions
+      for (const m of METRIC_DEFINITIONS_LIST) {
+        assert.ok(
+          !m.authoritativeSource.includes("public."),
+          `Metric ${m.id} source should not contain raw public. table reference`
+        );
+        assert.ok(
+          !m.calculationFormula.includes("SUM(") &&
+            !m.calculationFormula.includes("COUNT(") &&
+            !m.calculationFormula.includes("WHERE "),
+          `Metric ${m.id} calculationFormula should use plain business language`
+        );
+      }
     });
   });
 
@@ -603,6 +628,147 @@ describe("ABLEBIZ BI & Executive Reporting Expansion — Comprehensive Suite", (
     it("generates a multi-section jsPDF document with page numbering", () => {
       const pdfDoc = buildReportPdfDocument(payload);
       assert.ok(pdfDoc.getNumberOfPages() >= 1);
+    });
+  });
+
+  describe("7. Plain Business Language & CAC Stage Classification", () => {
+    it("translates raw technical table names and status codes into readable business labels", () => {
+      assert.equal(formatDataSourceLabel("public.payments"), "Payment Records");
+      assert.equal(formatDataSourceLabel("public.invoices"), "Invoice Records");
+      assert.equal(formatDataSourceLabel("public.expenses"), "Expense Records");
+      assert.equal(
+        formatDataSourceLabel("public.cac_registrations"),
+        "CAC Registration Records"
+      );
+
+      assert.equal(formatBusinessStatusLabel("verified"), "Confirmed");
+      assert.equal(
+        formatBusinessStatusLabel("pending_verification"),
+        "Awaiting Verification"
+      );
+      assert.equal(formatBusinessStatusLabel("in_progress"), "In Progress");
+      assert.equal(
+        formatBusinessStatusLabel("insufficient_data"),
+        "Insufficient Data"
+      );
+      assert.equal(
+        formatBusinessStatusLabel("query_failed"),
+        "Unable to Retrieve Data"
+      );
+
+      for (const rep of REPORT_CATALOGUE) {
+        for (const src of rep.authoritativeSources) {
+          assert.ok(
+            !src.includes("public."),
+            `Report ${rep.id} source "${src}" should be business-friendly`
+          );
+        }
+      }
+    });
+
+    it("distinguishes CAC applications across Submitted, In Progress, Approved, Completed, Rejected, and Cancelled", () => {
+      const cacList = [
+        { id: "1", current_stage: "application_submitted" },
+        { id: "2", current_stage: "under_cac_review" },
+        { id: "3", current_stage: "documents_verified" },
+        { id: "4", current_stage: "approved" },
+        { id: "5", current_stage: "documents_received" },
+        { id: "6", current_stage: "completed" },
+        { id: "7", current_stage: "queried" },
+        { id: "8", current_stage: "cancelled" },
+      ];
+
+      assert.equal(classifyCacApplicationStage(cacList[0]), "submitted");
+      assert.equal(classifyCacApplicationStage(cacList[1]), "in_progress");
+      assert.equal(classifyCacApplicationStage(cacList[3]), "approved");
+      assert.equal(classifyCacApplicationStage(cacList[4]), "approved");
+      assert.equal(classifyCacApplicationStage(cacList[5]), "completed");
+      assert.equal(classifyCacApplicationStage(cacList[6]), "rejected");
+      assert.equal(classifyCacApplicationStage(cacList[7]), "cancelled");
+
+      const summary = summarizeCacStages(cacList);
+      assert.equal(summary.total, 8);
+      assert.equal(summary.submitted, 1);
+      assert.equal(summary.inProgress, 2);
+      assert.equal(summary.approved, 2);
+      assert.equal(summary.completed, 1);
+      assert.equal(summary.rejectedOrQueried, 1);
+      assert.equal(summary.cancelled, 1);
+      assert.equal(summary.eligibleCount, 7); // 8 total - 1 cancelled
+      assert.equal(summary.progressedCount, 3); // 2 approved + 1 completed
+      assert.ok(
+        summary.progressRatePct !== null &&
+          Math.abs(summary.progressRatePct - (3 / 7) * 100) < 0.01
+      );
+    });
+  });
+
+  describe("8. Campaigns & Promos Database Schema & Attribution Regression Tests", () => {
+    it("never selects non-existent columns (business_interest or utm) from public.leads", () => {
+      const selectedCols = CAMPAIGN_LEADS_SELECT_COLUMNS.split(",").map((c) =>
+        c.trim()
+      );
+      assert.equal(selectedCols.includes("business_interest"), false);
+      assert.equal(selectedCols.includes("utm"), false);
+      assert.equal(selectedCols.includes("business_type"), true);
+      assert.equal(selectedCols.includes("notes"), true);
+      assert.equal(selectedCols.includes("utm_campaign"), true);
+      assert.equal(selectedCols.includes("utm_source"), true);
+      assert.equal(selectedCols.includes("page_path"), true);
+    });
+
+    it("resolves lead requested service interest from consultation_requests, notes, or business_type", () => {
+      assert.equal(
+        resolveLeadServiceInterest(
+          { business_type: "Limited Company", notes: "Service: Business Name | Ref: 1" },
+          "Trademark Registration"
+        ),
+        "Trademark Registration"
+      );
+      assert.equal(
+        resolveLeadServiceInterest({
+          business_type: "Limited Company",
+          notes: "Service: Company Incorporation (LTD) | Timeline: Urgent",
+        }),
+        "Company Incorporation (LTD)"
+      );
+      assert.equal(
+        resolveLeadServiceInterest({
+          business_type: "NGO / Incorporated Trustees",
+          notes: "General enquiry",
+        }),
+        "NGO / Incorporated Trustees"
+      );
+    });
+
+    it("attributes leads to the campaign using verified top-level columns and formats campaign statuses in plain English", () => {
+      const startMs = new Date("2026-04-13T00:00:00Z").getTime();
+      const endMs = new Date("2026-05-13T23:59:59Z").getTime();
+
+      assert.equal(
+        isLeadAttributedToCampaign(
+          {
+            created_at: "2026-04-20T10:00:00Z",
+            source: "website",
+            utm_campaign: "office-opening-promo-2026",
+          },
+          startMs,
+          endMs,
+          "office-opening-promo-2026"
+        ),
+        true
+      );
+
+      assert.equal(formatCampaignStatusLabel("verified"), "Confirmed");
+      assert.equal(
+        formatCampaignStatusLabel("pending_verification"),
+        "Awaiting Verification"
+      );
+      assert.equal(
+        formatCampaignStatusLabel("cancelled_refunded"),
+        "Cancelled / Refunded"
+      );
+      assert.equal(formatCampaignStatusLabel("payable"), "Ready for Payout");
     });
   });
 });
