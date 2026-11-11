@@ -136,6 +136,33 @@ export function detectModuleFromText(
     return { moduleId: "service_requests", subIntent: "summary", explicitMatch: true };
   }
 
+  // 3b. Service Profitability & Cost Analysis (Phase 6)
+  if (
+    /\b(service profitability|profitable service|highest gross profit|profit margin|underperforming service|margin for|gross profit margin|lowest margin|losing money|highest discount)\b/.test(
+      q
+    )
+  ) {
+    return { moduleId: "reports", subIntent: "service_profitability", explicitMatch: true };
+  }
+
+  // 3c. Cash Flow Forecasting & Financial Planning (Phase 7)
+  if (
+    /\b(cash flow|cashflow|projected cash|cash balance|cash forecast|projected closing|expected collection|expected to be collected|cash shortage|largest projected expense|conservative scenario|optimistic scenario|scenario compare|budget vs actual|against our monthly budget|budget performance)\b/.test(
+      q
+    )
+  ) {
+    return { moduleId: "invoices", subIntent: "cash_flow_forecast", explicitMatch: true };
+  }
+
+  // 3d. Annual Compliance & Recurring Service Management (Phase 8)
+  if (
+    /\b(annual return|annual returns|compliance deadline|compliance obligation|scuml|tax clearance renewal|recurring compliance|recurring service|management attention today|matters requiring management attention)\b/.test(
+      q
+    )
+  ) {
+    return { moduleId: "businesses", subIntent: "compliance_management", explicitMatch: true };
+  }
+
   // 4. Finance: Quotations, Invoices, Payments, Expenses, Vendors
   if (/\b(quotation|quotations|quote|quotes)\b/.test(q)) {
     return { moduleId: "quotations", subIntent: "summary", explicitMatch: true };

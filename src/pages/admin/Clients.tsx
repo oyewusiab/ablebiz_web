@@ -55,6 +55,7 @@ export interface ClientDetailData extends ClientRecord {
   invoices?: any[];
   tasks?: any[];
   engagement_history?: ClientEngagementEvent[];
+  compliance_obligations?: any[];
 }
 
 export function AdminClients() {
@@ -68,7 +69,7 @@ export function AdminClients() {
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [clientDetail, setClientDetail] = useState<ClientDetailData | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
-  const [active360Tab, setActive360Tab] = useState<"overview" | "communications" | "businesses" | "requests" | "tasks" | "followups" | "timeline" | "finance">("overview");
+  const [active360Tab, setActive360Tab] = useState<"overview" | "communications" | "businesses" | "requests" | "tasks" | "followups" | "timeline" | "finance" | "compliance">("overview");
   const [commRefreshTick, setCommRefreshTick] = useState(0);
 
   // Create Client Modal State
@@ -129,6 +130,7 @@ export function AdminClients() {
         invRes,
         tasksRes,
         historyEvents,
+        complianceRes,
       ] = await Promise.all([
         supabase.from("clients").select("*").eq("id", clientId).single(),
         supabase.from("businesses").select("*").eq("client_id", clientId),
@@ -139,6 +141,7 @@ export function AdminClients() {
         canViewFinance ? supabase.from("invoices").select("*").eq("client_id", clientId) : Promise.resolve({ data: [] }),
         supabase.from("tasks").select("*, assigned_staff:staff_profiles(full_name)").eq("client_id", clientId).order("due_date", { ascending: true }),
         buildClientEngagementHistory(clientId),
+        supabase.from("compliance_obligations").select("*, service:services_catalog(name), assigned_officer:staff_profiles(full_name)").eq("client_id", clientId).order("due_date", { ascending: true }),
       ]);
 
       if (clientRes.data) {
@@ -152,6 +155,7 @@ export function AdminClients() {
           invoices: invRes.data || [],
           tasks: (tasksRes as any)?.data || [],
           engagement_history: historyEvents || [],
+          compliance_obligations: complianceRes.data || [],
         });
       }
     } catch (err) {
@@ -436,6 +440,7 @@ export function AdminClients() {
                     { id: "tasks", label: "Tasks", count: clientDetail.tasks?.length || 0 },
                     { id: "followups", label: "Follow-ups", count: clientDetail.follow_ups.length },
                     { id: "timeline", label: "Engagement History", count: clientDetail.engagement_history?.length || clientDetail.activity_timeline.length },
+                    { id: "compliance", label: "Compliance & Deadlines", count: clientDetail.compliance_obligations?.length || 0 },
                     ...(canViewFinance ? [{ id: "finance", label: "Finance & Invoices", count: clientDetail.invoices?.length || 0 }] : []),
                   ].map((tab) => (
                     <button
@@ -692,6 +697,45 @@ export function AdminClients() {
                               <span>Total: ₦{Number(inv.total_amount).toLocaleString()}</span>
                               <span className="font-semibold text-emerald-700">Paid: ₦{Number(inv.amount_paid).toLocaleString()}</span>
                               <span className="font-bold text-amber-700">Due: ₦{Number(inv.balance_due).toLocaleString()}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {active360Tab === "compliance" && (
+                  <div className="space-y-3">
+                    {!clientDetail.compliance_obligations || clientDetail.compliance_obligations.length === 0 ? (
+                      <div className="text-center py-6">
+                        <p className="text-xs text-slate-400 mb-2">No statutory compliance obligations scheduled for this client.</p>
+                        <a
+                          href="/admin/compliance-calendar"
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-purple-700 hover:text-purple-900"
+                        >
+                          Open Compliance Calendar <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {clientDetail.compliance_obligations.map((ob: any) => (
+                          <div key={ob.id} className="rounded-xl border border-slate-200 p-3 hover:border-purple-400 transition text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-slate-900">{ob.obligation_name}</span>
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                                ob.status === "completed" ? "bg-emerald-50 text-emerald-700" : "bg-purple-50 text-purple-800"
+                              }`}>
+                                {ob.status}
+                              </span>
+                            </div>
+                            <div className="mt-1 text-[11px] text-slate-500">
+                              {ob.statutory_source || "Statutory compliance filing"}
+                            </div>
+                            <div className="mt-2 flex items-center justify-between text-[11px] text-slate-600 pt-2 border-t border-slate-100">
+                              <span>Due Date: <strong className="text-slate-800">{ob.due_date}</strong></span>
+                              <span>Officer: <strong className="text-slate-800">{ob.assigned_officer?.full_name || "Unassigned"}</strong></span>
+                              <span className="text-purple-700 font-semibold uppercase text-[10px]">{ob.opportunity_status}</span>
                             </div>
                           </div>
                         ))}

@@ -49,6 +49,9 @@ import { ClientCommunicationsPage } from "./pages/admin/Communications";
 import { StaffRbacPage } from "./pages/admin/Team";
 import { HrWorkspacePage } from "./pages/admin/HrWorkspace";
 import { Campaigns as AdminCampaigns } from "./pages/admin/Campaigns";
+import { ServiceProfitabilityPage } from "./pages/admin/ServiceProfitability";
+import { CashFlowForecastPage } from "./pages/admin/CashFlowForecast";
+import { ComplianceCalendarPage } from "./pages/admin/ComplianceCalendar";
 import { BusinessProfileProvider } from "./lib/businessProfileContext";
 
 export default function App() {
@@ -101,6 +104,11 @@ export default function App() {
             <Route path="payments" element={<ProtectedRoute requiredModule="finance"><PaymentsPage /></ProtectedRoute>} />
             <Route path="expenses" element={<ProtectedRoute requiredModule="finance"><ExpensesPage /></ProtectedRoute>} />
             <Route path="vendors" element={<ProtectedRoute requiredModule="finance"><VendorsPage /></ProtectedRoute>} />
+            <Route path="cash-flow-forecast" element={<ProtectedRoute requiredModule="finance"><CashFlowForecastPage /></ProtectedRoute>} />
+            <Route path="finance/cash-flow-forecast" element={<ProtectedRoute requiredModule="finance"><CashFlowForecastPage /></ProtectedRoute>} />
+            {/* Compliance Calendar Route */}
+            <Route path="compliance-calendar" element={<ProtectedRoute><ComplianceCalendarPage /></ProtectedRoute>} />
+            <Route path="compliance" element={<Navigate to="/admin/compliance-calendar" replace />} />
             <Route path="audit-logs" element={<ProtectedRoute requiredRole={["super_admin", "admin"]}><AuditLogsPage /></ProtectedRoute>} />
             <Route path="audit" element={<Navigate to="/admin/audit-logs" replace />} />
             <Route path="ai-secretary" element={<ProtectedRoute><AiSecretaryPage /></ProtectedRoute>} />
@@ -116,6 +124,8 @@ export default function App() {
             <Route path="campaigns" element={<ProtectedRoute><AdminCampaigns /></ProtectedRoute>} />
             <Route path="referrals" element={<ProtectedRoute><AdminReferrals /></ProtectedRoute>} />
             <Route path="reports" element={<ProtectedRoute requiredModule="reports"><AdminReports /></ProtectedRoute>} />
+            <Route path="reports/service-profitability" element={<ProtectedRoute requiredModule="reports"><ServiceProfitabilityPage /></ProtectedRoute>} />
+            <Route path="service-profitability" element={<ProtectedRoute requiredModule="reports"><ServiceProfitabilityPage /></ProtectedRoute>} />
             <Route path="settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
           </Route>
 

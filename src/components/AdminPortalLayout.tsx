@@ -84,6 +84,7 @@ export function AdminPortalLayout() {
         { name: "Clients 360°", path: "/admin/clients", icon: Users, module: "crm" },
         { name: "Businesses", path: "/admin/businesses", icon: Building2, module: "crm" },
         { name: "Follow-ups", path: "/admin/follow-ups", icon: CheckSquare, module: "crm" },
+        { name: "Compliance Profiles", path: "/admin/compliance-calendar", icon: ShieldCheck, module: "crm" },
       ],
     },
     {
@@ -95,6 +96,7 @@ export function AdminPortalLayout() {
         { name: "Tasks", path: "/admin/tasks", icon: CheckSquare, module: "operations" },
         { name: "SLA & Deadlines", path: "/admin/sla-settings", icon: Clock, module: "operations" },
         { name: "Workflows", path: "/admin/workflows", icon: Workflow, module: "operations" },
+        { name: "Compliance Calendar", path: "/admin/compliance-calendar", icon: Clock, module: "operations" },
         { name: "Documents", path: "/admin/documents", icon: FolderOpen, module: "operations" },
       ],
     },
@@ -106,6 +108,7 @@ export function AdminPortalLayout() {
         { name: "Payments", path: "/admin/payments", icon: CreditCard, module: "finance" },
         { name: "Expenses", path: "/admin/expenses", icon: DollarSign, module: "finance" },
         { name: "Vendors", path: "/admin/vendors", icon: Building2, module: "finance" },
+        { name: "Cash Flow Forecast", path: "/admin/finance/cash-flow-forecast", icon: TrendingUp, module: "finance" },
       ],
     },
     {
@@ -126,6 +129,7 @@ export function AdminPortalLayout() {
       title: "REPORTING",
       items: [
         { name: "Executive Reports", path: "/admin/reports", icon: BarChart3, module: "reports" },
+        { name: "Service Profitability", path: "/admin/reports/service-profitability", icon: DollarSign, module: "reports" },
       ],
     },
     {

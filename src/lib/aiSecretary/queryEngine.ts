@@ -37,6 +37,17 @@ import {
 } from "./suiteGuideRegistry";
 import { classifyAssistantIntent } from "./intentRouter";
 import { getContextualFollowUpQuestions } from "./suggestions";
+import { calculateServiceProfitability } from "../profitability/profitabilityService";
+import {
+  generateCashFlowForecast,
+  calculateCurrentCashPosition,
+  calculateBudgetVsActual,
+  DEFAULT_SCENARIOS,
+} from "../cashFlow/cashFlowService";
+import {
+  calculateComplianceDeadlineStatus,
+  computeComplianceSummary,
+} from "../compliance/complianceService";
 
 export interface TableQueryResult<T = Record<string, any>> {
   data: T[] | null;
@@ -670,6 +681,16 @@ async function runOperationalReportForModule(
   prefix: string,
   context: ConversationContext
 ): Promise<AssistantResponsePayload> {
+  if (intent.subIntent === "service_profitability") {
+    return handleServiceProfitabilityAssistantReport(intent, caller, adapter, now, prefix, context);
+  }
+  if (intent.subIntent === "cash_flow_forecast") {
+    return handleCashFlowForecastAssistantReport(intent, caller, adapter, now, prefix, context);
+  }
+  if (intent.subIntent === "compliance_management") {
+    return handleComplianceManagementAssistantReport(intent, caller, adapter, now, prefix, context);
+  }
+
   switch (intent.primaryModule) {
     case "hr":
       return handleHrOperationalReport(intent, caller, adapter, now, prefix, context);
@@ -1305,8 +1326,374 @@ async function handleServicesCatalogReport(
 }
 
 /**
- * Finance Operational Report (Invoices, Payments, Quotations, Expenses, Vendors)
+ * Service Profitability & Cost Analysis (Phase 6 AI Secretary Query)
  */
+async function handleServiceProfitabilityAssistantReport(
+  intent: ClassifiedIntent,
+  caller: AssistantCallerContext,
+  adapter: AssistantDataAdapter,
+  now: Date,
+  prefix: string,
+  context: ConversationContext
+): Promise<AssistantResponsePayload> {
+  if (!caller.permissions.includes("finance.view") && !caller.permissions.includes("reports.view")) {
+    return buildPermissionDeniedPayload(caller, "reports", intent, now);
+  }
+
+  const [catRes, srRes, invRes, itemRes, expRes] = await Promise.all([
+    adapter.queryTable("services_catalog", { orderBy: { column: "name", ascending: true }, limit: 200 }),
+    adapter.queryTable("service_requests", { orderBy: { column: "created_at", ascending: false }, limit: 500 }),
+    adapter.queryTable("invoices", { orderBy: { column: "issue_date", ascending: false }, limit: 500 }),
+    adapter.queryTable("invoice_items", { limit: 1000 }),
+    adapter.queryTable("expenses", { orderBy: { column: "expense_date", ascending: false }, limit: 500 }),
+  ]);
+
+  if (invRes.error) return buildErrorOrSchemaPayload(caller, "invoices", intent, "invoices", invRes.error, now);
+  if (expRes.error) return buildErrorOrSchemaPayload(caller, "expenses", intent, "expenses", expRes.error, now);
+
+  const analysis = calculateServiceProfitability(
+    catRes.data || [],
+    srRes.data || [],
+    invRes.data || [],
+    itemRes.data || [],
+    expRes.data || [],
+    {}
+  );
+
+  const q = intent.normalizedQuery.toLowerCase();
+  const isTopProfitableQuery = /\b(highest|top|most)\s+(gross\s+)?profit\b/i.test(q) || /\b(top\s+five|top\s+5)\b/i.test(q);
+  const isUnderperformingQuery = /\b(underperforming|losing money|lowest margin|low margin)\b/i.test(q);
+  const isRevenueQuery = /\b(highest|top)\s+revenue\b/i.test(q);
+
+  let targetedServices = analysis.services;
+  let sectionTitle = "Service Profitability Overview";
+
+  if (isTopProfitableQuery) {
+    targetedServices = analysis.topProfitableServices;
+    sectionTitle = "Top 5 Most Profitable Corporate Services";
+  } else if (isUnderperformingQuery) {
+    targetedServices = analysis.lossMakingServices.length > 0 ? analysis.lossMakingServices : analysis.lowMarginServices;
+    sectionTitle = "Underperforming & Low-Margin Services";
+  } else if (isRevenueQuery) {
+    targetedServices = analysis.topRevenueServices;
+    sectionTitle = "Top Revenue Generating Services";
+  }
+
+  // Check if query asks for a specific service name
+  const matchedService = analysis.services.find(
+    (s) => q.includes(s.serviceName.toLowerCase()) || (s.slug && q.includes(s.slug.toLowerCase()))
+  );
+  if (matchedService) {
+    targetedServices = [matchedService];
+    sectionTitle = `Profitability Analysis for ${matchedService.serviceName}`;
+  }
+
+  const markdown = [
+    prefix + `### ${sectionTitle}`,
+    matchedService
+      ? `For **${matchedService.serviceName}**, total recognized revenue is **${formatNgn(matchedService.recognizedServiceRevenue)}** across **${formatCount(matchedService.completedCount)}** completed service(s). Direct operational costs total **${formatNgn(matchedService.totalDirectCosts)}** (${matchedService.costClassification} cost basis), yielding a **Gross Profit of ${formatNgn(matchedService.grossProfit)}** and a **Gross Profit Margin of ${matchedService.grossProfitMarginPercent}%**.`
+      : isTopProfitableQuery
+      ? `Here are the top-performing services ranked by cumulative gross profit. Combined recognized revenue across all evaluated offerings is **${formatNgn(analysis.totals.totalServiceRevenue)}** with total direct operational disbursements of **${formatNgn(analysis.totals.totalDirectCosts)}**, achieving an overall gross margin of **${analysis.totals.overallGrossMarginPercent}%**.`
+      : isUnderperformingQuery
+      ? `Identified **${formatCount(targetedServices.length)}** service offering(s) requiring pricing or cost restructuring. Services with margins below 20% or negative net gross profit are highlighted for management review.`
+      : `Management summary of ABLEBIZ corporate services: **${formatCount(analysis.totals.totalServicesCompleted)}** completed services generated **${formatNgn(analysis.totals.totalServiceRevenue)}** in recognized net revenue, resulting in **${formatNgn(analysis.totals.totalGrossProfit)}** in gross profit (${analysis.totals.overallGrossMarginPercent}% gross margin).`,
+    analysis.totals.dataCompletenessNotice ? `> [!NOTE]\n> ${analysis.totals.dataCompletenessNotice}` : "",
+    `#### Recommended Management Action`,
+    `- Open the [Service Profitability Workspace](/admin/reports/service-profitability) to inspect underlying invoice snapshots, cost allocations, and period trends.`,
+  ].filter(Boolean).join("\n\n");
+
+  return {
+    status: analysis.services.length === 0 ? "empty" : "ok",
+    intentType: "operational_report",
+    moduleId: "reports",
+    title: sectionTitle,
+    summary: `Total Gross Profit: ${formatNgn(analysis.totals.totalGrossProfit)} (${analysis.totals.overallGrossMarginPercent}% margin).`,
+    markdown,
+    metrics: [
+      { label: "Recognized Revenue", value: formatNgn(analysis.totals.totalServiceRevenue), tone: "blue" },
+      { label: "Direct Service Costs", value: formatNgn(analysis.totals.totalDirectCosts), tone: "rose" },
+      { label: "Gross Profit", value: formatNgn(analysis.totals.totalGrossProfit), tone: analysis.totals.totalGrossProfit >= 0 ? "emerald" : "rose" },
+      { label: "Gross Margin", value: `${analysis.totals.overallGrossMarginPercent}%`, tone: analysis.totals.overallGrossMarginPercent >= 25 ? "emerald" : "amber" },
+    ],
+    table: {
+      caption: sectionTitle,
+      headers: ["Service Name", "Completed Jobs", "Recognized Revenue", "Direct Costs", "Gross Profit", "Margin %"],
+      rows: targetedServices.slice(0, 10).map((s) => [
+        s.serviceName,
+        formatCount(s.completedCount),
+        formatNgn(s.recognizedServiceRevenue),
+        formatNgn(s.totalDirectCosts),
+        formatNgn(s.grossProfit),
+        `${s.grossProfitMarginPercent}%`,
+      ]),
+    },
+    links: resolveAuthorizedLinks(caller, ["reports", "invoices", "services_catalog"]),
+    followUpSuggestions: [
+      "Which services have the lowest profit margins?",
+      "What is our projected cash balance at the end of this month?",
+      "Which clients have annual returns due in the next 30 days?",
+    ],
+    sourceMeta: {
+      tablesQueried: ["services_catalog", "service_requests", "invoices", "invoice_items", "expenses"],
+      sourcesLabel: formatFriendlySourceNames(["services_catalog", "invoices", "expenses"]),
+      reportingPeriodLabel: "All Evaluated Records",
+      timezone: ABILITY_TIMEZONE,
+      fetchedAtIso: now.toISOString(),
+      fetchedAtFormatted: formatDateTimeLagos(now),
+      roleApplied: caller.role,
+      scopeDescription: "Service profitability and cost attribution",
+    },
+  };
+}
+
+/**
+ * Cash Flow Forecasting & Financial Planning (Phase 7 AI Secretary Query)
+ */
+async function handleCashFlowForecastAssistantReport(
+  intent: ClassifiedIntent,
+  caller: AssistantCallerContext,
+  adapter: AssistantDataAdapter,
+  now: Date,
+  prefix: string,
+  context: ConversationContext
+): Promise<AssistantResponsePayload> {
+  if (!caller.permissions.includes("finance.view") && !caller.permissions.includes("reports.view")) {
+    return buildPermissionDeniedPayload(caller, "invoices", intent, now);
+  }
+
+  const [payRes, expRes, invRes, srRes, catRes, projRes, budRes] = await Promise.all([
+    adapter.queryTable("payments", { orderBy: { column: "payment_date", ascending: false }, limit: 500 }),
+    adapter.queryTable("expenses", { orderBy: { column: "expense_date", ascending: false }, limit: 500 }),
+    adapter.queryTable("invoices", { orderBy: { column: "due_date", ascending: true }, limit: 500 }),
+    adapter.queryTable("service_requests", { limit: 500 }),
+    adapter.queryTable("services_catalog", { limit: 200 }),
+    adapter.queryTable("projected_expenses", { limit: 200 }),
+    adapter.queryTable("financial_budgets", { limit: 100 }),
+  ]);
+
+  if (invRes.error) return buildErrorOrSchemaPayload(caller, "invoices", intent, "invoices", invRes.error, now);
+  if (payRes.error) return buildErrorOrSchemaPayload(caller, "payments", intent, "payments", payRes.error, now);
+
+  const currentCash = calculateCurrentCashPosition(payRes.data || [], expRes.data || [], 0);
+  const forecast = generateCashFlowForecast({
+    currentCashPosition: currentCash,
+    invoices: invRes.data || [],
+    serviceRequests: srRes.data || [],
+    servicesCatalog: catRes.data || [],
+    projectedExpenses: (projRes.data || []) as any,
+    scenarioConfig: DEFAULT_SCENARIOS.expected,
+    referenceNow: now,
+  });
+
+  const q = intent.normalizedQuery.toLowerCase();
+  const isBudgetQuery = /\b(budget|budget vs actual|against our monthly budget)\b/i.test(q);
+  const isOverdueInvoiceQuery = /\b(overdue invoice|which invoices are overdue)\b/i.test(q);
+  const isWeeklyCollectionQuery = /\b(this week|weekly collection|collections are expected this week)\b/i.test(q);
+  const isShortageQuery = /\b(cash shortage|shortage in the next 30 days|shortage)\b/i.test(q);
+  const isLargestExpensesQuery = /\b(largest projected expense|largest expense)\b/i.test(q);
+  const isScenarioQuery = /\b(conservative|optimistic|scenario compare)\b/i.test(q);
+
+  let sectionTitle = "Treasury & Cash Flow Forecast";
+  let content = "";
+
+  if (isBudgetQuery) {
+    const currentMonthKey = now.toISOString().slice(0, 7);
+    const budgetSummary = calculateBudgetVsActual({
+      periodKey: currentMonthKey,
+      budgets: (budRes.data || []) as any,
+      payments: payRes.data || [],
+      expenses: expRes.data || [],
+    });
+    sectionTitle = `Monthly Budget Performance (${currentMonthKey})`;
+    content = `For **${currentMonthKey}**, actual verified cash revenue stands at **${formatNgn(budgetSummary.totalActualIncome)}** (against budgeted income of **${formatNgn(budgetSummary.totalBudgetedIncome)}**). Actual operating expenses incurred total **${formatNgn(budgetSummary.totalActualExpense)}** (budgeted limit: **${formatNgn(budgetSummary.totalBudgetedExpense)}**), delivering a **Net Operating Surplus of ${formatNgn(budgetSummary.actualNetSurplus)}** (variance: **${budgetSummary.surplusVariance >= 0 ? "+" : ""}${formatNgn(budgetSummary.surplusVariance)}**).`;
+  } else if (isOverdueInvoiceQuery) {
+    const overdueList = forecast.expectedCollections.filter((c) => c.isOverdue);
+    sectionTitle = "Overdue Invoices Requiring Collection";
+    content = overdueList.length === 0
+      ? "There are currently no overdue invoices in the ledger. All active receivables are within their agreed credit terms."
+      : `Found **${formatCount(overdueList.length)} overdue invoice(s)** with a combined outstanding balance of **${formatNgn(overdueList.reduce((sum, c) => sum + c.balanceDue, 0))}**. Immediate follow-up is recommended to protect operating liquidity.`;
+  } else if (isWeeklyCollectionQuery) {
+    const week1 = forecast.weeklyBreakdown[0];
+    sectionTitle = "Expected Collections for This Week";
+    content = `For the current week (${week1?.startDate} to ${week1?.endDate}), expected cash inflows total **${formatNgn(week1?.expectedCollections || 0)}** from active invoice milestones. Scheduled disbursements for the week are **${formatNgn(week1?.projectedExpenses || 0)}**, yielding a projected end-of-week cash balance of **${formatNgn(week1?.projectedClosingBalance || currentCash)}**.`;
+  } else if (isShortageQuery) {
+    sectionTitle = "Cash Liquidity & Shortage Assessment";
+    content = forecast.horizon30Days.hasShortageRisk
+      ? `**Attention:** A potential cash reserve deficit is projected in the next 30 days. The closing balance is forecast at **${formatNgn(forecast.horizon30Days.projectedClosingBalance)}** (₦${forecast.horizon30Days.shortageDeficit.toLocaleString()} below safety reserve threshold). Management should expedite high-value collections.`
+      : `**Liquidity Healthy:** No cash shortages are anticipated in the next 30 days under baseline assumptions. Current cash position is **${formatNgn(currentCash)}**, and closing cash is projected at **${formatNgn(forecast.horizon30Days.projectedClosingBalance)}** after expected inflows of **${formatNgn(forecast.horizon30Days.expectedCollections)}** and planned expenses of **${formatNgn(forecast.horizon30Days.projectedExpenses)}**.`;
+  } else if (isLargestExpensesQuery) {
+    sectionTitle = "Largest Projected Operational Expenses";
+    const topExp = [...forecast.projectedExpenses].sort((a, b) => b.amount - a.amount).slice(0, 5);
+    content = `Top scheduled operational commitments over the forecast period include: ${topExp.map((e: any) => `**${e.description}** (${formatNgn(e.amount)} due ${e.effectiveDate || e.expected_payment_date})`).join(", ")}.`;
+  } else if (isScenarioQuery) {
+    sectionTitle = "Cash Flow Scenario Comparison";
+    content = `Under the **Expected Baseline**, the projected 30-day closing cash balance is **${formatNgn(forecast.scenarioComparisons.expectedClosingBalance30d)}**. Under the **Conservative Stress-Test Scenario** (assuming lower collection confidence and 14-day payment delays), the 30-day closing cash balance is projected at **${formatNgn(forecast.scenarioComparisons.conservativeClosingBalance30d)}** (90-day: **${formatNgn(forecast.scenarioComparisons.conservativeClosingBalance90d)}**). Under the **Optimistic Scenario**, 30-day closing cash reaches **${formatNgn(forecast.scenarioComparisons.optimisticClosingBalance30d)}**.`;
+  } else {
+    content = `Current recorded cash position is **${formatNgn(currentCash)}**. At the end of this month (next 30 days), the projected closing cash balance is **${formatNgn(forecast.horizon30Days.projectedClosingBalance)}**, based on expected collections of **${formatNgn(forecast.horizon30Days.expectedCollections)}** from outstanding invoices and scheduled disbursements of **${formatNgn(forecast.horizon30Days.projectedExpenses)}**.`;
+  }
+
+  const markdown = [
+    prefix + `### ${sectionTitle}`,
+    content,
+    `#### Recommended Treasury Action`,
+    `- View the full breakdown, adjust collection parameters, or record upcoming recurring overhead in [Cash Flow Forecast](/admin/finance/cash-flow-forecast).`,
+  ].join("\n\n");
+
+  return {
+    status: "ok",
+    intentType: "operational_report",
+    moduleId: "invoices",
+    title: sectionTitle,
+    summary: `Current Cash: ${formatNgn(currentCash)} · Projected 30d Closing: ${formatNgn(forecast.horizon30Days.projectedClosingBalance)}`,
+    markdown,
+    metrics: [
+      { label: "Current Cash Position", value: formatNgn(currentCash), tone: "blue" },
+      { label: "Expected Collections (30d)", value: formatNgn(forecast.horizon30Days.expectedCollections), tone: "emerald" },
+      { label: "Projected Expenses (30d)", value: formatNgn(forecast.horizon30Days.projectedExpenses), tone: "rose" },
+      { label: "Projected Closing (30d)", value: formatNgn(forecast.horizon30Days.projectedClosingBalance), tone: forecast.horizon30Days.projectedClosingBalance >= 0 ? "purple" : "rose" },
+    ],
+    table: {
+      caption: "Outstanding Invoice Collections Snapshot",
+      headers: ["Invoice #", "Client Name", "Balance Due", "Due Date", "Expected Date", "Status"],
+      rows: forecast.expectedCollections.slice(0, 8).map((c) => [
+        c.invoiceNumber,
+        c.clientName,
+        formatNgn(c.balanceDue),
+        c.dueDate,
+        c.expectedPaymentDate,
+        c.isOverdue ? "Overdue" : "On Track",
+      ]),
+    },
+    links: resolveAuthorizedLinks(caller, ["invoices", "payments", "expenses", "reports"]),
+    followUpSuggestions: [
+      "Are we likely to experience a cash shortage in the next 30 days?",
+      "Which five services generated the highest gross profit in the last three months?",
+      "Which clients have annual returns due in the next 30 days?",
+    ],
+    sourceMeta: {
+      tablesQueried: ["payments", "expenses", "invoices", "service_requests", "projected_expenses"],
+      sourcesLabel: formatFriendlySourceNames(["payments", "invoices", "expenses", "projected_expenses"]),
+      reportingPeriodLabel: "Forecast Horizon (30–180 Days)",
+      timezone: ABILITY_TIMEZONE,
+      fetchedAtIso: now.toISOString(),
+      fetchedAtFormatted: formatDateTimeLagos(now),
+      roleApplied: caller.role,
+      scopeDescription: "Treasury cash flow forecast & scenario planning",
+    },
+  };
+}
+
+/**
+ * Annual Compliance & Recurring Service Management (Phase 8 AI Secretary Query)
+ */
+async function handleComplianceManagementAssistantReport(
+  intent: ClassifiedIntent,
+  caller: AssistantCallerContext,
+  adapter: AssistantDataAdapter,
+  now: Date,
+  prefix: string,
+  context: ConversationContext
+): Promise<AssistantResponsePayload> {
+  const [obRes, bizRes, svcRes] = await Promise.all([
+    adapter.queryTable("compliance_obligations", { orderBy: { column: "due_date", ascending: true }, limit: 300 }),
+    adapter.queryTable("businesses", { limit: 300 }),
+    adapter.queryTable("services_catalog", { limit: 100 }),
+  ]);
+
+  const obligations = (obRes.data || []) as any[];
+  const summary = computeComplianceSummary(obligations, now);
+
+  const q = intent.normalizedQuery.toLowerCase();
+  const isDueIn30DaysQuery = /\b(next 30 days|due in 30 days|due soon)\b/i.test(q);
+  const isRecurringFollowUpQuery = /\b(recurring|follow[- ]?up|opportunities)\b/i.test(q);
+  const isManagementAttentionQuery = /\b(management attention|attention today|most important)\b/i.test(q);
+
+  let sectionTitle = "Corporate Compliance & Annual Returns";
+  let content = "";
+  let focusObligations = obligations;
+
+  if (isDueIn30DaysQuery) {
+    sectionTitle = "Clients with Annual Returns & Compliance Due in 30 Days";
+    focusObligations = obligations.filter((o) => {
+      if (o.status === "completed" || o.status === "exempt") return false;
+      const { daysDiff, isOverdue } = calculateComplianceDeadlineStatus(o.due_date, o.status, now);
+      return !isOverdue && daysDiff <= 30;
+    });
+    content = focusObligations.length === 0
+      ? "There are currently no statutory compliance deadlines falling due within the next 30 days."
+      : `Found **${formatCount(focusObligations.length)} client compliance obligation(s)** due within the next 30 days. Proactive client communication is recommended to secure filing particulars before statutory penalty windows open.`;
+  } else if (isRecurringFollowUpQuery) {
+    sectionTitle = "Recurring Compliance Services Requiring Follow-Up";
+    focusObligations = obligations.filter((o) => ["identified", "contacted", "interested"].includes(o.opportunity_status));
+    content = focusObligations.length === 0
+      ? "All identified recurring compliance opportunities have been contacted or converted."
+      : `Found **${formatCount(focusObligations.length)} recurring service opportunity(ies)** awaiting client outreach or quotation. Staff should engage these clients to renew annual returns and statutory compliance filings.`;
+  } else if (isManagementAttentionQuery) {
+    sectionTitle = "Key Matters Requiring Management Attention Today";
+    content = [
+      `Management oversight summary for **${formatDateTimeLagos(now)}**:`,
+      `- **Overdue Statutory Filings:** ${formatCount(summary.overdueCount)} client obligation(s) are past their statutory due date.`,
+      `- **Upcoming Deadlines (Next 30 Days):** ${formatCount(summary.dueNext30Days)} filing deadline(s) approaching.`,
+      `- **Recurring Service Opportunities:** ${formatCount(summary.recurringOpportunitiesIdentified)} client(s) ready for annual compliance engagement.`,
+      summary.requiresVerificationCount > 0
+        ? `- **Statutory Rule Verification:** ${formatCount(summary.requiresVerificationCount)} compliance rule(s) marked as needing legal verification.`
+        : "- **Statutory Verification:** All active compliance rules verified against current CAMA 2020 guidelines.",
+    ].join("\n");
+  } else {
+    content = `ABLEBIZ is actively monitoring **${formatCount(summary.totalActiveObligations)}** client compliance obligation(s). **${formatCount(summary.dueNext30Days)}** are due within the next 30 days, **${formatCount(summary.overdueCount)}** are overdue, and **${formatCount(summary.recurringOpportunitiesIdentified)}** recurring service opportunities have been identified for client engagement.`;
+  }
+
+  const markdown = [
+    prefix + `### ${sectionTitle}`,
+    content,
+    `#### Recommended Action`,
+    `- Open [Compliance Calendar](/admin/compliance-calendar) to dispatch client WhatsApp/email reminders or assign operational tasks.`,
+  ].join("\n\n");
+
+  return {
+    status: obligations.length === 0 ? "empty" : "ok",
+    intentType: "operational_report",
+    moduleId: "businesses",
+    title: sectionTitle,
+    summary: `${summary.dueNext30Days} due in 30d · ${summary.overdueCount} overdue · ${summary.recurringOpportunitiesIdentified} opportunities.`,
+    markdown,
+    metrics: [
+      { label: "Due in 30 Days", value: formatCount(summary.dueNext30Days), tone: summary.dueNext30Days > 0 ? "amber" : "emerald" },
+      { label: "Due in 60 Days", value: formatCount(summary.dueNext60Days), tone: "blue" },
+      { label: "Overdue Filings", value: formatCount(summary.overdueCount), tone: summary.overdueCount > 0 ? "rose" : "emerald" },
+      { label: "Recurring Opportunities", value: formatCount(summary.recurringOpportunitiesIdentified), tone: "purple" },
+    ],
+    table: {
+      caption: "Client Compliance Obligations",
+      headers: ["Obligation Name", "Due Date", "Deadline Status", "Opportunity Status"],
+      rows: focusObligations.slice(0, 10).map((o) => {
+        const { statusLabel } = calculateComplianceDeadlineStatus(o.due_date, o.status, now);
+        return [
+          o.obligation_name,
+          o.due_date,
+          statusLabel,
+          formatReadableLabel(o.opportunity_status, "Identified"),
+        ];
+      }),
+    },
+    links: resolveAuthorizedLinks(caller, ["businesses", "service_requests", "tasks"]),
+    followUpSuggestions: [
+      "Which recurring compliance services require follow-up?",
+      "What are the most important financial and compliance matters requiring management attention today?",
+      "What is our projected cash balance at the end of this month?",
+    ],
+    sourceMeta: {
+      tablesQueried: ["compliance_obligations", "businesses"],
+      sourcesLabel: formatFriendlySourceNames(["compliance_obligations", "businesses"]),
+      reportingPeriodLabel: "Dynamic Africa/Lagos Horizon",
+      timezone: ABILITY_TIMEZONE,
+      fetchedAtIso: now.toISOString(),
+      fetchedAtFormatted: formatDateTimeLagos(now),
+      roleApplied: caller.role,
+      scopeDescription: "Annual compliance, statutory return deadlines, and recurring opportunities",
+    },
+  };
+}
 async function handleFinanceOperationalReport(
   intent: ClassifiedIntent,
   caller: AssistantCallerContext,

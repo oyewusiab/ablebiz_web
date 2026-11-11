@@ -43,6 +43,7 @@ export type SuiteModuleId =
   | "settings"
   | "account_security"
   | "change_password"
+  | "compliance"
   | "general";
 
 export type AssistantTopicFilterId =

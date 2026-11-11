@@ -1396,6 +1396,10 @@ const FRIENDLY_SOURCE_LABELS: Record<string, string> = {
   business_profile: "Company Profile Settings",
   business_bank_accounts: "Settlement Bank Accounts",
   notifications: "Staff Notifications",
+  compliance_obligations: "Statutory Compliance Records",
+  compliance_rules: "Regulatory Compliance Standards",
+  projected_expenses: "Projected Expense Schedule",
+  financial_budgets: "Financial Budgets",
 };
 
 /**
