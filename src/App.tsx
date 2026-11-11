@@ -55,6 +55,9 @@ import { ComplianceCalendarPage } from "./pages/admin/ComplianceCalendar";
 import { AppointmentsPage } from "./pages/admin/Appointments";
 import { ServiceQualityPage } from "./pages/admin/ServiceQuality";
 import { StaffPerformancePage } from "./pages/admin/StaffPerformance";
+import { KnowledgeBasePage } from "./pages/admin/KnowledgeBase";
+import { ApprovalsPage } from "./pages/admin/Approvals";
+import { ExecutiveDashboardPage } from "./pages/admin/ExecutiveDashboard";
 import { BookConsultationPage } from "./pages/BookConsultation";
 import { ClientFeedbackPage } from "./pages/ClientFeedback";
 import { BusinessProfileProvider } from "./lib/businessProfileContext";
@@ -106,6 +109,12 @@ export default function App() {
             <Route path="sla-settings" element={<ProtectedRoute requiredModule="operations"><SlaSettingsPage /></ProtectedRoute>} />
             <Route path="workflows" element={<ProtectedRoute requiredModule="operations"><WorkflowsPage /></ProtectedRoute>} />
             <Route path="documents" element={<ProtectedRoute requiredModule="operations"><DocumentsPage /></ProtectedRoute>} />
+            {/* Phase 12 Knowledge Base & SOP Management */}
+            <Route path="knowledge-base" element={<ProtectedRoute><KnowledgeBasePage /></ProtectedRoute>} />
+            <Route path="sops" element={<Navigate to="/admin/knowledge-base?tab=sops" replace />} />
+            {/* Phase 13 Approval & Decision Management */}
+            <Route path="approvals" element={<ProtectedRoute><ApprovalsPage /></ProtectedRoute>} />
+            <Route path="approval-rules" element={<Navigate to="/admin/approvals?tab=rules" replace />} />
             {/* Finance Routes */}
             <Route path="quotations" element={<ProtectedRoute requiredModule="finance"><QuotationsPage /></ProtectedRoute>} />
             <Route path="invoices" element={<ProtectedRoute requiredModule="finance"><InvoicesPage /></ProtectedRoute>} />
@@ -136,6 +145,8 @@ export default function App() {
             {/* Referrals & Reports & Campaigns */}
             <Route path="campaigns" element={<ProtectedRoute><AdminCampaigns /></ProtectedRoute>} />
             <Route path="referrals" element={<ProtectedRoute><AdminReferrals /></ProtectedRoute>} />
+            {/* Phase 14 Business Intelligence & Executive Dashboard */}
+            <Route path="executive-dashboard" element={<ProtectedRoute requiredRole={["super_admin", "admin", "operations_manager"]}><ExecutiveDashboardPage /></ProtectedRoute>} />
             <Route path="reports" element={<ProtectedRoute requiredModule="reports"><AdminReports /></ProtectedRoute>} />
             <Route path="reports/service-profitability" element={<ProtectedRoute requiredModule="reports"><ServiceProfitabilityPage /></ProtectedRoute>} />
             <Route path="service-profitability" element={<ProtectedRoute requiredModule="reports"><ServiceProfitabilityPage /></ProtectedRoute>} />

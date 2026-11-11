@@ -47,6 +47,9 @@ export type SuiteModuleId =
   | "appointments"
   | "service_quality"
   | "staff_performance"
+  | "knowledge_base"
+  | "approvals"
+  | "executive_dashboard"
   | "general";
 
 export type AssistantTopicFilterId =
@@ -57,6 +60,8 @@ export type AssistantTopicFilterId =
   | "referrals_crm"
   | "staff_hr"
   | "hr"
+  | "knowledge_base"
+  | "approvals"
   | "suite_guide";
 
 export type AssistantIntentType =

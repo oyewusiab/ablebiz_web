@@ -74,6 +74,10 @@ function mapTopicHintToModule(topicHint?: AssistantTopicFilterId): SuiteModuleId
       return "referrals";
     case "staff_hr":
       return "hr";
+    case "knowledge_base":
+      return "knowledge_base";
+    case "approvals":
+      return "approvals";
     default:
       return undefined;
   }
@@ -89,6 +93,34 @@ export function detectModuleFromText(
   fallbackModule?: SuiteModuleId
 ): { moduleId: SuiteModuleId; subIntent?: string; explicitMatch: boolean } {
   const q = normalizedQuery.toLowerCase();
+
+  // 0a. Knowledge Base & Standard Operating Procedures (Phase 12)
+  if (
+    /\b(knowledge base|sop|sops|procedure for|process for|what is our process|what is our procedure|how should staff|what documents are required|how do we register|statutory procedure|official protocol|approved process)\b/.test(
+      q
+    )
+  ) {
+    return { moduleId: "knowledge_base", subIntent: "search", explicitMatch: true };
+  }
+
+  // 0b. Approvals & Decision Management (Phase 13)
+  if (
+    !/\bstaff approval\b/.test(q) &&
+    /\b(approval|approvals|pending approval|maker[- ]?checker|awaiting approval|awaiting management action|approval request|approval rules|who approved|expense approval|refund approval)\b/.test(
+      q
+    )
+  ) {
+    return { moduleId: "approvals", subIntent: "summary", explicitMatch: true };
+  }
+
+  // 0c. Business Intelligence & Executive Dashboard (Phase 14)
+  if (
+    /\b(executive dashboard|business performance|how is ablebiz performing|how are we performing|outstanding receivables balance|operational bottlenecks|receivables balance|revenue this quarter|collection rate this month|financial health this month)\b/.test(
+      q
+    )
+  ) {
+    return { moduleId: "executive_dashboard", subIntent: "performance", explicitMatch: true };
+  }
 
   // 1. HR & Staff Leave / Attendance / HR Documents / Announcements
   if (

@@ -718,6 +718,172 @@ export const SUITE_GUIDE_TOPICS: GuideTopicEntry[] = [
       { label: "Show services catalogue", prompt: "List the active services in our Services Catalogue." },
     ],
   },
+
+  {
+    id: "guide_knowledge_base",
+    moduleId: "knowledge_base",
+    title: "How to Search, Create, and Publish in the Knowledge Base & SOP Repository",
+    route: "/admin/knowledge-base",
+    routeLabel: "Knowledge Base & SOPs",
+    keywords: [
+      "knowledge base",
+      "sop",
+      "sops",
+      "standard operating procedure",
+      "create article",
+      "publish article",
+      "revision history",
+      "statutory procedure",
+    ],
+    questionPatterns: [
+      /how\s+(?:do\s+i|to|can\s+i)\s+(?:use|search|create|publish|edit|update)\s+(?:the\s+)?(?:knowledge\s+base|sop|article|procedure)/i,
+      /knowledge\s+base\s+workflow/i,
+    ],
+    summary:
+      "The **Internal Knowledge Base & SOP Management** workspace (`/admin/knowledge-base`) is the authoritative repository of ABLEBIZ standard operating procedures, CAC registration instructions, compliance guides, and office policies.",
+    prerequisites: [
+      "All active staff can browse published SOPs and create draft articles.",
+      "Publishing or restoring revisions requires `Super Admin`, `Admin`, or `Operations Manager` role.",
+    ],
+    steps: [
+      "Open **OPERATIONS → Knowledge Base & SOPs** (`/admin/knowledge-base`).",
+      "To search for procedures, type keywords or select a category pill (e.g., Company Registration, NGO, Finance, Client Care).",
+      "Click **Create Article** to write a new procedure or checklist. Enter Title, Category, Summary, Content, and Tags.",
+      "Save as **Draft** or click **Submit for Review** to queue it for management sign-off.",
+      "Authorized managers review submitted procedures and click **Approve & Publish** to make them authoritative across the organization.",
+      "Editing an approved document creates a new formal revision without silently overwriting previous versions.",
+    ],
+    requiredFieldsAndValidation: [
+      "Document **Title** and **Content** are mandatory.",
+      "Modifying an already-published document requires a **Summary of Changes** for revision auditability.",
+    ],
+    postSubmissionBehavior: [
+      "New documents enter `draft` status and are assigned a tracking code (e.g. `KB-001` or `SOP-001`).",
+      "Approved and published articles become immediate authoritative grounding for staff and the AI Secretary.",
+    ],
+    roleAndApprovalRules: [
+      "**Read Access:** All active staff for published articles; restricted articles respect designated target roles.",
+      "**Creation / Drafts:** All active staff.",
+      "**Approval & Publication:** `Super Admin`, `Admin`, `Operations Manager` (operational SOPs).",
+    ],
+    troubleshootingMissingOrFailed: [
+      "If you cannot see a document, verify whether it has been approved and published or if your role is excluded by its target audience settings.",
+    ],
+    relatedPrompts: [
+      { label: "Company registration SOP", prompt: "What is our process for registering a company?" },
+      { label: "NGO registration procedure", prompt: "What documents are required for NGO registration?" },
+      { label: "Client complaints protocol", prompt: "What is our procedure for handling client complaints?" },
+    ],
+  },
+
+  {
+    id: "guide_approvals_center",
+    moduleId: "approvals",
+    title: "How to Submit and Decide Approval Requests with Maker-Checker Controls",
+    route: "/admin/approvals",
+    routeLabel: "Approval & Decision Management",
+    keywords: [
+      "approval",
+      "approvals",
+      "maker checker",
+      "maker-checker",
+      "expense approval",
+      "refund approval",
+      "discount approval",
+      "decision management",
+    ],
+    questionPatterns: [
+      /how\s+(?:do\s+i|to|can\s+i)\s+(?:submit|approve|reject|request)\s+(?:an?\s+)?(?:approval|refund|expense|discount)/i,
+      /approval\s+center\s+workflow/i,
+    ],
+    summary:
+      "The **Approval & Decision Management** engine (`/admin/approvals`) enforces strict **maker-checker accountability** across financial disbursements, client refunds, quotation discounts, and sensitive operational decisions.",
+    prerequisites: [
+      "Active staff profile required.",
+      "Approvers must hold the designated authority role (e.g., `Super Admin`, `Admin`, `Accounts Officer`, or `Operations Manager`).",
+    ],
+    steps: [
+      "Open **TEAM → Approvals** (`/admin/approvals`) or click **Request Approval** from an originating module (Invoices, Quotations, Expenses, CAC Operations).",
+      "Click **New Approval Request**, select the **Category** (`Finance`, `Commercial`, `Operations`, `Administration`), enter Title, Description, Amount, and Business Justification.",
+      "Attach optional supporting document URLs or receipts.",
+      "Submit the request. Track its progress in the **Requests I Submitted** tab.",
+      "Authorized approvers review pending items in **My Pending Approvals**, inspect justification and audit history, and click **Approve**, **Reject**, or **Return for Revision** with mandatory remarks.",
+      "**Maker-Checker Rule**: The system strictly prevents requesters from approving their own submissions.",
+    ],
+    requiredFieldsAndValidation: [
+      "**Title**, **Description**, and **Business Justification** are mandatory.",
+      "**Decision Comments** are mandatory for every decision (Approve, Reject, Return).",
+      "**Maker-Checker**: Requester ID cannot match Decision Maker ID on approval.",
+    ],
+    postSubmissionBehavior: [
+      "Creates an immutable record in `public.approval_decision_history` and logs the action to `public.audit_logs`.",
+      "Dispatches an internal notification to the requester upon decision.",
+    ],
+    roleAndApprovalRules: [
+      "**Expense Approval:** `Accounts Officer`, `Admin`, `Super Admin`.",
+      "**Client Refunds & Write-Offs:** Requires two-stage review; final sign-off exclusively `Super Admin` / `Admin`.",
+      "**Quotation Discounts:** `Admin` / `Super Admin`.",
+    ],
+    troubleshootingMissingOrFailed: [
+      "If the **Approve** button is disabled, verify that you are not the requester of the item (blocked by maker-checker safeguard).",
+    ],
+    relatedPrompts: [
+      { label: "Pending approvals", prompt: "What approvals are pending management action?" },
+      { label: "Approval rules", prompt: "What are our active approval rules?" },
+    ],
+  },
+
+  {
+    id: "guide_executive_dashboard",
+    moduleId: "executive_dashboard",
+    title: "How to Use the Business Intelligence & Executive Dashboard",
+    route: "/admin/executive-dashboard",
+    routeLabel: "Executive Dashboard",
+    keywords: [
+      "executive dashboard",
+      "business intelligence",
+      "organizational health",
+      "kpi",
+      "cash profit",
+      "turnaround time",
+    ],
+    questionPatterns: [
+      /how\s+(?:do\s+i|to|can\s+i)\s+(?:use|read|interpret)\s+(?:the\s+)?(?:executive\s+dashboard|business\s+intelligence|kpi)/i,
+    ],
+    summary:
+      "The **Executive Dashboard** (`/admin/executive-dashboard`) provides consolidated management intelligence, separating actual cash collected from invoiced revenue, tracking statutory bottlenecks, and monitoring organizational health.",
+    prerequisites: [
+      "Strictly restricted to `Super Admin`, `Admin`, and `Operations Manager` roles.",
+      "Finance metrics are scoped to authorized roles.",
+    ],
+    steps: [
+      "Open **REPORTING → Executive Dashboard** (`/admin/executive-dashboard`).",
+      "Use the period selector to filter metrics for **Today**, **This Week**, **This Month**, **This Quarter**, or **This Year** in `Africa/Lagos` time.",
+      "Review the **Organizational Health Index** (composite score evaluated across active dimensions).",
+      "Inspect **Financial Health** for verified cash margin vs uncollected receivables (A/R).",
+      "Analyze **Operational Health** to identify bottlenecks awaiting client documents versus statutory registry clearance.",
+      "Inspect **Pending Approvals** to take immediate action on high-priority items.",
+    ],
+    requiredFieldsAndValidation: [
+      "Zero-denominator safeguards prevent mathematical errors or false trends.",
+      "Projections and forecasts are strictly labeled and kept separate from verified cash actuals.",
+    ],
+    postSubmissionBehavior: [
+      "Read-only aggregation dashboard; drill-down links direct users to source operational modules.",
+    ],
+    roleAndApprovalRules: [
+      "**Access:** `Super Admin`, `Admin`, `Operations Manager`.",
+      "**Confidentiality:** Detailed financial balances are masked for non-finance roles.",
+    ],
+    troubleshootingMissingOrFailed: [
+      "If you receive an authorization notice, your current staff role is not authorized for executive dashboard access.",
+    ],
+    relatedPrompts: [
+      { label: "Executive business summary", prompt: "How is ABLEBIZ performing this month?" },
+      { label: "Outstanding receivables", prompt: "What is our current outstanding receivables balance?" },
+      { label: "Operational bottlenecks", prompt: "What are our major operational bottlenecks?" },
+    ],
+  },
 ];
 
 /**

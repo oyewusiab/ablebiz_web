@@ -328,6 +328,27 @@ export function getContextualFollowUpQuestions(
   const candidates: { prompt: string; moduleId: SuiteModuleId; requiresFinance?: boolean }[] = [];
 
   switch (moduleId) {
+    case "knowledge_base":
+      candidates.push(
+        { prompt: "What is our process for registering a company?", moduleId: "knowledge_base" },
+        { prompt: "What documents are required for NGO registration?", moduleId: "knowledge_base" },
+        { prompt: "What is our procedure for handling client complaints?", moduleId: "knowledge_base" }
+      );
+      break;
+    case "approvals":
+      candidates.push(
+        { prompt: "What approvals are pending management action?", moduleId: "approvals" },
+        { prompt: "Are there any expense requests awaiting my approval?", moduleId: "approvals" },
+        { prompt: "What are our active approval rules?", moduleId: "approvals" }
+      );
+      break;
+    case "executive_dashboard":
+      candidates.push(
+        { prompt: "How is ABLEBIZ performing this month?", moduleId: "executive_dashboard" },
+        { prompt: "What is our current outstanding receivables balance?", moduleId: "executive_dashboard" },
+        { prompt: "How many service requests are overdue?", moduleId: "executive_dashboard" }
+      );
+      break;
     case "cac_operations":
       candidates.push(
         { prompt: "Which CAC applications are currently queried or stalled?", moduleId: "cac_operations" },

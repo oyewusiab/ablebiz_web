@@ -109,6 +109,9 @@ const DEFAULT_ROLE_MODULES: Record<string, Record<string, string[]>> = {
     hr: ["view", "create", "edit", "delete", "approve", "export"],
     settings: ["view", "create", "edit", "delete", "approve", "export"],
     reports: ["view", "export"],
+    knowledge_base: ["view", "create", "edit", "delete", "approve", "export"],
+    approvals: ["view", "create", "edit", "delete", "approve", "export"],
+    executive_dashboard: ["view", "export"],
   },
   managing_director: {
     workbench: ["view", "create", "edit", "delete", "approve", "export"],
@@ -119,6 +122,9 @@ const DEFAULT_ROLE_MODULES: Record<string, Record<string, string[]>> = {
     hr: ["view", "create", "edit", "delete", "approve", "export"],
     settings: ["view", "create", "edit", "delete", "approve", "export"],
     reports: ["view", "export"],
+    knowledge_base: ["view", "create", "edit", "delete", "approve", "export"],
+    approvals: ["view", "create", "edit", "delete", "approve", "export"],
+    executive_dashboard: ["view", "export"],
   },
   admin: {
     workbench: ["view", "create", "edit", "approve", "export"],
@@ -129,6 +135,9 @@ const DEFAULT_ROLE_MODULES: Record<string, Record<string, string[]>> = {
     hr: ["view", "create", "edit", "approve", "export"],
     settings: ["view", "edit"],
     reports: ["view", "export"],
+    knowledge_base: ["view", "create", "edit", "approve", "export"],
+    approvals: ["view", "create", "edit", "approve", "export"],
+    executive_dashboard: ["view", "export"],
   },
   operations_manager: {
     workbench: ["view", "create", "edit", "approve", "export"],
@@ -137,12 +146,17 @@ const DEFAULT_ROLE_MODULES: Record<string, Record<string, string[]>> = {
     finance: ["view"],
     hr: ["view", "approve"],
     reports: ["view", "export"],
+    knowledge_base: ["view", "create", "edit", "approve", "export"],
+    approvals: ["view", "create", "edit", "approve"],
+    executive_dashboard: ["view", "export"],
   },
   registration_officer: {
     workbench: ["view", "edit"],
     operations: ["view", "create", "edit"],
     hr: ["view", "create"],
     reports: ["view"],
+    knowledge_base: ["view", "create", "edit"],
+    approvals: ["view", "create"],
   },
   compliance_officer: {
     workbench: ["view", "edit"],
@@ -150,6 +164,8 @@ const DEFAULT_ROLE_MODULES: Record<string, Record<string, string[]>> = {
     crm: ["view"],
     hr: ["view", "create"],
     reports: ["view"],
+    knowledge_base: ["view", "create", "edit"],
+    approvals: ["view", "create"],
   },
   legal_officer: {
     workbench: ["view", "edit"],
@@ -157,6 +173,8 @@ const DEFAULT_ROLE_MODULES: Record<string, Record<string, string[]>> = {
     crm: ["view"],
     hr: ["view", "create"],
     reports: ["view"],
+    knowledge_base: ["view", "create", "edit"],
+    approvals: ["view", "create"],
   },
   accounts_officer: {
     workbench: ["view", "edit", "export"],
@@ -164,6 +182,8 @@ const DEFAULT_ROLE_MODULES: Record<string, Record<string, string[]>> = {
     operations: ["view"],
     hr: ["view", "create"],
     reports: ["view", "export"],
+    knowledge_base: ["view", "create", "edit"],
+    approvals: ["view", "create", "edit", "approve"],
   },
   accountant: {
     workbench: ["view", "edit", "export"],
@@ -171,6 +191,8 @@ const DEFAULT_ROLE_MODULES: Record<string, Record<string, string[]>> = {
     operations: ["view"],
     hr: ["view", "create"],
     reports: ["view", "export"],
+    knowledge_base: ["view", "create", "edit"],
+    approvals: ["view", "create", "edit", "approve"],
   },
   client_service_officer: {
     workbench: ["view", "edit"],
@@ -178,6 +200,8 @@ const DEFAULT_ROLE_MODULES: Record<string, Record<string, string[]>> = {
     operations: ["view", "create"],
     hr: ["view", "create"],
     reports: ["view"],
+    knowledge_base: ["view", "create", "edit"],
+    approvals: ["view", "create"],
   },
   receptionist_support: {
     workbench: ["view", "edit"],
@@ -185,12 +209,16 @@ const DEFAULT_ROLE_MODULES: Record<string, Record<string, string[]>> = {
     operations: ["view", "create"],
     hr: ["view", "create"],
     reports: ["view"],
+    knowledge_base: ["view", "create", "edit"],
+    approvals: ["view", "create"],
   },
   marketing_officer: {
     workbench: ["view"],
     crm: ["view", "create", "edit", "export"],
     hr: ["view", "create"],
     reports: ["view", "export"],
+    knowledge_base: ["view", "create", "edit"],
+    approvals: ["view", "create"],
   },
   viewer: {
     workbench: ["view"],
@@ -199,6 +227,8 @@ const DEFAULT_ROLE_MODULES: Record<string, Record<string, string[]>> = {
     finance: ["view"],
     hr: ["view", "create"],
     reports: ["view"],
+    knowledge_base: ["view"],
+    approvals: ["view"],
   },
   customer: {},
 };

@@ -31,6 +31,7 @@ import {
   Clock,
   Workflow,
   CalendarDays,
+  BookOpen,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { useTheme } from "../auth/ThemeContext";
@@ -102,6 +103,7 @@ export function AdminPortalLayout() {
         { name: "Compliance Calendar", path: "/admin/compliance-calendar", icon: Clock, module: "operations" },
         { name: "Appointment Calendar", path: "/admin/appointments", icon: CalendarDays, module: "operations" },
         { name: "Complaints & Resolution", path: "/admin/service-quality", icon: ShieldCheck, module: "operations" },
+        { name: "Knowledge Base & SOPs", path: "/admin/knowledge-base", icon: BookOpen },
         { name: "Documents", path: "/admin/documents", icon: FolderOpen, module: "operations" },
       ],
     },
@@ -133,6 +135,7 @@ export function AdminPortalLayout() {
     {
       title: "REPORTING",
       items: [
+        { name: "Executive Dashboard", path: "/admin/executive-dashboard", icon: BarChart3 },
         { name: "Executive Reports", path: "/admin/reports", icon: BarChart3, module: "reports" },
         { name: "Service Profitability", path: "/admin/reports/service-profitability", icon: DollarSign, module: "reports" },
         { name: "Service Quality Reports", path: "/admin/service-quality", icon: Sparkles, module: "reports" },
@@ -144,6 +147,7 @@ export function AdminPortalLayout() {
       items: [
         { name: "HR & Staff Portal", path: "/admin/hr", icon: UserCheck, module: "hr" },
         { name: "Staff Workload & Performance", path: "/admin/team/staff-performance", icon: Users },
+        { name: "Approvals", path: "/admin/approvals", icon: ShieldCheck },
         { name: "Staff & RBAC", path: "/admin/team", icon: ShieldCheck, superOnly: true },
         { name: "Audit Trail", path: "/admin/audit-logs", icon: FileCheck2, superOnly: true },
       ],

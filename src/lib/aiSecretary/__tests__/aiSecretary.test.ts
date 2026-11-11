@@ -591,9 +591,9 @@ describe("ABLEBIZ AI Secretary — Full-Suite Module Coverage & Unsupported Feat
     userName: "Adebayo Oyewusi",
   });
 
-  it("documents all 27 verified Suite modules in CAPABILITY_CATALOGUE (including Phases 9, 10, and 11)", () => {
+  it("documents all 30 verified Suite modules in CAPABILITY_CATALOGUE (including Phases 9, 10, 11, 12, 13, and 14)", () => {
     const moduleKeys = Object.keys(CAPABILITY_CATALOGUE);
-    assert.equal(moduleKeys.length, 27);
+    assert.equal(moduleKeys.length, 30);
     assert.ok(moduleKeys.includes("cac_operations"));
     assert.ok(moduleKeys.includes("hr_workspace"));
     assert.ok(moduleKeys.includes("referrals"));
@@ -601,6 +601,9 @@ describe("ABLEBIZ AI Secretary — Full-Suite Module Coverage & Unsupported Feat
     assert.ok(moduleKeys.includes("appointments"));
     assert.ok(moduleKeys.includes("service_quality"));
     assert.ok(moduleKeys.includes("staff_performance"));
+    assert.ok(moduleKeys.includes("knowledge_base"));
+    assert.ok(moduleKeys.includes("approvals"));
+    assert.ok(moduleKeys.includes("executive_dashboard"));
   });
 
   it("executes operational queries across Referrals, CRM Leads, Service Requests, Tasks, Documents, Team, Audit Logs, and Settings", async () => {
@@ -671,6 +674,29 @@ describe("ABLEBIZ AI Secretary — Full-Suite Module Coverage & Unsupported Feat
     const settingsRes = await executeAssistantQuery("Show company bank account settings", superCaller, undefined, { adapter, now: FIXED_NOW });
     assert.equal(settingsRes.payload.moduleId, "settings");
     assert.equal(settingsRes.payload.status, "ok");
+
+    // Phase 12 Knowledge Base Query Grounding
+    const kbRes = await executeAssistantQuery("What is our process for registering a company?", superCaller, undefined, { adapter, now: FIXED_NOW });
+    assert.equal(kbRes.payload.moduleId, "knowledge_base");
+    assert.equal(kbRes.payload.status, "ok");
+    assert.match(kbRes.payload.markdown, /SOP-001|Company Registration/i);
+
+    // Phase 13 Approvals Query
+    const appRes = await executeAssistantQuery("What approvals are pending?", superCaller, undefined, { adapter, now: FIXED_NOW });
+    assert.equal(appRes.payload.moduleId, "approvals");
+    assert.equal(appRes.payload.status, "ok");
+    assert.match(appRes.payload.title || "", /Approval/i);
+
+    // Phase 14 Executive Dashboard Query
+    const execRes = await executeAssistantQuery("Show executive dashboard summary", superCaller, undefined, { adapter, now: FIXED_NOW });
+    assert.equal(execRes.payload.moduleId, "executive_dashboard");
+    assert.equal(execRes.payload.status, "ok");
+    assert.match(execRes.payload.title || "", /Executive Business Intelligence/i);
+
+    // Phase 14 Access Restriction: Registration Officer cannot query executive dashboard
+    const regCaller = buildCallerContext({ role: "registration_officer", userId: "u-reg", userName: "Reg Officer" });
+    const regExecRes = await executeAssistantQuery("Show executive dashboard summary", regCaller, undefined, { adapter, now: FIXED_NOW });
+    assert.equal(regExecRes.payload.status, "permission_denied");
   });
 
   it("explicitly identifies unsupported features in plain business language without fabricating results", async () => {

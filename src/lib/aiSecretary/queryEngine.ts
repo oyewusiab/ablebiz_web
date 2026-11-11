@@ -51,6 +51,8 @@ import {
 import { computeAppointmentSummary } from "../scheduling/schedulingService";
 import { computeQualitySummaryMetrics } from "../quality/qualityService";
 import { computeTeamPerformanceSummary, computeStaffIndividualPerformance } from "../performance/performanceService";
+import { ILLUSTRATIVE_SOP_GUIDES, canRoleAccessArticle } from "../knowledgeBase/knowledgeService";
+import { DEFAULT_APPROVAL_RULES } from "../approvals/approvalService";
 
 export interface TableQueryResult<T = Record<string, any>> {
   data: T[] | null;
@@ -701,6 +703,15 @@ async function runOperationalReportForModule(
   }
   if (intent.subIntent === "staff_performance" || intent.primaryModule === "staff_performance") {
     return handleStaffPerformanceAssistantReport(intent, caller, adapter, now, prefix, context);
+  }
+  if (intent.primaryModule === "knowledge_base" || intent.subIntent === "search") {
+    return handleKnowledgeBaseAssistantReport(intent, caller, adapter, now, prefix, context);
+  }
+  if (intent.primaryModule === "approvals") {
+    return handleApprovalsAssistantReport(intent, caller, adapter, now, prefix, context);
+  }
+  if (intent.primaryModule === "executive_dashboard") {
+    return handleExecutiveDashboardAssistantReport(intent, caller, adapter, now, prefix, context);
   }
 
   switch (intent.primaryModule) {
@@ -3122,6 +3133,420 @@ async function handleManagementAttentionReport(
       fetchedAtFormatted: formatDateTimeLagos(now),
       roleApplied: caller.role,
       scopeDescription: `Operational overview for ${caller.roleLabel}`,
+    },
+  };
+}
+
+/**
+ * Phase 12 — Knowledge Base & SOP Grounding Assistant Handler
+ */
+async function handleKnowledgeBaseAssistantReport(
+  intent: ClassifiedIntent,
+  caller: AssistantCallerContext,
+  adapter: AssistantDataAdapter,
+  now: Date,
+  prefix: string,
+  context: ConversationContext
+): Promise<AssistantResponsePayload> {
+  const q = intent.normalizedQuery.toLowerCase();
+  const tablesQueried = ["knowledge_articles"];
+
+  let articles: any[] = [];
+  try {
+    const { data: dbArticles } = await adapter.queryTable("knowledge_articles");
+    if (dbArticles && dbArticles.length > 0) {
+      articles = dbArticles;
+    } else {
+      articles = ILLUSTRATIVE_SOP_GUIDES;
+    }
+  } catch {
+    articles = ILLUSTRATIVE_SOP_GUIDES;
+  }
+
+  // Filter accessible articles by caller role
+  const accessible = articles.filter((art) =>
+    canRoleAccessArticle(art as any, caller.role, caller.userId)
+  );
+
+  // Search matching articles by query keywords
+  const matching = accessible.filter((art) => {
+    const textToMatch = `${art.title} ${art.summary || ""} ${art.tags?.join(" ") || ""} ${art.content || ""}`.toLowerCase();
+
+    if (/\b(company registration|limited liability|part a|ltd)\b/.test(q) && /company registration|private limited/i.test(art.title)) return true;
+    if (/\b(ngo|incorporated trustees|church|foundation|part f)\b/.test(q) && /incorporated trustees|ngo/i.test(art.title)) return true;
+    if (/\b(complaint|complaints|grievance|escalat)\b/.test(q) && /complaint/i.test(art.title)) return true;
+    if (/\b(quotation|quotations|invoicing|pro[- ]?forma)\b/.test(q) && /quotation/i.test(art.title)) return true;
+    if (/\b(refund|refunds|adjustment|credit note)\b/.test(q) && /refund/i.test(art.title)) return true;
+
+    const words = q.split(/\s+/).filter((w) => w.length > 3 && !["what", "which", "about", "have", "with", "from", "show", "tell", "process", "procedure", "process"].includes(w));
+    return words.some((w) => textToMatch.includes(w));
+  });
+
+  if (matching.length === 0) {
+    return {
+      intentType: intent.intentType,
+      moduleId: "knowledge_base",
+      status: "ok",
+      title: "Knowledge Base Search",
+      summary: "No approved procedure found in current documentation.",
+      markdown: `${prefix}The ABLEBIZ Knowledge Base does not currently contain an approved article or standard operating procedure answering this query.\n\nTo ensure organizational consistency and regulatory compliance, staff must follow approved documentation. If you would like to draft this procedure for review, you can create a draft article in the [Knowledge Base](/admin/knowledge-base).`,
+      links: [
+        { label: "Knowledge Base", path: "/admin/knowledge-base", route: "/admin/knowledge-base", moduleId: "knowledge_base", description: "Search and browse internal SOPs." },
+      ],
+      followUpSuggestions: [
+        "What is our process for registering a company?",
+        "What documents are required for NGO registration?",
+        "What is our procedure for handling client complaints?",
+      ],
+      sourceMeta: {
+        tablesQueried,
+        sourcesLabel: "Knowledge Base & SOP Repository",
+        reportingPeriodLabel: "All Approved Records",
+        timezone: ABILITY_TIMEZONE,
+        fetchedAtIso: now.toISOString(),
+        fetchedAtFormatted: formatDateTimeLagos(now),
+        roleApplied: caller.role,
+        scopeDescription: `Knowledge Base access for ${caller.roleLabel}`,
+      },
+    };
+  }
+
+  const primary = matching[0];
+  const summarySnippet = primary.summary || primary.content.slice(0, 280);
+
+  const markdown = `${prefix}### ${primary.article_code}: ${primary.title}\n\n` +
+    `**Status**: Approved & Published (Version ${primary.current_version || 1}.0)\n` +
+    `**Category**: ${primary.category?.name || "Standard Operating Procedures"}\n\n` +
+    `> **Approved Summary**:\n> ${summarySnippet}\n\n` +
+    `#### Key Operational Steps & Guidance:\n` +
+    `${primary.content.slice(0, 800)}...\n\n` +
+    `For the complete authorized checklist and statutory requirements, open the full document: [View ${primary.article_code}](/admin/knowledge-base?article=${primary.slug || primary.id}).`;
+
+  return {
+    intentType: intent.intentType,
+    moduleId: "knowledge_base",
+    status: "ok",
+    title: `${primary.article_code}: ${primary.title}`,
+    summary: `Official procedure from ABLEBIZ Knowledge Base (v${primary.current_version || 1}.0).`,
+    markdown,
+    metrics: [
+      { label: "Document Code", value: primary.article_code, tone: "emerald" },
+      { label: "Revision", value: `v${primary.current_version || 1}.0`, tone: "slate" },
+      { label: "Matching Guides", value: formatCount(matching.length), tone: "blue" },
+    ],
+    links: [
+      {
+        label: `Open ${primary.article_code}`,
+        path: `/admin/knowledge-base?article=${primary.slug || primary.id}`,
+        route: "/admin/knowledge-base",
+        moduleId: "knowledge_base",
+        description: primary.title,
+      },
+      {
+        label: "Knowledge Base",
+        path: "/admin/knowledge-base",
+        route: "/admin/knowledge-base",
+        moduleId: "knowledge_base",
+        description: "Browse all operational SOPs",
+      },
+    ],
+    followUpSuggestions: [
+      "What is our process for registering a company?",
+      "What documents are required for NGO registration?",
+      "What is our procedure for handling client complaints?",
+    ],
+    sourceMeta: {
+      tablesQueried,
+      sourcesLabel: "Knowledge Base & SOP Repository",
+      reportingPeriodLabel: "Approved Documents",
+      timezone: ABILITY_TIMEZONE,
+      fetchedAtIso: now.toISOString(),
+      fetchedAtFormatted: formatDateTimeLagos(now),
+      roleApplied: caller.role,
+      scopeDescription: `Authorized procedure review for ${caller.roleLabel}`,
+    },
+  };
+}
+
+/**
+ * Phase 13 — Approval & Decision Management Assistant Handler
+ */
+async function handleApprovalsAssistantReport(
+  intent: ClassifiedIntent,
+  caller: AssistantCallerContext,
+  adapter: AssistantDataAdapter,
+  now: Date,
+  prefix: string,
+  context: ConversationContext
+): Promise<AssistantResponsePayload> {
+  const tablesQueried = ["approval_requests"];
+
+  let requests: any[] = [];
+  try {
+    const { data: dbReqs } = await adapter.queryTable("approval_requests");
+    if (dbReqs) requests = dbReqs;
+  } catch {
+    requests = [];
+  }
+
+  const pendingApprovals = requests.filter(
+    (r) => r.status === "pending_approval" || r.status === "submitted"
+  );
+  const mySubmissions = requests.filter((r) => r.requested_by === caller.userId);
+  const awaitingMyAction = pendingApprovals.filter(
+    (r) =>
+      r.requested_by !== caller.userId &&
+      (caller.role === "super_admin" ||
+        caller.role === "admin" ||
+        (r.assigned_approver_roles && r.assigned_approver_roles.includes(caller.role)))
+  );
+
+  const markdown = `${prefix}### Approval & Decision Overview\n\n` +
+    `ABLEBIZ enforces strict **maker-checker governance** across financial, commercial, and operational commitments.\n\n` +
+    `- **Pending Approvals System-Wide**: ${pendingApprovals.length} request(s)\n` +
+    `- **Awaiting Your Authorization**: ${awaitingMyAction.length} request(s)\n` +
+    `- **Submitted by You**: ${mySubmissions.length} request(s)\n\n` +
+    (awaitingMyAction.length > 0
+      ? `#### High-Priority Items Awaiting Action:\n` +
+        awaitingMyAction
+          .slice(0, 3)
+          .map(
+            (r) =>
+              `- **${r.reference_number || "REQ"}**: ${r.title} (${r.category}) ${
+                r.amount ? `— ₦${Math.round(Number(r.amount)).toLocaleString("en-NG")}` : ""
+              }`
+          )
+          .join("\n") +
+        `\n\n`
+      : `No approval requests are currently waiting on your decision.\n\n`) +
+    `Review decisions and submit new requests in [Approval Management](/admin/approvals).`;
+
+  return {
+    intentType: intent.intentType,
+    moduleId: "approvals",
+    status: "ok",
+    title: "Approval & Decision Management",
+    summary: `${pendingApprovals.length} pending approval requests across ABLEBIZ Suite.`,
+    markdown,
+    metrics: [
+      {
+        label: "Awaiting Your Decision",
+        value: formatCount(awaitingMyAction.length),
+        tone: awaitingMyAction.length > 0 ? "amber" : "emerald",
+      },
+      {
+        label: "Total Pending",
+        value: formatCount(pendingApprovals.length),
+        tone: pendingApprovals.length > 0 ? "blue" : "slate",
+      },
+      {
+        label: "Your Submissions",
+        value: formatCount(mySubmissions.length),
+        tone: "slate",
+      },
+    ],
+    links: [
+      {
+        label: "Approval Center",
+        path: "/admin/approvals",
+        route: "/admin/approvals",
+        moduleId: "approvals",
+        description: "Review and decide pending approval requests.",
+      },
+    ],
+    followUpSuggestions: [
+      "What approvals are pending?",
+      "Are there any expense requests awaiting my approval?",
+      "What are our active approval rules?",
+    ],
+    sourceMeta: {
+      tablesQueried,
+      sourcesLabel: "Approval & Decision Engine",
+      reportingPeriodLabel: "Active Requests",
+      timezone: ABILITY_TIMEZONE,
+      fetchedAtIso: now.toISOString(),
+      fetchedAtFormatted: formatDateTimeLagos(now),
+      roleApplied: caller.role,
+      scopeDescription: `Governance view for ${caller.roleLabel}`,
+    },
+  };
+}
+
+/**
+ * Phase 14 — Business Intelligence & Executive Dashboard Assistant Handler
+ */
+async function handleExecutiveDashboardAssistantReport(
+  intent: ClassifiedIntent,
+  caller: AssistantCallerContext,
+  adapter: AssistantDataAdapter,
+  now: Date,
+  prefix: string,
+  context: ConversationContext
+): Promise<AssistantResponsePayload> {
+  const isAuthorized =
+    caller.role === "super_admin" ||
+    caller.role === "admin" ||
+    caller.role === "operations_manager";
+
+  if (!isAuthorized) {
+    return {
+      intentType: intent.intentType,
+      moduleId: "executive_dashboard",
+      status: "permission_denied",
+      title: "Executive Dashboard Access Restricted",
+      summary: "Executive business intelligence is restricted to management roles.",
+      markdown: `${prefix}The Executive Dashboard and organizational business intelligence metrics are strictly reserved for Managing Directors, System Administrators, and Operations Managers.\n\nPlease refer to your assigned department workbench or consult an administrator for high-level management reports.`,
+      links: [
+        { label: "Staff Workbench", path: "/admin/dashboard", route: "/admin/dashboard", moduleId: "dashboard", description: "Return to daily staff workbench." },
+      ],
+      followUpSuggestions: [
+        "What tasks require attention today?",
+        "What is the status of my assigned CAC filings?",
+      ],
+      sourceMeta: {
+        tablesQueried: [],
+        sourcesLabel: "Executive Management Portal",
+        reportingPeriodLabel: intent.dateRange.label,
+        timezone: ABILITY_TIMEZONE,
+        fetchedAtIso: now.toISOString(),
+        fetchedAtFormatted: formatDateTimeLagos(now),
+        roleApplied: caller.role,
+        scopeDescription: `Restricted access check for ${caller.roleLabel}`,
+      },
+    };
+  }
+
+  const tablesQueried = [
+    "invoices",
+    "payments",
+    "expenses",
+    "service_requests",
+    "cac_applications",
+  ];
+
+  // Query actuals
+  let invoices: any[] = [];
+  let payments: any[] = [];
+  let expenses: any[] = [];
+  let serviceRequests: any[] = [];
+  let cacFilings: any[] = [];
+
+  try {
+    const [invRes, payRes, expRes, srRes, cacRes] = await Promise.all([
+      adapter.queryTable("invoices"),
+      adapter.queryTable("payments"),
+      adapter.queryTable("expenses"),
+      adapter.queryTable("service_requests"),
+      adapter.queryTable("cac_applications"),
+    ]);
+    if (invRes.data) invoices = invRes.data;
+    if (payRes.data) payments = payRes.data;
+    if (expRes.data) expenses = expRes.data;
+    if (srRes.data) serviceRequests = srRes.data;
+    if (cacRes.data) cacFilings = cacRes.data;
+  } catch {
+    // safe fallback
+  }
+
+  // Calculate actuals
+  const canViewFinance = caller.role === "super_admin" || caller.role === "admin";
+  const verifiedPayments = payments.filter((p) => p.status === "verified" || p.status === "paid");
+  const totalCashCollected = verifiedPayments.reduce((acc, p) => acc + Number(p.amount || 0), 0);
+  const totalExpenses = expenses.reduce((acc, e) => acc + Number(e.amount || 0), 0);
+  const netCashProfit = totalCashCollected - totalExpenses;
+
+  // Unpaid invoices (A/R)
+  const unpaidInvoices = invoices.filter((i) => i.status !== "paid" && i.status !== "cancelled");
+  const outstandingAr = unpaidInvoices.reduce((acc, i) => {
+    const bal = i.balance_due !== undefined ? Number(i.balance_due) : Number(i.total_amount || 0) - Number(i.amount_paid || 0);
+    return acc + Math.max(0, bal);
+  }, 0);
+
+  const activeCac = cacFilings.filter((c) => c.status === "submitted" || c.status === "in_progress" || c.status === "query");
+  const overdueRequests = serviceRequests.filter((r) => {
+    if (r.status === "completed" || r.status === "cancelled") return false;
+    return r.target_completion_date && new Date(r.target_completion_date) < now;
+  });
+
+  const markdown = `${prefix}### ABLEBIZ Executive Performance Summary\n\n` +
+    `Reporting Period: **${intent.dateRange.label}** (Africa/Lagos)\n\n` +
+    (canViewFinance
+      ? `#### Financial Health (Verified Actuals):\n` +
+        `- **Verified Cash Collected**: ₦${Math.round(totalCashCollected).toLocaleString("en-NG")}\n` +
+        `- **Approved Expenses**: ₦${Math.round(totalExpenses).toLocaleString("en-NG")}\n` +
+        `- **Net Cash Profit**: ₦${Math.round(netCashProfit).toLocaleString("en-NG")} *(excl. forecasts)*\n` +
+        `- **Outstanding Receivables (A/R)**: ₦${Math.round(outstandingAr).toLocaleString("en-NG")}\n\n`
+      : `*Detailed financial cash figures are restricted to Executive Management and Finance Officers.*\n\n`) +
+    `#### Operational Throughput & Registry Pipeline:\n` +
+    `- **Active CAC Filings In-Flight**: ${activeCac.length} application(s)\n` +
+    `- **Overdue Client Deliverables**: ${overdueRequests.length} file(s)\n` +
+    `- **Active Service Engagements**: ${serviceRequests.filter((r) => r.status === "in_progress" || r.status === "pending").length} engagement(s)\n\n` +
+    `For interactive drill-downs and period comparisons, visit the [Executive Dashboard](/admin/executive-dashboard).`;
+
+  return {
+    intentType: intent.intentType,
+    moduleId: "executive_dashboard",
+    status: "ok",
+    title: "Executive Business Intelligence Overview",
+    summary: `Verified business health metrics for ${intent.dateRange.label}.`,
+    markdown,
+    metrics: [
+      ...(canViewFinance
+        ? [
+            {
+              label: "Net Cash Profit",
+              value: formatNgn(netCashProfit),
+              tone: netCashProfit >= 0 ? ("emerald" as const) : ("rose" as const),
+            },
+            {
+              label: "Outstanding A/R",
+              value: formatNgn(outstandingAr),
+              tone: outstandingAr > 100000 ? ("amber" as const) : ("slate" as const),
+            },
+          ]
+        : []),
+      {
+        label: "Active CAC Filings",
+        value: formatCount(activeCac.length),
+        tone: "blue",
+      },
+      {
+        label: "Overdue Work",
+        value: formatCount(overdueRequests.length),
+        tone: overdueRequests.length > 0 ? "rose" : "emerald",
+      },
+    ],
+    links: [
+      {
+        label: "Executive Dashboard",
+        path: "/admin/executive-dashboard",
+        route: "/admin/executive-dashboard",
+        moduleId: "reports",
+        description: "Full interactive KPI cards and trend charts.",
+      },
+      {
+        label: "Executive Reports Catalogue",
+        path: "/admin/reports",
+        route: "/admin/reports",
+        moduleId: "reports",
+        description: "Detailed category reports and exports.",
+      },
+    ],
+    followUpSuggestions: [
+      "What is our current outstanding receivables balance?",
+      "Which services generated the most revenue this quarter?",
+      "How many service requests are overdue?",
+      "What are our major operational bottlenecks?",
+    ],
+    sourceMeta: {
+      tablesQueried,
+      sourcesLabel: "Executive Management & Operations Data",
+      reportingPeriodLabel: intent.dateRange.label,
+      timezone: ABILITY_TIMEZONE,
+      fetchedAtIso: now.toISOString(),
+      fetchedAtFormatted: formatDateTimeLagos(now),
+      roleApplied: caller.role,
+      scopeDescription: `Consolidated business intelligence for ${caller.roleLabel}`,
     },
   };
 }
