@@ -20,12 +20,14 @@ import {
   FileText,
   DollarSign,
   ShieldAlert,
+  CheckSquare,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
 import { ClientQuickActionsBar } from "../../components/admin/communication/ClientQuickActionsBar";
 import { CommunicationHistoryPanel } from "../../components/admin/communication/CommunicationHistoryPanel";
 import { assessClientContactQuality } from "../../lib/communications/contactUtils";
+import { buildClientEngagementHistory, ClientEngagementEvent } from "../../lib/followUps/followUpService";
 
 export interface ClientRecord {
   id: string;
@@ -51,6 +53,8 @@ export interface ClientDetailData extends ClientRecord {
   communications: any[];
   activity_timeline: any[];
   invoices?: any[];
+  tasks?: any[];
+  engagement_history?: ClientEngagementEvent[];
 }
 
 export function AdminClients() {
@@ -64,7 +68,7 @@ export function AdminClients() {
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [clientDetail, setClientDetail] = useState<ClientDetailData | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
-  const [active360Tab, setActive360Tab] = useState<"overview" | "communications" | "businesses" | "requests" | "followups" | "timeline" | "finance">("overview");
+  const [active360Tab, setActive360Tab] = useState<"overview" | "communications" | "businesses" | "requests" | "tasks" | "followups" | "timeline" | "finance">("overview");
   const [commRefreshTick, setCommRefreshTick] = useState(0);
 
   // Create Client Modal State
@@ -123,6 +127,8 @@ export function AdminClients() {
         commRes,
         actRes,
         invRes,
+        tasksRes,
+        historyEvents,
       ] = await Promise.all([
         supabase.from("clients").select("*").eq("id", clientId).single(),
         supabase.from("businesses").select("*").eq("client_id", clientId),
@@ -131,6 +137,8 @@ export function AdminClients() {
         supabase.from("communications").select("*").eq("client_id", clientId).order("created_at", { ascending: false }),
         supabase.from("activity_timeline").select("*").eq("entity_id", clientId).order("created_at", { ascending: false }),
         canViewFinance ? supabase.from("invoices").select("*").eq("client_id", clientId) : Promise.resolve({ data: [] }),
+        supabase.from("tasks").select("*, assigned_staff:staff_profiles(full_name)").eq("client_id", clientId).order("due_date", { ascending: true }),
+        buildClientEngagementHistory(clientId),
       ]);
 
       if (clientRes.data) {
@@ -142,6 +150,8 @@ export function AdminClients() {
           communications: commRes.data || [],
           activity_timeline: actRes.data || [],
           invoices: invRes.data || [],
+          tasks: (tasksRes as any)?.data || [],
+          engagement_history: historyEvents || [],
         });
       }
     } catch (err) {
@@ -423,8 +433,9 @@ export function AdminClients() {
                     { id: "communications", label: "Communications", count: clientDetail.communications.length },
                     { id: "businesses", label: "Businesses", count: clientDetail.businesses.length },
                     { id: "requests", label: "Service Requests", count: clientDetail.service_requests.length },
+                    { id: "tasks", label: "Tasks", count: clientDetail.tasks?.length || 0 },
                     { id: "followups", label: "Follow-ups", count: clientDetail.follow_ups.length },
-                    { id: "timeline", label: "Timeline", count: clientDetail.activity_timeline.length },
+                    { id: "timeline", label: "Engagement History", count: clientDetail.engagement_history?.length || clientDetail.activity_timeline.length },
                     ...(canViewFinance ? [{ id: "finance", label: "Finance & Invoices", count: clientDetail.invoices?.length || 0 }] : []),
                   ].map((tab) => (
                     <button
@@ -602,17 +613,58 @@ export function AdminClients() {
                   </div>
                 )}
 
+                {active360Tab === "tasks" && (
+                  <div className="space-y-3">
+                    {!clientDetail.tasks || clientDetail.tasks.length === 0 ? (
+                      <p className="text-xs text-slate-400 text-center py-6">No operational tasks currently linked to this client.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {clientDetail.tasks.map((task: any) => (
+                          <div key={task.id} className="rounded-xl border border-slate-200 p-3 hover:border-[#0A2558] transition text-xs bg-white">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-slate-900">{task.title}</span>
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                task.status === "completed" ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-700"
+                              }`}>
+                                {task.status.replace(/_/g, " ")}
+                              </span>
+                            </div>
+                            <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
+                              <span>Assigned: {task.assigned_staff?.full_name || "Unassigned"}</span>
+                              <span>Due: {task.due_date ? new Date(task.due_date).toLocaleDateString() : "No deadline"}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {active360Tab === "timeline" && (
                   <div className="space-y-3">
-                    {clientDetail.activity_timeline.length === 0 ? (
+                    {(!clientDetail.engagement_history || clientDetail.engagement_history.length === 0) ? (
                       <p className="text-xs text-slate-400 text-center py-6">No chronological events logged yet.</p>
                     ) : (
                       <div className="relative pl-4 border-l border-slate-200 space-y-4">
-                        {clientDetail.activity_timeline.map((act) => (
+                        {clientDetail.engagement_history.map((act) => (
                           <div key={act.id} className="relative text-xs">
-                            <div className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-[#0A2558]" />
-                            <p className="font-semibold text-slate-900">{act.event_title}</p>
-                            <span className="text-[10px] text-slate-400">{new Date(act.created_at).toLocaleString()}</span>
+                            <div className="absolute -left-[21px] top-1.5 h-2.5 w-2.5 rounded-full bg-[#0A2558]" />
+                            <div className="flex items-center gap-2">
+                              <span className={`rounded px-1.5 py-0.2 text-[9px] font-bold uppercase ${
+                                act.badgeTone === "emerald"
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : act.badgeTone === "blue"
+                                  ? "bg-blue-50 text-blue-700 border border-blue-200"
+                                  : act.badgeTone === "purple"
+                                  ? "bg-purple-50 text-purple-700 border border-purple-200"
+                                  : "bg-slate-100 text-slate-600"
+                              }`}>
+                                {act.badgeLabel}
+                              </span>
+                              <p className="font-semibold text-slate-900">{act.title}</p>
+                            </div>
+                            {act.description && <p className="text-[11px] text-slate-500 mt-0.5">{act.description}</p>}
+                            <span className="text-[10px] text-slate-400 mt-1 block">{new Date(act.timestamp).toLocaleString()}</span>
                           </div>
                         ))}
                       </div>

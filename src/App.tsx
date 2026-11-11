@@ -31,6 +31,8 @@ import { ServicesCatalogPage } from "./pages/admin/ServicesCatalog";
 import { ServiceRequestsPage } from "./pages/admin/ServiceRequests";
 import { CacOperationsPage } from "./pages/admin/CacOperations";
 import { TasksPage } from "./pages/admin/Tasks";
+import { WorkflowsPage } from "./pages/admin/Workflows";
+import { SlaSettingsPage } from "./pages/admin/SlaSettings";
 import { DocumentsPage } from "./pages/admin/Documents";
 import { BusinessesPage } from "./pages/admin/Businesses";
 import { LeadsPipelinePage } from "./pages/admin/Leads";
@@ -90,6 +92,8 @@ export default function App() {
             <Route path="cac-operations" element={<ProtectedRoute requiredModule="operations"><CacOperationsPage /></ProtectedRoute>} />
             <Route path="cac" element={<Navigate to="/admin/cac-operations" replace />} />
             <Route path="tasks" element={<ProtectedRoute requiredModule="operations"><TasksPage /></ProtectedRoute>} />
+            <Route path="sla-settings" element={<ProtectedRoute requiredModule="operations"><SlaSettingsPage /></ProtectedRoute>} />
+            <Route path="workflows" element={<ProtectedRoute requiredModule="operations"><WorkflowsPage /></ProtectedRoute>} />
             <Route path="documents" element={<ProtectedRoute requiredModule="operations"><DocumentsPage /></ProtectedRoute>} />
             {/* Finance Routes */}
             <Route path="quotations" element={<ProtectedRoute requiredModule="finance"><QuotationsPage /></ProtectedRoute>} />

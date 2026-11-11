@@ -1615,7 +1615,7 @@ async function handleCrmLeadsAndFollowUpsReport(
   const wonLeads = leads.filter((l: any) => String(l.status || "") === "won");
   const pendingFollowUps = followUps.filter((f: any) => String(f.status || "") === "pending");
   const overdueFollowUps = pendingFollowUps.filter(
-    (f: any) => f.scheduled_for && String(f.scheduled_for) < todayIso
+    (f: any) => (f.scheduled_at || f.scheduled_for) && String(f.scheduled_at || f.scheduled_for) < todayIso
   );
 
   const status: QueryResultStatus =
@@ -1804,7 +1804,15 @@ async function handleTasksOperationalReport(
   const allTasks = tasksRes.data || [];
   const todayYmd = now.toISOString().slice(0, 10);
 
-  const openTasks = allTasks.filter(
+  const isPersonalScope =
+    Boolean(caller.profile?.id || caller.userId) &&
+    /\b(my|assigned to me|mine|for me)\b/i.test(intent.normalizedQuery);
+
+  const scopeTasks = isPersonalScope
+    ? allTasks.filter((t: any) => t.assigned_to === (caller.profile?.id || caller.userId))
+    : allTasks;
+
+  const openTasks = scopeTasks.filter(
     (t: any) => !["completed", "cancelled"].includes(String(t.status || ""))
   );
   const overdueTasks = openTasks.filter(
@@ -1814,14 +1822,18 @@ async function handleTasksOperationalReport(
     (t: any) => t.priority === "urgent" || t.priority === "high"
   );
   const blockedTasks = openTasks.filter((t: any) => t.status === "blocked");
-  const completedTasks = allTasks.filter((t: any) => t.status === "completed");
+  const completedTasks = scopeTasks.filter((t: any) => t.status === "completed");
 
-  const status: QueryResultStatus = allTasks.length === 0 ? "empty" : "ok";
+  const status: QueryResultStatus = scopeTasks.length === 0 ? "empty" : "ok";
 
   const markdown = [
-    prefix + `### Tasks & Deadlines Report`,
-    allTasks.length === 0
-      ? `No matching task records were found.`
+    prefix + (isPersonalScope ? `### My Operational Tasks & Deadlines` : `### Tasks & Deadlines Report`),
+    scopeTasks.length === 0
+      ? isPersonalScope
+        ? `You have no tasks currently assigned to you.`
+        : `No matching task records were found.`
+      : isPersonalScope
+      ? `You have **${formatCount(openTasks.length)} open task(s)** assigned to you (**${formatCount(overdueTasks.length)} overdue**).`
       : `Found **${formatCount(allTasks.length)}** total task(s) (**${formatCount(openTasks.length)} open**, **${formatCount(overdueTasks.length)} overdue**).`,
     `#### Key Figures & Findings`,
     `- **Open Tasks (To Do, In Progress, In Review, or Blocked):** ${formatCount(openTasks.length)}`,
@@ -2323,7 +2335,7 @@ async function handleManagementAttentionReport(
 
   const followUps = fuRes.data || [];
   const overdueFollowUps = followUps.filter(
-    (f: any) => f.status === "pending" && f.scheduled_for && String(f.scheduled_for) < todayIso
+    (f: any) => f.status === "pending" && (f.scheduled_at || f.scheduled_for) && String(f.scheduled_at || f.scheduled_for) < todayIso
   );
 
   const invoices = invRes.data || [];

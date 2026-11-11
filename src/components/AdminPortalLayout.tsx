@@ -28,6 +28,8 @@ import {
   Search,
   Sparkles,
   UserCheck,
+  Clock,
+  Workflow,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { useTheme } from "../auth/ThemeContext";
@@ -91,6 +93,8 @@ export function AdminPortalLayout() {
         { name: "Service Requests", path: "/admin/service-requests", icon: FileCheck2, module: "operations" },
         { name: "CAC Operations", path: "/admin/cac-operations", icon: FileSpreadsheet, module: "operations" },
         { name: "Tasks", path: "/admin/tasks", icon: CheckSquare, module: "operations" },
+        { name: "SLA & Deadlines", path: "/admin/sla-settings", icon: Clock, module: "operations" },
+        { name: "Workflows", path: "/admin/workflows", icon: Workflow, module: "operations" },
         { name: "Documents", path: "/admin/documents", icon: FolderOpen, module: "operations" },
       ],
     },

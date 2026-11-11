@@ -22,6 +22,7 @@ import { ClientQuickActionsBar } from "../../components/admin/communication/Clie
 import { SearchableSelect } from "../../components/ui/SearchableSelect";
 import { DatePickerInput } from "../../components/ui/DatePickerInput";
 import { parseFlexibleDate, getTodayFormattedDDMMYYYY } from "../../utils/dateUtils";
+import { triggerOnPaymentVerified } from "../../lib/automation/workflowEngine";
 
 export interface PaymentRecord {
   id: string;
@@ -250,6 +251,13 @@ export function PaymentsPage() {
           receipt_number: recNumber,
           amount: amt,
         },
+      });
+
+      // Trigger Smart Task Automation upon Verified Payment
+      await triggerOnPaymentVerified({
+        payment: newPay,
+        invoice: newPay.invoice,
+        actorStaffId: profile?.id || null,
       });
 
       setIsCreateOpen(false);

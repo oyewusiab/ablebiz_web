@@ -29,6 +29,12 @@ import { useAuth } from "../../auth/AuthContext";
 import { ClientQuickActionsBar } from "../../components/admin/communication/ClientQuickActionsBar";
 import { CommunicationHistoryPanel } from "../../components/admin/communication/CommunicationHistoryPanel";
 import { SearchableSelect } from "../../components/ui/SearchableSelect";
+import { calculateSlaStatus } from "../../lib/sla/slaEngine";
+import {
+  triggerOnServiceRequestCreated,
+  triggerOnMissingInformation,
+  triggerOnServiceCompleted,
+} from "../../lib/automation/workflowEngine";
 
 export interface ServiceRequestRecord {
   id: string;
@@ -230,6 +236,14 @@ export function ServiceRequestsPage() {
         event_title: `New Service Request: ${trackingCode} (${selectedService?.name || "Service"})`,
       });
 
+      // Trigger Smart Task & Workflow Automation
+      await triggerOnServiceRequestCreated({
+        serviceRequest: createdReq,
+        client: clientsList.find((c) => c.id === newClientId),
+        service: selectedService,
+        actorStaffId: profile?.id,
+      });
+
       setIsCreating(false);
       setNewClientId("");
       setNewBusinessId("");
@@ -282,6 +296,25 @@ export function ServiceRequestsPage() {
         event_type: "service_request_status_updated",
         event_title: `Status updated to ${nextStatus.replace(/_/g, " ")}: ${selectedReq.tracking_code}`,
       });
+
+      // Automation triggers for status transitions
+      if (nextStatus === "awaiting_client") {
+        await triggerOnMissingInformation({
+          entityType: "service_request",
+          entityId: selectedReq.id,
+          clientId: selectedReq.client_id,
+          clientName: selectedReq.client?.full_name,
+          missingDetails: "Service request moved to Awaiting Client Information.",
+          assignedStaffId: selectedReq.assigned_staff_id,
+          actorStaffId: profile?.id,
+        });
+      } else if (nextStatus === "completed") {
+        await triggerOnServiceCompleted({
+          serviceRequest: selectedReq,
+          client: selectedReq.client,
+          actorStaffId: profile?.id,
+        });
+      }
 
       await fetchRequests();
     } catch (err: any) {
@@ -460,6 +493,12 @@ export function ServiceRequestsPage() {
             ) : (
               filteredRequests.map((req) => {
                 const isSelected = selectedReq?.id === req.id;
+                const sla = calculateSlaStatus({
+                  startDate: req.created_at,
+                  targetCompletionDate: req.target_completion_date,
+                  completedAt: req.completed_at,
+                  status: req.status,
+                });
                 return (
                   <div
                     key={req.id}
@@ -495,14 +534,14 @@ export function ServiceRequestsPage() {
                         }`}>
                           {req.status.replace(/_/g, " ")}
                         </span>
-                        <span className={`rounded px-1.5 py-0.2 text-[9px] font-bold uppercase ${
-                          req.priority === "urgent"
-                            ? "bg-red-50 text-red-700 border border-red-200"
-                            : req.priority === "high"
+                        <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                          sla.status === "overdue"
+                            ? "bg-rose-50 text-rose-700 border border-rose-200"
+                            : sla.status === "due_soon"
                             ? "bg-amber-50 text-amber-700 border border-amber-200"
                             : "bg-slate-100 text-slate-600"
                         }`}>
-                          {req.priority}
+                          {sla.remainingText}
                         </span>
                       </div>
                     </div>
@@ -547,6 +586,48 @@ export function ServiceRequestsPage() {
                     {selectedReq.status.replace(/_/g, " ")}
                   </span>
                 </div>
+
+                {/* Operational SLA Countdown Banner */}
+                {(() => {
+                  const selSla = calculateSlaStatus({
+                    startDate: selectedReq.created_at,
+                    targetCompletionDate: selectedReq.target_completion_date,
+                    completedAt: selectedReq.completed_at,
+                    status: selectedReq.status,
+                  });
+                  return (
+                    <div className="mt-3.5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 text-xs">
+                      <div className="flex items-center gap-2.5">
+                        <Clock className="h-4 w-4 text-[#0A2558]" />
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">SLA Expected Turnaround</span>
+                          <span className="font-bold text-slate-900">{selSla.remainingText}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <span className="text-[10px] text-slate-400 block">Target Completion Date</span>
+                          <span className="font-semibold text-slate-700">
+                            {new Date(selSla.expectedCompletionDateIso).toLocaleDateString()}
+                          </span>
+                        </div>
+
+                        <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                          selSla.status === "overdue"
+                            ? "bg-rose-50 text-rose-700 border border-rose-200"
+                            : selSla.status === "due_soon"
+                            ? "bg-amber-50 text-amber-700 border border-amber-200"
+                            : selSla.status === "completed"
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            : "bg-blue-50 text-blue-700 border border-blue-200"
+                        }`}>
+                          {selSla.statusLabel}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Client Communication Bar for Service Request */}
                 <div className="mt-4 pt-3 border-t border-slate-200/80">

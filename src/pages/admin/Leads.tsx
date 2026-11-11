@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Users,
   Search,
@@ -347,13 +348,23 @@ export function LeadsPipelinePage() {
                       <option value="lost">Lost</option>
                     </select>
 
-                    <button
-                      onClick={() => setConvertingLead(lead)}
-                      className="flex items-center gap-1 rounded-lg bg-emerald-700 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-emerald-800 transition"
-                    >
-                      <UserCheck className="h-3 w-3" />
-                      Convert to Client
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <Link
+                        to="/admin/follow-ups"
+                        className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 transition"
+                      >
+                        <Calendar className="h-3 w-3 text-slate-400" />
+                        <span>Follow-Up</span>
+                      </Link>
+
+                      <button
+                        onClick={() => setConvertingLead(lead)}
+                        className="flex items-center gap-1 rounded-lg bg-emerald-700 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-emerald-800 transition"
+                      >
+                        <UserCheck className="h-3 w-3" />
+                        Convert to Client
+                      </button>
+                    </div>
                   </>
                 ) : (
                   <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-700">

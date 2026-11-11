@@ -26,6 +26,8 @@ import { useAuth } from "../../auth/AuthContext";
 import { ClientQuickActionsBar } from "../../components/admin/communication/ClientQuickActionsBar";
 import { CommunicationHistoryPanel } from "../../components/admin/communication/CommunicationHistoryPanel";
 import { SearchableSelect } from "../../components/ui/SearchableSelect";
+import { calculateSlaStatus, trackCacStageDuration } from "../../lib/sla/slaEngine";
+import { triggerOnCacStageChanged } from "../../lib/automation/workflowEngine";
 
 export interface CacApplicationRecord {
   id: string;
@@ -467,6 +469,14 @@ export function CacOperationsPage() {
         event_title: `CAC stage moved to ${nextStage.replace(/_/g, " ")}: ${selectedApp.approved_name || selectedApp.proposed_name_1 || "Filing"}`,
       });
 
+      // Trigger Smart Task & Workflow Automation for Stage Advance
+      await triggerOnCacStageChanged({
+        application: { ...selectedApp, current_stage: nextStage },
+        previousStage: selectedApp.current_stage,
+        nextStage,
+        actorStaffId: profile?.id,
+      });
+
       setIsTransitioning(false);
       await fetchApplications();
     } catch (err: any) {
@@ -565,6 +575,11 @@ export function CacOperationsPage() {
               filteredApps.map((app) => {
                 const isSelected = selectedApp?.id === app.id;
                 const isException = app.current_stage === "rejected" || app.current_stage === "cancelled";
+                const stageDuration = trackCacStageDuration(app.current_stage, app.updated_at);
+                const sla = calculateSlaStatus({
+                  startDate: app.created_at,
+                  status: app.current_stage,
+                });
                 return (
                   <div
                     key={app.id}
@@ -585,15 +600,22 @@ export function CacOperationsPage() {
                         </h4>
                         <p className="text-[11px] text-slate-500 mt-0.5">Client: {app.client?.full_name}</p>
                       </div>
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold capitalize ${
-                        isException
-                          ? "bg-red-100 text-red-800"
-                          : app.current_stage === "completed"
-                          ? "bg-emerald-100 text-emerald-800"
-                          : "bg-blue-100 text-blue-800"
-                      }`}>
-                        {app.current_stage.replace(/_/g, " ")}
-                      </span>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold capitalize ${
+                          isException
+                            ? "bg-red-100 text-red-800"
+                            : app.current_stage === "completed"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-blue-100 text-blue-800"
+                        }`}>
+                          {app.current_stage.replace(/_/g, " ")}
+                        </span>
+                        <span className={`rounded-full px-2 py-0.2 text-[9px] font-bold ${
+                          stageDuration.isProlonged ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600"
+                        }`}>
+                          {stageDuration.formattedDuration}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 );
@@ -644,6 +666,49 @@ export function CacOperationsPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Stage Duration & SLA Countdown Banner */}
+                {(() => {
+                  const appStageDuration = trackCacStageDuration(selectedApp.current_stage, selectedApp.updated_at);
+                  const appSla = calculateSlaStatus({
+                    startDate: selectedApp.created_at,
+                    status: selectedApp.current_stage,
+                  });
+                  return (
+                    <div className="mt-3.5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 text-xs">
+                      <div className="flex items-center gap-2.5">
+                        <Clock className="h-4 w-4 text-[#0A2558]" />
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Current Stage Duration</span>
+                          <span className={`font-bold ${appStageDuration.isProlonged ? "text-amber-700" : "text-slate-900"}`}>
+                            {appStageDuration.formattedDuration}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <span className="text-[10px] text-slate-400 block">Target Completion</span>
+                          <span className="font-semibold text-slate-700">
+                            {new Date(appSla.expectedCompletionDateIso).toLocaleDateString()}
+                          </span>
+                        </div>
+
+                        <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                          appSla.status === "overdue"
+                            ? "bg-rose-50 text-rose-700 border border-rose-200"
+                            : appSla.status === "due_soon"
+                            ? "bg-amber-50 text-amber-700 border border-amber-200"
+                            : appSla.status === "completed"
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            : "bg-blue-50 text-blue-700 border border-blue-200"
+                        }`}>
+                          {appSla.remainingText}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* CAC Client Communication Bar */}
                 <div className="mt-4 pt-3 border-t border-slate-200/80">
