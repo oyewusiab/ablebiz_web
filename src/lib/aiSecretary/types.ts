@@ -44,6 +44,9 @@ export type SuiteModuleId =
   | "account_security"
   | "change_password"
   | "compliance"
+  | "appointments"
+  | "service_quality"
+  | "staff_performance"
   | "general";
 
 export type AssistantTopicFilterId =

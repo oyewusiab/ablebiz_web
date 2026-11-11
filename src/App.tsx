@@ -52,6 +52,11 @@ import { Campaigns as AdminCampaigns } from "./pages/admin/Campaigns";
 import { ServiceProfitabilityPage } from "./pages/admin/ServiceProfitability";
 import { CashFlowForecastPage } from "./pages/admin/CashFlowForecast";
 import { ComplianceCalendarPage } from "./pages/admin/ComplianceCalendar";
+import { AppointmentsPage } from "./pages/admin/Appointments";
+import { ServiceQualityPage } from "./pages/admin/ServiceQuality";
+import { StaffPerformancePage } from "./pages/admin/StaffPerformance";
+import { BookConsultationPage } from "./pages/BookConsultation";
+import { ClientFeedbackPage } from "./pages/ClientFeedback";
 import { BusinessProfileProvider } from "./lib/businessProfileContext";
 
 export default function App() {
@@ -75,6 +80,9 @@ export default function App() {
             <Route path="/blog" element={<BlogIndexPage />} />
             <Route path="/blog/:slug" element={<BlogPostPage />} />
             <Route path="/refer-and-earn" element={<ReferralsPage />} />
+            <Route path="/book-consultation" element={<BookConsultationPage />} />
+            <Route path="/consultation" element={<Navigate to="/book-consultation" replace />} />
+            <Route path="/feedback" element={<ClientFeedbackPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
 
@@ -109,6 +117,10 @@ export default function App() {
             {/* Compliance Calendar Route */}
             <Route path="compliance-calendar" element={<ProtectedRoute><ComplianceCalendarPage /></ProtectedRoute>} />
             <Route path="compliance" element={<Navigate to="/admin/compliance-calendar" replace />} />
+            {/* Phase 9 Appointments & Consultations */}
+            <Route path="appointments" element={<ProtectedRoute><AppointmentsPage /></ProtectedRoute>} />
+            {/* Phase 10 Service Quality & Client Satisfaction */}
+            <Route path="service-quality" element={<ProtectedRoute><ServiceQualityPage /></ProtectedRoute>} />
             <Route path="audit-logs" element={<ProtectedRoute requiredRole={["super_admin", "admin"]}><AuditLogsPage /></ProtectedRoute>} />
             <Route path="audit" element={<Navigate to="/admin/audit-logs" replace />} />
             <Route path="ai-secretary" element={<ProtectedRoute><AiSecretaryPage /></ProtectedRoute>} />
@@ -120,12 +132,16 @@ export default function App() {
             <Route path="hr" element={<ProtectedRoute requiredModule="hr"><HrWorkspacePage /></ProtectedRoute>} />
             <Route path="hr/:section" element={<ProtectedRoute requiredModule="hr"><HrWorkspacePage /></ProtectedRoute>} />
             <Route path="team" element={<ProtectedRoute requiredRole={["super_admin", "admin"]}><StaffRbacPage /></ProtectedRoute>} />
+            <Route path="team/staff-performance" element={<ProtectedRoute requiredRole={["super_admin", "admin", "operations_manager"]}><StaffPerformancePage /></ProtectedRoute>} />
             {/* Referrals & Reports & Campaigns */}
             <Route path="campaigns" element={<ProtectedRoute><AdminCampaigns /></ProtectedRoute>} />
             <Route path="referrals" element={<ProtectedRoute><AdminReferrals /></ProtectedRoute>} />
             <Route path="reports" element={<ProtectedRoute requiredModule="reports"><AdminReports /></ProtectedRoute>} />
             <Route path="reports/service-profitability" element={<ProtectedRoute requiredModule="reports"><ServiceProfitabilityPage /></ProtectedRoute>} />
             <Route path="service-profitability" element={<ProtectedRoute requiredModule="reports"><ServiceProfitabilityPage /></ProtectedRoute>} />
+            {/* Phase 11 Staff Performance & Workload Analytics */}
+            <Route path="reports/staff-performance" element={<ProtectedRoute requiredModule="reports"><StaffPerformancePage /></ProtectedRoute>} />
+            <Route path="staff-performance" element={<Navigate to="/admin/reports/staff-performance" replace />} />
             <Route path="settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
           </Route>
 

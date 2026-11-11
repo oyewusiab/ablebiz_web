@@ -48,6 +48,9 @@ import {
   calculateComplianceDeadlineStatus,
   computeComplianceSummary,
 } from "../compliance/complianceService";
+import { computeAppointmentSummary } from "../scheduling/schedulingService";
+import { computeQualitySummaryMetrics } from "../quality/qualityService";
+import { computeTeamPerformanceSummary, computeStaffIndividualPerformance } from "../performance/performanceService";
 
 export interface TableQueryResult<T = Record<string, any>> {
   data: T[] | null;
@@ -689,6 +692,15 @@ async function runOperationalReportForModule(
   }
   if (intent.subIntent === "compliance_management") {
     return handleComplianceManagementAssistantReport(intent, caller, adapter, now, prefix, context);
+  }
+  if (intent.subIntent === "appointments_scheduling" || intent.primaryModule === "appointments") {
+    return handleAppointmentsAssistantReport(intent, caller, adapter, now, prefix, context);
+  }
+  if (intent.subIntent === "service_quality" || intent.primaryModule === "service_quality") {
+    return handleServiceQualityAssistantReport(intent, caller, adapter, now, prefix, context);
+  }
+  if (intent.subIntent === "staff_performance" || intent.primaryModule === "staff_performance") {
+    return handleStaffPerformanceAssistantReport(intent, caller, adapter, now, prefix, context);
   }
 
   switch (intent.primaryModule) {
@@ -1691,6 +1703,273 @@ async function handleComplianceManagementAssistantReport(
       fetchedAtFormatted: formatDateTimeLagos(now),
       roleApplied: caller.role,
       scopeDescription: "Annual compliance, statutory return deadlines, and recurring opportunities",
+    },
+  };
+}
+
+/**
+ * Appointment & Consultation Scheduling (Phase 9 AI Secretary Query)
+ */
+async function handleAppointmentsAssistantReport(
+  intent: ClassifiedIntent,
+  caller: AssistantCallerContext,
+  adapter: AssistantDataAdapter,
+  now: Date,
+  prefix: string,
+  context: ConversationContext
+): Promise<AssistantResponsePayload> {
+  const [apptRes, staffRes] = await Promise.all([
+    adapter.queryTable("appointments", { orderBy: { column: "appointment_date", ascending: true }, limit: 300 }),
+    adapter.queryTable("staff_profiles", { limit: 100 }),
+  ]);
+
+  if (apptRes.error) {
+    return buildErrorOrSchemaPayload(caller, "appointments", intent, "appointments", apptRes.error, now);
+  }
+
+  const allAppointments: any[] = apptRes.data || [];
+  const staffList: any[] = staffRes.data || [];
+  const todayStr = now.toISOString().slice(0, 10);
+
+  // Scope: if caller is registration_officer or client_service_officer, filter to assigned unless management
+  const isMgmt = ["super_admin", "admin", "operations_manager"].includes(caller.role);
+  const relevantAppointments = isMgmt
+    ? allAppointments
+    : allAppointments.filter((a) => a.assigned_staff_id === caller.userId || a.client_contact_email === caller.email);
+
+  const summary = computeAppointmentSummary(relevantAppointments, todayStr);
+  const todayAppts = relevantAppointments.filter((a) => a.appointment_date === todayStr && !["cancelled", "completed"].includes(a.status));
+  const unconfirmedAppts = relevantAppointments.filter((a) => ["scheduled", "requested"].includes(a.status));
+
+  let summaryMarkdown = `${prefix}Here is the operational summary for **Appointment & Consultation Scheduling** (Africa/Lagos timezone):\n\n`;
+  summaryMarkdown += `- **Today's Appointments:** ${summary.todayCount} consultation(s)\n`;
+  summaryMarkdown += `- **Upcoming Future Sessions:** ${summary.upcomingCount}\n`;
+  summaryMarkdown += `- **Unconfirmed / Awaiting Confirmation:** ${summary.unconfirmedCount}\n`;
+  summaryMarkdown += `- **Completed Consultations:** ${summary.completedCount} (${summary.completionRate}% completion rate)\n`;
+  summaryMarkdown += `- **Missed / Client Did Not Attend:** ${summary.missedCount}\n\n`;
+
+  if (todayAppts.length > 0) {
+    summaryMarkdown += `### Consultations Scheduled for Today (${todayStr}):\n`;
+    for (const a of todayAppts.slice(0, 5)) {
+      const staffName = staffList.find((s) => s.id === a.assigned_staff_id)?.full_name || "Assigned Officer";
+      summaryMarkdown += `• **${a.title}** (${a.start_time?.slice(0, 5)} - ${a.end_time?.slice(0, 5)}) with ${staffName} [Ref: \`${a.reference_code}\`]\n`;
+    }
+  } else {
+    summaryMarkdown += `No further active consultations are scheduled for today.\n`;
+  }
+
+  return {
+    status: "ok",
+    intentType: "operational_report",
+    moduleId: "appointments",
+    title: "Appointment & Consultation Scheduling",
+    summary: `${relevantAppointments.length} consultation(s) tracked in horizon`,
+    markdown: summaryMarkdown,
+    table: {
+      headers: ["Reference", "Title", "Date", "Time", "Status", "Location"],
+      rows: relevantAppointments.slice(0, 12).map((a) => [
+        a.reference_code || a.id?.slice(0, 8),
+        a.title || "Consultation",
+        a.appointment_date,
+        `${a.start_time?.slice(0, 5)} - ${a.end_time?.slice(0, 5)}`,
+        a.status?.replace(/_/g, " "),
+        a.meeting_location?.replace(/_/g, " ") || "Office",
+      ]),
+    },
+    links: resolveAuthorizedLinks(caller, ["leads", "clients", "tasks"]),
+    followUpSuggestions: [
+      "What appointments do I have today?",
+      "Which consultations are scheduled this week?",
+      "Which appointments have not been confirmed?",
+      "Which appointments were missed?",
+    ],
+    sourceMeta: {
+      tablesQueried: ["appointments", "staff_profiles"],
+      sourcesLabel: formatFriendlySourceNames(["appointments"]),
+      reportingPeriodLabel: "Africa/Lagos Live Horizon",
+      timezone: ABILITY_TIMEZONE,
+      fetchedAtIso: now.toISOString(),
+      fetchedAtFormatted: formatDateTimeLagos(now),
+      roleApplied: caller.role,
+      scopeDescription: isMgmt ? "All corporate consultations" : "Assigned consultations",
+    },
+  };
+}
+
+/**
+ * Client Satisfaction & Service Quality Management (Phase 10 AI Secretary Query)
+ */
+async function handleServiceQualityAssistantReport(
+  intent: ClassifiedIntent,
+  caller: AssistantCallerContext,
+  adapter: AssistantDataAdapter,
+  now: Date,
+  prefix: string,
+  context: ConversationContext
+): Promise<AssistantResponsePayload> {
+  const [fbRes, cmpRes] = await Promise.all([
+    adapter.queryTable("client_feedback", { orderBy: { column: "created_at", ascending: false }, limit: 300 }),
+    adapter.queryTable("client_complaints", { orderBy: { column: "created_at", ascending: false }, limit: 300 }),
+  ]);
+
+  if (fbRes.error) {
+    return buildErrorOrSchemaPayload(caller, "service_quality", intent, "client_feedback", fbRes.error, now);
+  }
+
+  const feedbackList: any[] = fbRes.data || [];
+  const complaintsList: any[] = cmpRes.data || [];
+  const metrics = computeQualitySummaryMetrics({ feedbackList, complaintsList, satisfactionThreshold: 4, referenceDate: now });
+
+  const isMgmt = ["super_admin", "admin", "operations_manager"].includes(caller.role);
+
+  let summaryMarkdown = `${prefix}Here is the operational overview for **Client Satisfaction & Service Quality**:\n\n`;
+  summaryMarkdown += `- **Average Client Satisfaction:** ${metrics.averageSatisfaction} / 5.0 (based on ${metrics.totalFeedbackCount} client ratings)\n`;
+  summaryMarkdown += `- **Satisfied Client Percentage:** ${metrics.satisfiedPercentage}% (ratings >= 4 stars)\n`;
+  summaryMarkdown += `- **Net Promoter Score (NPS):** ${metrics.npsScore !== null ? `+${metrics.npsScore}` : "N/A"}\n`;
+  summaryMarkdown += `- **Active Complaints in Queue:** ${metrics.activeComplaints} ticket(s)\n`;
+  summaryMarkdown += `- **Overdue Complaints:** ${metrics.overdueComplaints} ticket(s) exceeding SLA\n`;
+  summaryMarkdown += `- **Average Resolution Time:** ${metrics.averageResolutionHours} hours\n\n`;
+
+  if (metrics.overdueComplaints > 0) {
+    summaryMarkdown += `⚠️ **Management Notice:** There are ${metrics.overdueComplaints} unresolved complaint tickets that have passed their resolution deadline and require intervention.\n`;
+  }
+
+  return {
+    status: "ok",
+    intentType: "operational_report",
+    moduleId: "service_quality",
+    title: "Client Satisfaction & Service Quality",
+    summary: `CSAT: ${metrics.averageSatisfaction}/5.0 · Active Complaints: ${metrics.activeComplaints}`,
+    markdown: summaryMarkdown,
+    table: {
+      headers: ["Ticket Ref", "Title", "Category", "Priority", "Status", "Target SLA"],
+      rows: complaintsList.slice(0, 10).map((c) => [
+        c.complaint_number || c.id?.slice(0, 8),
+        c.title || "Complaint Ticket",
+        c.category?.replace(/_/g, " "),
+        c.priority?.toUpperCase(),
+        c.status?.replace(/_/g, " "),
+        `${c.resolution_target_hours || 72}h`,
+      ]),
+    },
+    links: resolveAuthorizedLinks(caller, ["clients", "tasks", "reports"]),
+    followUpSuggestions: [
+      "What is our average client satisfaction rating this month?",
+      "Which services have the lowest satisfaction scores?",
+      "How many complaints remain unresolved?",
+      "Which complaints are overdue?",
+      "What are the most common client concerns?",
+    ],
+    sourceMeta: {
+      tablesQueried: ["client_feedback", "client_complaints"],
+      sourcesLabel: formatFriendlySourceNames(["client_feedback", "client_complaints"]),
+      reportingPeriodLabel: "Live Operational Snapshot",
+      timezone: ABILITY_TIMEZONE,
+      fetchedAtIso: now.toISOString(),
+      fetchedAtFormatted: formatDateTimeLagos(now),
+      roleApplied: caller.role,
+      scopeDescription: "Client satisfaction ratings, complaints queue, and resolution SLAs",
+    },
+  };
+}
+
+/**
+ * Staff Performance & Workload Analytics (Phase 11 AI Secretary Query)
+ */
+async function handleStaffPerformanceAssistantReport(
+  intent: ClassifiedIntent,
+  caller: AssistantCallerContext,
+  adapter: AssistantDataAdapter,
+  now: Date,
+  prefix: string,
+  context: ConversationContext
+): Promise<AssistantResponsePayload> {
+  const [tasksRes, srRes, staffRes] = await Promise.all([
+    adapter.queryTable("tasks", { limit: 500 }),
+    adapter.queryTable("service_requests", { limit: 500 }),
+    adapter.queryTable("staff_profiles", { limit: 100 }),
+  ]);
+
+  if (tasksRes.error) {
+    return buildErrorOrSchemaPayload(caller, "staff_performance", intent, "tasks", tasksRes.error, now);
+  }
+
+  const tasksList: any[] = tasksRes.data || [];
+  const srList: any[] = srRes.data || [];
+  const staffList: any[] = (staffRes.data || []).filter((s: any) => s.is_active !== false);
+
+  const isMgmt = ["super_admin", "admin", "operations_manager"].includes(caller.role);
+
+  // Compute individual performance
+  const staffMetrics = staffList.map((s) => {
+    return computeStaffIndividualPerformance({
+      staffId: s.id,
+      staffName: s.full_name,
+      role: s.role,
+      department: "Operations",
+      tasks: tasksList,
+      turnarounds: [],
+      referenceDate: now,
+    });
+  });
+
+  const teamSummary = computeTeamPerformanceSummary(staffMetrics);
+
+  let summaryMarkdown = `${prefix}Here is the fair, context-aware operational analysis for **Staff Performance & Workload**:\n\n`;
+  summaryMarkdown += `- **Active Tasks Across Team:** ${teamSummary.totalActiveTasks} tasks\n`;
+  summaryMarkdown += `- **Overdue Tasks:** ${teamSummary.totalOverdueTasks} tasks\n`;
+  summaryMarkdown += `- **Average Internal Task Turnaround:** ${teamSummary.teamAverageTaskTurnaroundDays} days\n`;
+  summaryMarkdown += `- **Workload Capacity Balance:** ${teamSummary.balancedStaffCount} officer(s) balanced, ${teamSummary.availableCapacityStaffCount} with available capacity, ${teamSummary.overloadedStaffCount} overloaded (>15 tasks)\n\n`;
+  summaryMarkdown += `*Note on Fairness:* Internal processing turnaround reflects time under ABLEBIZ control, excluding paused waiting periods for client documents and external statutory authority (CAC/FIRS) approvals.\n`;
+
+  const visibleRows = isMgmt
+    ? staffMetrics.slice(0, 10).map((m) => [
+        m.staffName,
+        m.role.replace(/_/g, " "),
+        `${m.activeTasksCount} tasks`,
+        `${m.weightedWorkloadPoints} pts`,
+        `${m.overdueTasksCount} overdue`,
+        `${m.workloadUtilizationPct}%`,
+      ])
+    : staffMetrics
+        .filter((m) => m.staffId === caller.userId)
+        .map((m) => [
+          m.staffName,
+          m.role.replace(/_/g, " "),
+          `${m.activeTasksCount} tasks`,
+          `${m.weightedWorkloadPoints} pts`,
+          `${m.overdueTasksCount} overdue`,
+          `${m.workloadUtilizationPct}%`,
+        ]);
+
+  return {
+    status: "ok",
+    intentType: "operational_report",
+    moduleId: "staff_performance",
+    title: "Staff Performance & Workload Analytics",
+    summary: `Active Tasks: ${teamSummary.totalActiveTasks} · Overdue: ${teamSummary.totalOverdueTasks}`,
+    markdown: summaryMarkdown,
+    table: {
+      headers: ["Officer", "Role", "Active Workload", "Complexity Weight", "Overdue", "Capacity Load"],
+      rows: visibleRows,
+    },
+    links: resolveAuthorizedLinks(caller, ["tasks", "reports", "service_requests"]),
+    followUpSuggestions: [
+      "What is the current workload distribution across the team?",
+      "Which officers have the highest overdue task counts?",
+      "Which service categories are causing bottlenecks?",
+      "How many CAC applications were processed this month?",
+      "What requires management attention today?",
+    ],
+    sourceMeta: {
+      tablesQueried: ["tasks", "service_requests", "staff_profiles"],
+      sourcesLabel: formatFriendlySourceNames(["tasks", "service_requests", "staff_profiles"]),
+      reportingPeriodLabel: "Live Operational Workload",
+      timezone: ABILITY_TIMEZONE,
+      fetchedAtIso: now.toISOString(),
+      fetchedAtFormatted: formatDateTimeLagos(now),
+      roleApplied: caller.role,
+      scopeDescription: isMgmt ? "Entire team workload distribution" : "Personal workload context",
     },
   };
 }

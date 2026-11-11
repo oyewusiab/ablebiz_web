@@ -30,6 +30,7 @@ import {
   UserCheck,
   Clock,
   Workflow,
+  CalendarDays,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { useTheme } from "../auth/ThemeContext";
@@ -84,6 +85,8 @@ export function AdminPortalLayout() {
         { name: "Clients 360°", path: "/admin/clients", icon: Users, module: "crm" },
         { name: "Businesses", path: "/admin/businesses", icon: Building2, module: "crm" },
         { name: "Follow-ups", path: "/admin/follow-ups", icon: CheckSquare, module: "crm" },
+        { name: "Appointments", path: "/admin/appointments", icon: CalendarDays, module: "crm" },
+        { name: "Client Feedback", path: "/admin/service-quality", icon: Sparkles, module: "crm" },
         { name: "Compliance Profiles", path: "/admin/compliance-calendar", icon: ShieldCheck, module: "crm" },
       ],
     },
@@ -97,6 +100,8 @@ export function AdminPortalLayout() {
         { name: "SLA & Deadlines", path: "/admin/sla-settings", icon: Clock, module: "operations" },
         { name: "Workflows", path: "/admin/workflows", icon: Workflow, module: "operations" },
         { name: "Compliance Calendar", path: "/admin/compliance-calendar", icon: Clock, module: "operations" },
+        { name: "Appointment Calendar", path: "/admin/appointments", icon: CalendarDays, module: "operations" },
+        { name: "Complaints & Resolution", path: "/admin/service-quality", icon: ShieldCheck, module: "operations" },
         { name: "Documents", path: "/admin/documents", icon: FolderOpen, module: "operations" },
       ],
     },
@@ -130,12 +135,15 @@ export function AdminPortalLayout() {
       items: [
         { name: "Executive Reports", path: "/admin/reports", icon: BarChart3, module: "reports" },
         { name: "Service Profitability", path: "/admin/reports/service-profitability", icon: DollarSign, module: "reports" },
+        { name: "Service Quality Reports", path: "/admin/service-quality", icon: Sparkles, module: "reports" },
+        { name: "Staff Performance", path: "/admin/reports/staff-performance", icon: Users, module: "reports" },
       ],
     },
     {
       title: "TEAM",
       items: [
         { name: "HR & Staff Portal", path: "/admin/hr", icon: UserCheck, module: "hr" },
+        { name: "Staff Workload & Performance", path: "/admin/team/staff-performance", icon: Users },
         { name: "Staff & RBAC", path: "/admin/team", icon: ShieldCheck, superOnly: true },
         { name: "Audit Trail", path: "/admin/audit-logs", icon: FileCheck2, superOnly: true },
       ],

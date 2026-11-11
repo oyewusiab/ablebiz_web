@@ -591,13 +591,16 @@ describe("ABLEBIZ AI Secretary — Full-Suite Module Coverage & Unsupported Feat
     userName: "Adebayo Oyewusi",
   });
 
-  it("documents all 24 verified Suite modules in CAPABILITY_CATALOGUE", () => {
+  it("documents all 27 verified Suite modules in CAPABILITY_CATALOGUE (including Phases 9, 10, and 11)", () => {
     const moduleKeys = Object.keys(CAPABILITY_CATALOGUE);
-    assert.equal(moduleKeys.length, 24);
+    assert.equal(moduleKeys.length, 27);
     assert.ok(moduleKeys.includes("cac_operations"));
     assert.ok(moduleKeys.includes("hr_workspace"));
     assert.ok(moduleKeys.includes("referrals"));
     assert.ok(moduleKeys.includes("audit_logs"));
+    assert.ok(moduleKeys.includes("appointments"));
+    assert.ok(moduleKeys.includes("service_quality"));
+    assert.ok(moduleKeys.includes("staff_performance"));
   });
 
   it("executes operational queries across Referrals, CRM Leads, Service Requests, Tasks, Documents, Team, Audit Logs, and Settings", async () => {

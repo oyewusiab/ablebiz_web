@@ -56,6 +56,9 @@ export interface ClientDetailData extends ClientRecord {
   tasks?: any[];
   engagement_history?: ClientEngagementEvent[];
   compliance_obligations?: any[];
+  appointments?: any[];
+  feedback?: any[];
+  complaints?: any[];
 }
 
 export function AdminClients() {
@@ -69,7 +72,7 @@ export function AdminClients() {
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [clientDetail, setClientDetail] = useState<ClientDetailData | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
-  const [active360Tab, setActive360Tab] = useState<"overview" | "communications" | "businesses" | "requests" | "tasks" | "followups" | "timeline" | "finance" | "compliance">("overview");
+  const [active360Tab, setActive360Tab] = useState<"overview" | "communications" | "businesses" | "requests" | "tasks" | "followups" | "timeline" | "finance" | "compliance" | "appointments" | "quality">("overview");
   const [commRefreshTick, setCommRefreshTick] = useState(0);
 
   // Create Client Modal State
@@ -131,6 +134,9 @@ export function AdminClients() {
         tasksRes,
         historyEvents,
         complianceRes,
+        appointmentsRes,
+        feedbackRes,
+        complaintsRes,
       ] = await Promise.all([
         supabase.from("clients").select("*").eq("id", clientId).single(),
         supabase.from("businesses").select("*").eq("client_id", clientId),
@@ -142,6 +148,9 @@ export function AdminClients() {
         supabase.from("tasks").select("*, assigned_staff:staff_profiles(full_name)").eq("client_id", clientId).order("due_date", { ascending: true }),
         buildClientEngagementHistory(clientId),
         supabase.from("compliance_obligations").select("*, service:services_catalog(name), assigned_officer:staff_profiles(full_name)").eq("client_id", clientId).order("due_date", { ascending: true }),
+        supabase.from("appointments").select("*, assigned_staff:staff_profiles(full_name)").eq("client_id", clientId).order("appointment_date", { ascending: false }),
+        supabase.from("client_feedback").select("*").eq("client_id", clientId).order("created_at", { ascending: false }),
+        supabase.from("client_complaints").select("*, assigned_officer:staff_profiles(full_name)").eq("client_id", clientId).order("created_at", { ascending: false }),
       ]);
 
       if (clientRes.data) {
@@ -156,6 +165,9 @@ export function AdminClients() {
           tasks: (tasksRes as any)?.data || [],
           engagement_history: historyEvents || [],
           compliance_obligations: complianceRes.data || [],
+          appointments: appointmentsRes.data || [],
+          feedback: feedbackRes.data || [],
+          complaints: complaintsRes.data || [],
         });
       }
     } catch (err) {
@@ -441,6 +453,8 @@ export function AdminClients() {
                     { id: "followups", label: "Follow-ups", count: clientDetail.follow_ups.length },
                     { id: "timeline", label: "Engagement History", count: clientDetail.engagement_history?.length || clientDetail.activity_timeline.length },
                     { id: "compliance", label: "Compliance & Deadlines", count: clientDetail.compliance_obligations?.length || 0 },
+                    { id: "appointments", label: "Appointments", count: clientDetail.appointments?.length || 0 },
+                    { id: "quality", label: "Feedback & Complaints", count: (clientDetail.feedback?.length || 0) + (clientDetail.complaints?.length || 0) },
                     ...(canViewFinance ? [{ id: "finance", label: "Finance & Invoices", count: clientDetail.invoices?.length || 0 }] : []),
                   ].map((tab) => (
                     <button
@@ -741,6 +755,93 @@ export function AdminClients() {
                         ))}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {active360Tab === "appointments" && (
+                  <div className="space-y-3">
+                    {!clientDetail.appointments || clientDetail.appointments.length === 0 ? (
+                      <div className="text-center py-6">
+                        <p className="text-xs text-slate-400 mb-2">No consultation appointments logged for this client.</p>
+                        <a
+                          href="/admin/appointments"
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 hover:text-amber-900"
+                        >
+                          Schedule in Appointments Workspace <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {clientDetail.appointments.map((appt: any) => (
+                          <div key={appt.id} className="rounded-xl border border-slate-200 p-3 hover:border-amber-400 transition text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-slate-900">{appt.title}</span>
+                              <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase bg-amber-50 text-amber-800">
+                                {appt.status}
+                              </span>
+                            </div>
+                            <div className="mt-1 flex items-center gap-3 text-[11px] text-slate-500">
+                              <span>Ref: <strong className="font-mono text-slate-700">{appt.reference_code}</strong></span>
+                              <span>Date: <strong>{appt.appointment_date}</strong></span>
+                              <span>Time: <strong>{appt.start_time?.slice(0, 5)} - {appt.end_time?.slice(0, 5)}</strong></span>
+                              <span className="capitalize">Location: {appt.meeting_location?.replace("_", " ")}</span>
+                            </div>
+                            {appt.purpose && (
+                              <p className="mt-1 text-[11px] text-slate-600 italic">Purpose: {appt.purpose}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {active360Tab === "quality" && (
+                  <div className="space-y-4 text-xs">
+                    <div>
+                      <h4 className="font-bold text-slate-900 mb-2">Client Feedback & Ratings</h4>
+                      {!clientDetail.feedback || clientDetail.feedback.length === 0 ? (
+                        <p className="text-slate-400 text-xs py-2">No feedback submitted by this client yet.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {clientDetail.feedback.map((fb: any) => (
+                            <div key={fb.id} className="p-3 rounded-xl border border-slate-200 bg-slate-50/50 space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="font-semibold text-slate-800">{fb.rating} Stars Rating</span>
+                                <span className="text-[10px] text-slate-400">{new Date(fb.created_at).toLocaleDateString()}</span>
+                              </div>
+                              {fb.comments && <p className="text-slate-600 italic">"{fb.comments}"</p>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100">
+                      <h4 className="font-bold text-slate-900 mb-2">Complaints & Tickets</h4>
+                      {!clientDetail.complaints || clientDetail.complaints.length === 0 ? (
+                        <p className="text-slate-400 text-xs py-2">No complaints on record for this client.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {clientDetail.complaints.map((cmp: any) => (
+                            <div key={cmp.id} className="p-3 rounded-xl border border-slate-200 space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-slate-900">{cmp.title}</span>
+                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                                  cmp.status === "resolved" ? "bg-emerald-50 text-emerald-800" : "bg-rose-50 text-rose-800"
+                                }`}>
+                                  {cmp.status}
+                                </span>
+                              </div>
+                              <p className="text-slate-600 text-[11px]">{cmp.description}</p>
+                              {cmp.resolution_notes && (
+                                <p className="text-emerald-700 text-[11px] bg-emerald-50 p-2 rounded">Resolution: {cmp.resolution_notes}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

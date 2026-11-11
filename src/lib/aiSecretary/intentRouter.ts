@@ -163,6 +163,33 @@ export function detectModuleFromText(
     return { moduleId: "businesses", subIntent: "compliance_management", explicitMatch: true };
   }
 
+  // 3e. Appointment & Consultation Scheduling (Phase 9)
+  if (
+    /\b(appointment|appointments|consultation|consultations|scheduled meeting|advisory session|booked session|available for (a )?consultation|consultation schedule|missed appointment|unconfirmed appointment)\b/.test(
+      q
+    )
+  ) {
+    return { moduleId: "appointments", subIntent: "appointments_scheduling", explicitMatch: true };
+  }
+
+  // 3f. Client Satisfaction & Service Quality Management (Phase 10)
+  if (
+    /\b(client satisfaction|satisfaction rating|csat|net promoter score|client feedback|feedback rating|complaint|complaints|unresolved complaint|overdue complaint|common client concern|service quality|quality review|quality audit)\b/.test(
+      q
+    )
+  ) {
+    return { moduleId: "service_quality", subIntent: "service_quality", explicitMatch: true };
+  }
+
+  // 3g. Staff Performance & Workload Analytics (Phase 11)
+  if (
+    /\b(workload distribution|overdue task counts?|service bottleneck|service bottlenecks|staff capacity|taking longer than expected|service turnaround|staff performance|workload balance|officer performance|team workload|turnaround time under ablebiz control)\b/.test(
+      q
+    )
+  ) {
+    return { moduleId: "staff_performance", subIntent: "staff_performance", explicitMatch: true };
+  }
+
   // 4. Finance: Quotations, Invoices, Payments, Expenses, Vendors
   if (/\b(quotation|quotations|quote|quotes)\b/.test(q)) {
     return { moduleId: "quotations", subIntent: "summary", explicitMatch: true };
