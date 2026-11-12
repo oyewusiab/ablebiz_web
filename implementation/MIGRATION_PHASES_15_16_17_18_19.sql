@@ -6,7 +6,7 @@
 -- PHASE 18: Marketing Campaign & Lead Attribution Analytics
 -- PHASE 19: Receipt-Linked Expense Allocation & Profitability
 -- File: implementation/MIGRATION_PHASES_15_16_17_18_19.sql
--- Idempotent, safe, non-destructive, and concurrency-hardened.
+-- Genuinely idempotent, concurrency-hardened, and non-destructive.
 -- ==============================================================================
 
 begin;
@@ -46,6 +46,19 @@ create table if not exists public.staff_notification_preferences (
   updated_at timestamptz not null default now()
 );
 
+-- Reconcile columns if table pre-existed from earlier draft
+alter table public.staff_notification_preferences
+  add column if not exists in_app_enabled boolean not null default true,
+  add column if not exists email_enabled boolean not null default true,
+  add column if not exists whatsapp_enabled boolean not null default true,
+  add column if not exists subscribed_categories text[] not null default array[
+    'tasks', 'sla', 'finance', 'cac', 'approvals', 'appointments', 'quotations', 'compliance', 'system', 'backup'
+  ],
+  add column if not exists reminder_frequency text not null default 'immediate',
+  add column if not exists quiet_hours_enabled boolean not null default false,
+  add column if not exists quiet_hours_start time default '20:00:00',
+  add column if not exists quiet_hours_end time default '07:00:00';
+
 create index if not exists idx_staff_notif_prefs_staff on public.staff_notification_preferences(staff_id);
 
 -- 1.3 Escalation Rules Table
@@ -71,11 +84,18 @@ create table if not exists public.escalation_rules (
   escalate_to_role text not null,
   escalate_to_staff_id uuid references public.staff_profiles(id) on delete set null,
   channel text not null default 'in_app' check (channel in ('in_app', 'email', 'all')),
-  repeat_interval_hours integer not null default 0, -- 0 means trigger once without repeated spam
+  repeat_interval_hours integer not null default 0,
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.escalation_rules
+  add column if not exists trigger_condition text not null default 'time_threshold_exceeded',
+  add column if not exists time_threshold_hours integer not null default 24,
+  add column if not exists channel text not null default 'in_app',
+  add column if not exists repeat_interval_hours integer not null default 0,
+  add column if not exists is_active boolean not null default true;
 
 create index if not exists idx_escalation_rules_active on public.escalation_rules(is_active, event_type);
 
@@ -94,9 +114,13 @@ create table if not exists public.escalation_logs (
   triggered_at timestamptz not null default now()
 );
 
+alter table public.escalation_logs
+  add column if not exists escalation_level integer not null default 1,
+  add column if not exists notification_id uuid references public.notifications(id) on delete set null;
+
 create index if not exists idx_escalation_logs_event on public.escalation_logs(event_type, record_id, triggered_at desc);
 
--- Seed Default Escalation Rules
+-- Seed Default Escalation Rules (Idempotent: DO NOTHING on existing conflict)
 insert into public.escalation_rules (
   event_type, name, description, trigger_condition, time_threshold_hours, priority, responsible_role, escalate_to_role, channel, repeat_interval_hours, is_active
 ) values
@@ -114,7 +138,6 @@ on conflict (event_type) do nothing;
 -- ==============================================================================
 
 -- 2.1 Backup Records Table (Tracking provider snapshots, file backups, and verifications)
--- Note: Capabilities and locations are unverified until physically validated.
 create table if not exists public.backup_records (
   id uuid primary key default gen_random_uuid(),
   backup_reference text not null unique,
@@ -132,11 +155,21 @@ create table if not exists public.backup_records (
   created_at timestamptz not null default now()
 );
 
+alter table public.backup_records
+  add column if not exists provider text not null default 'Awaiting Infrastructure Confirmation',
+  add column if not exists storage_location text not null default 'Awaiting Infrastructure Confirmation',
+  add column if not exists file_size_mb numeric(10,2) not null default 0.00,
+  add column if not exists checksum text,
+  add column if not exists retention_days integer not null default 30,
+  add column if not exists error_message text,
+  add column if not exists verified_at timestamptz,
+  add column if not exists verified_by uuid references public.staff_profiles(id) on delete set null,
+  add column if not exists notes text;
+
 create index if not exists idx_backup_records_status on public.backup_records(status, created_at desc);
 create index if not exists idx_backup_records_created on public.backup_records(created_at desc);
 
 -- 2.2 Physical Restore Drills Table (Tracking isolated test restores)
--- Note: Drills must be physically performed. Default outcome is pending execution.
 create table if not exists public.restore_drills (
   id uuid primary key default gen_random_uuid(),
   drill_code text not null unique,
@@ -156,10 +189,18 @@ create table if not exists public.restore_drills (
   created_at timestamptz not null default now()
 );
 
+alter table public.restore_drills
+  add column if not exists duration_minutes integer,
+  add column if not exists critical_tables_verified jsonb not null default '[]'::jsonb,
+  add column if not exists documents_verified boolean not null default false,
+  add column if not exists integrity_check_passed boolean not null default false,
+  add column if not exists rpo_hours_achieved numeric(6,2),
+  add column if not exists rto_minutes_achieved numeric(6,2),
+  add column if not exists corrective_action_plan text;
+
 create index if not exists idx_restore_drills_date on public.restore_drills(drill_date desc);
 
 -- 2.3 Business Continuity Settings Table
--- Targets and schedules are marked unapproved and pending infrastructure confirmation.
 create table if not exists public.business_continuity_settings (
   id uuid primary key default gen_random_uuid(),
   target_rpo_hours numeric(6,2) not null default 2.0,
@@ -176,6 +217,17 @@ create table if not exists public.business_continuity_settings (
   disaster_recovery_runbook text not null default 'Standard Operating Procedure for Disaster Recovery and Data Continuity',
   updated_at timestamptz not null default now()
 );
+
+alter table public.business_continuity_settings
+  add column if not exists target_rpo_hours numeric(6,2) not null default 2.0,
+  add column if not exists target_rto_hours numeric(6,2) not null default 4.0,
+  add column if not exists rpo_rto_approved_by_management boolean not null default false,
+  add column if not exists primary_backup_schedule text not null default 'Awaiting Infrastructure Confirmation',
+  add column if not exists point_in_time_recovery_available boolean not null default false,
+  add column if not exists storage_coverage text[] not null default '{}',
+  add column if not exists disaster_recovery_lead text not null default 'Operations Manager / Lead Systems Administrator',
+  add column if not exists emergency_contact_phone text default null,
+  add column if not exists emergency_contact_email text default 'hello@ablebiz.com.ng';
 
 -- Seed initial Business Continuity Record if not exists (unapproved draft state)
 insert into public.business_continuity_settings (
@@ -202,15 +254,22 @@ create table if not exists public.service_bundles (
   standard_total_ngn numeric(14,2) not null default 0.00,
   savings_percentage numeric(5,2) not null default 0.00,
   eligibility_conditions text,
-  is_active boolean not null default false, -- Explicitly inactive awaiting management pricing approval
+  is_active boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
+alter table public.service_bundles
+  add column if not exists included_service_ids uuid[] not null default '{}',
+  add column if not exists bundle_price_ngn numeric(14,2) not null default 0.00,
+  add column if not exists standard_total_ngn numeric(14,2) not null default 0.00,
+  add column if not exists savings_percentage numeric(5,2) not null default 0.00,
+  add column if not exists eligibility_conditions text,
+  add column if not exists is_active boolean not null default false;
+
 create index if not exists idx_service_bundles_active on public.service_bundles(is_active);
 
 -- Seed draft service bundles linked to verified catalog services where available
--- Explicitly marked as is_active = false awaiting executive approval
 do $$
 declare
   v_ltd_id uuid;
@@ -250,6 +309,22 @@ begin
 end $$;
 
 -- 3.2 Extend quotations table with margins, statutory fees, approval references, conversion tracking
+-- Reconciliation Conflict Table: Preserves independent history with NO cascading deletion
+create table if not exists public.quotation_reconciliation_conflicts (
+  id uuid primary key default gen_random_uuid(),
+  quotation_id uuid references public.quotations(id) on delete set null,
+  historical_quotation_id uuid not null,
+  quotation_number text not null,
+  statutory_fee_total numeric(14,2) not null,
+  statutory_fees_total numeric(14,2) not null,
+  detected_at timestamptz not null default now(),
+  status text not null default 'pending_manual_reconciliation' check (status in ('pending_manual_reconciliation', 'resolved')),
+  resolution_notes text,
+  constraint uq_quotation_reconciliation_conflict unique (historical_quotation_id)
+);
+
+create index if not exists idx_quote_recon_conflicts_hist on public.quotation_reconciliation_conflicts(historical_quotation_id);
+
 -- Safe conflict-preserving reconciliation between statutory_fees_total (plural) and statutory_fee_total (singular)
 do $$
 declare
@@ -275,30 +350,21 @@ begin
       and statutory_fee_total <> statutory_fees_total;
 
     if v_conflict_count > 0 then
-      create table if not exists public.quotation_reconciliation_conflicts (
-        id uuid primary key default gen_random_uuid(),
-        quotation_id uuid not null references public.quotations(id) on delete cascade,
-        quotation_number text,
-        statutory_fee_total numeric(14,2) not null,
-        statutory_fees_total numeric(14,2) not null,
-        detected_at timestamptz not null default now(),
-        status text not null default 'pending_manual_reconciliation' check (status in ('pending_manual_reconciliation', 'resolved')),
-        resolution_notes text
-      );
-
+      -- Idempotently insert conflicting rows into permanent reconciliation audit table
       insert into public.quotation_reconciliation_conflicts (
-        quotation_id, quotation_number, statutory_fee_total, statutory_fees_total
+        quotation_id, historical_quotation_id, quotation_number, statutory_fee_total, statutory_fees_total
       )
-      select id, quotation_number, statutory_fee_total, statutory_fees_total
+      select id, id, coalesce(quotation_number, id::text), statutory_fee_total, statutory_fees_total
       from public.quotations
       where coalesce(statutory_fee_total, 0.00) > 0.00
         and coalesce(statutory_fees_total, 0.00) > 0.00
-        and statutory_fee_total <> statutory_fees_total;
+        and statutory_fee_total <> statutory_fees_total
+      on conflict (historical_quotation_id) do nothing;
 
       raise notice 'Preserved % conflicting quotation statutory fee records in public.quotation_reconciliation_conflicts.', v_conflict_count;
     end if;
 
-    -- Migrate values where singular is 0 and plural has data
+    -- Migrate unpopulated values where singular is 0 and plural has data
     update public.quotations
     set statutory_fee_total = statutory_fees_total
     where coalesce(statutory_fee_total, 0.00) = 0.00 
@@ -439,6 +505,12 @@ create table if not exists public.expense_receipt_allocations (
   unique(expense_id, payment_id)
 );
 
+alter table public.expense_receipt_allocations
+  add column if not exists allocated_amount numeric(14,2) not null default 0.00,
+  add column if not exists notes text,
+  add column if not exists created_by uuid references public.staff_profiles(id) on delete set null,
+  add column if not exists updated_at timestamptz not null default now();
+
 create index if not exists idx_expense_alloc_expense on public.expense_receipt_allocations(expense_id);
 create index if not exists idx_expense_alloc_payment on public.expense_receipt_allocations(payment_id);
 
@@ -449,8 +521,8 @@ create table if not exists public.expense_allocation_audit_logs (
   allocation_id uuid,
   expense_id uuid references public.expenses(id) on delete set null,
   payment_id uuid references public.payments(id) on delete set null,
-  historical_expense_id uuid not null,
-  historical_payment_id uuid not null,
+  historical_expense_id uuid not null default '00000000-0000-0000-0000-000000000000'::uuid,
+  historical_payment_id uuid not null default '00000000-0000-0000-0000-000000000000'::uuid,
   action text not null check (action in ('allocated', 'amount_modified', 'deallocated')),
   previous_amount numeric(14,2) not null default 0.00,
   new_amount numeric(14,2) not null default 0.00,
@@ -458,6 +530,65 @@ create table if not exists public.expense_allocation_audit_logs (
   performed_by uuid references public.staff_profiles(id) on delete set null,
   created_at timestamptz not null default now()
 );
+
+-- Reconcile columns if table pre-existed from earlier draft
+alter table public.expense_allocation_audit_logs
+  add column if not exists historical_expense_id uuid,
+  add column if not exists historical_payment_id uuid,
+  add column if not exists allocation_id uuid,
+  add column if not exists reason text,
+  add column if not exists previous_amount numeric(14,2) not null default 0.00,
+  add column if not exists new_amount numeric(14,2) not null default 0.00;
+
+-- Backfill historical IDs from parent IDs if pre-existing rows had NULL historical IDs
+update public.expense_allocation_audit_logs
+set historical_expense_id = expense_id
+where historical_expense_id is null and expense_id is not null;
+
+update public.expense_allocation_audit_logs
+set historical_payment_id = payment_id
+where historical_payment_id is null and payment_id is not null;
+
+-- Reconcile foreign key constraints on expense_allocation_audit_logs:
+-- Ensure ON DELETE SET NULL is enforced instead of ON DELETE CASCADE
+do $$
+declare
+  r record;
+begin
+  for r in (
+    select tc.constraint_name
+    from information_schema.table_constraints tc
+    join information_schema.key_column_usage kcu 
+      on tc.constraint_name = kcu.constraint_name and tc.table_schema = kcu.table_schema
+    where tc.table_schema = 'public' 
+      and tc.table_name = 'expense_allocation_audit_logs'
+      and tc.constraint_type = 'FOREIGN KEY'
+      and kcu.column_name = 'expense_id'
+  ) loop
+    execute 'alter table public.expense_allocation_audit_logs drop constraint if exists ' || quote_ident(r.constraint_name);
+  end loop;
+
+  alter table public.expense_allocation_audit_logs
+    add constraint fk_expense_alloc_audit_expense
+    foreign key (expense_id) references public.expenses(id) on delete set null;
+
+  for r in (
+    select tc.constraint_name
+    from information_schema.table_constraints tc
+    join information_schema.key_column_usage kcu 
+      on tc.constraint_name = kcu.constraint_name and tc.table_schema = kcu.table_schema
+    where tc.table_schema = 'public' 
+      and tc.table_name = 'expense_allocation_audit_logs'
+      and tc.constraint_type = 'FOREIGN KEY'
+      and kcu.column_name = 'payment_id'
+  ) loop
+    execute 'alter table public.expense_allocation_audit_logs drop constraint if exists ' || quote_ident(r.constraint_name);
+  end loop;
+
+  alter table public.expense_allocation_audit_logs
+    add constraint fk_expense_alloc_audit_payment
+    foreign key (payment_id) references public.payments(id) on delete set null;
+end $$;
 
 create index if not exists idx_allocation_audit_exp on public.expense_allocation_audit_logs(historical_expense_id, created_at desc);
 create index if not exists idx_allocation_audit_pay on public.expense_allocation_audit_logs(historical_payment_id, created_at desc);
@@ -519,6 +650,7 @@ create trigger trg_validate_expense_allocation
 
 -- 5.4 Automated Allocation Audit Log Trigger Function
 -- Purely separates TG_OP handling to avoid touching NEW during DELETE
+-- Explicitly returns OLD for DELETE and NEW for INSERT/UPDATE
 create or replace function public.log_expense_allocation_audit()
 returns trigger as $$
 declare
@@ -532,10 +664,10 @@ declare
   v_pay_id uuid;
   v_performed_by uuid;
 begin
-  -- Resolve acting staff from authenticated session
+  -- Resolve acting staff from authenticated session (active staff only)
   select id into v_staff_id 
   from public.staff_profiles 
-  where auth_uid = auth.uid() 
+  where auth_uid = auth.uid() and is_active = true
   limit 1;
 
   if (TG_OP = 'INSERT') then
@@ -593,7 +725,12 @@ begin
     now()
   );
 
-  return coalesce(NEW, OLD);
+  -- Explicit trigger record return
+  if (TG_OP = 'DELETE') then
+    return OLD;
+  else
+    return NEW;
+  end if;
 end;
 $$ language plpgsql security definer set search_path = public, pg_temp;
 
@@ -631,7 +768,7 @@ create trigger trg_validate_expense_amount_reduction
 
 
 -- ==============================================================================
--- 6. ROW LEVEL SECURITY (RLS) POLICIES — EXPLICIT & HARDENED
+-- 6. ROW LEVEL SECURITY (RLS) POLICIES — EXPLICIT & HARDENED FOR ACTIVE STAFF
 -- ==============================================================================
 
 alter table public.staff_notification_preferences enable row level security;
@@ -643,15 +780,16 @@ alter table public.business_continuity_settings enable row level security;
 alter table public.service_bundles enable row level security;
 alter table public.expense_receipt_allocations enable row level security;
 alter table public.expense_allocation_audit_logs enable row level security;
+alter table public.quotation_reconciliation_conflicts enable row level security;
 
--- 6.1 Staff Notification Preferences (Strict Self-Access & Admin View)
+-- 6.1 Staff Notification Preferences (Strict Self-Access & Admin View for ACTIVE Staff)
 drop policy if exists "Staff can view own notification preferences" on public.staff_notification_preferences;
 create policy "Staff can view own notification preferences"
   on public.staff_notification_preferences
   for select
   using (
-    staff_id in (select id from public.staff_profiles where auth_uid = auth.uid())
-    or exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin'))
+    staff_id in (select id from public.staff_profiles where auth_uid = auth.uid() and is_active = true)
+    or exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin'))
   );
 
 drop policy if exists "Staff can insert own notification preferences" on public.staff_notification_preferences;
@@ -659,8 +797,8 @@ create policy "Staff can insert own notification preferences"
   on public.staff_notification_preferences
   for insert
   with check (
-    staff_id in (select id from public.staff_profiles where auth_uid = auth.uid())
-    or exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin'))
+    staff_id in (select id from public.staff_profiles where auth_uid = auth.uid() and is_active = true)
+    or exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin'))
   );
 
 drop policy if exists "Staff can update own notification preferences" on public.staff_notification_preferences;
@@ -668,15 +806,15 @@ create policy "Staff can update own notification preferences"
   on public.staff_notification_preferences
   for update
   using (
-    staff_id in (select id from public.staff_profiles where auth_uid = auth.uid())
-    or exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin'))
+    staff_id in (select id from public.staff_profiles where auth_uid = auth.uid() and is_active = true)
+    or exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin'))
   )
   with check (
-    staff_id in (select id from public.staff_profiles where auth_uid = auth.uid())
-    or exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin'))
+    staff_id in (select id from public.staff_profiles where auth_uid = auth.uid() and is_active = true)
+    or exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin'))
   );
 
--- 6.2 Escalation Rules Policies (All active staff can view; admin/ops can manage)
+-- 6.2 Escalation Rules Policies (All active staff can view; active admin/ops can manage)
 drop policy if exists "Active staff can view escalation rules" on public.escalation_rules;
 create policy "Active staff can view escalation rules"
   on public.escalation_rules
@@ -687,20 +825,20 @@ drop policy if exists "Management can insert escalation rules" on public.escalat
 create policy "Management can insert escalation rules"
   on public.escalation_rules
   for insert
-  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'operations_manager')));
+  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin', 'operations_manager')));
 
 drop policy if exists "Management can update escalation rules" on public.escalation_rules;
 create policy "Management can update escalation rules"
   on public.escalation_rules
   for update
-  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'operations_manager')))
-  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'operations_manager')));
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin', 'operations_manager')))
+  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin', 'operations_manager')));
 
 drop policy if exists "Management can delete escalation rules" on public.escalation_rules;
 create policy "Management can delete escalation rules"
   on public.escalation_rules
   for delete
-  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'operations_manager')));
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin', 'operations_manager')));
 
 -- 6.3 Escalation Logs Policies (Immutable audit trail: SELECT & INSERT only, no UPDATE or DELETE)
 drop policy if exists "Active staff can view escalation logs" on public.escalation_logs;
@@ -715,47 +853,47 @@ create policy "Active staff can insert escalation logs"
   for insert
   with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true));
 
--- 6.4 Backup & Recovery Policies (Strictly restricted to super_admin and admin)
+-- 6.4 Backup & Recovery Policies (Strictly restricted to active super_admin and admin)
 drop policy if exists "Admins can view backup records" on public.backup_records;
 create policy "Admins can view backup records"
   on public.backup_records
   for select
-  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin')));
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin')));
 
 drop policy if exists "Admins can manage backup records" on public.backup_records;
 create policy "Admins can manage backup records"
   on public.backup_records
   for all
-  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin')))
-  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin')));
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin')))
+  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin')));
 
 drop policy if exists "Admins can view restore drills" on public.restore_drills;
 create policy "Admins can view restore drills"
   on public.restore_drills
   for select
-  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin')));
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin')));
 
 drop policy if exists "Admins can manage restore drills" on public.restore_drills;
 create policy "Admins can manage restore drills"
   on public.restore_drills
   for all
-  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin')))
-  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin')));
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin')))
+  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin')));
 
 drop policy if exists "Admins can view business continuity settings" on public.business_continuity_settings;
 create policy "Admins can view business continuity settings"
   on public.business_continuity_settings
   for select
-  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin')));
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin')));
 
 drop policy if exists "Admins can manage business continuity settings" on public.business_continuity_settings;
 create policy "Admins can manage business continuity settings"
   on public.business_continuity_settings
   for all
-  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin')))
-  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin')));
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin')))
+  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin')));
 
--- 6.5 Service Bundles Policies (Active staff can read; management can manage)
+-- 6.5 Service Bundles Policies (Active staff can read; active management can manage)
 drop policy if exists "Active staff can view service bundles" on public.service_bundles;
 create policy "Active staff can view service bundles"
   on public.service_bundles
@@ -766,44 +904,59 @@ drop policy if exists "Operations and admin can manage service bundles" on publi
 create policy "Operations and admin can manage service bundles"
   on public.service_bundles
   for all
-  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'operations_manager')))
-  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'operations_manager')));
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin', 'operations_manager')))
+  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin', 'operations_manager')));
 
--- 6.6 Expense Receipt Allocations Policies (Finance & management)
+-- 6.6 Expense Receipt Allocations Policies (Active finance & management)
 drop policy if exists "Authorized staff can view expense allocations" on public.expense_receipt_allocations;
 create policy "Authorized staff can view expense allocations"
   on public.expense_receipt_allocations
   for select
-  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'accounts_officer', 'operations_manager')));
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin', 'accounts_officer', 'operations_manager')));
 
 drop policy if exists "Accounts and Admin can insert expense allocations" on public.expense_receipt_allocations;
 create policy "Accounts and Admin can insert expense allocations"
   on public.expense_receipt_allocations
   for insert
-  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'accounts_officer')));
+  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin', 'accounts_officer')));
 
 drop policy if exists "Accounts and Admin can update expense allocations" on public.expense_receipt_allocations;
 create policy "Accounts and Admin can update expense allocations"
   on public.expense_receipt_allocations
   for update
-  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'accounts_officer')))
-  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'accounts_officer')));
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin', 'accounts_officer')))
+  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin', 'accounts_officer')));
 
 drop policy if exists "Accounts and Admin can delete expense allocations" on public.expense_receipt_allocations;
 create policy "Accounts and Admin can delete expense allocations"
   on public.expense_receipt_allocations
   for delete
-  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'accounts_officer')));
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin', 'accounts_officer')));
 
 -- 6.7 Allocation Audit Logs Policies (Append-only immutable audit trail)
 -- Ordinary users CANNOT update, delete, or insert audit records directly via client API.
--- All inserts are performed exclusively by the SECURITY DEFINER trigger.
+-- Direct table modification permissions revoked across authenticated, anon, and public.
+-- All audit rows are inserted exclusively by the SECURITY DEFINER trigger.
 revoke insert, update, delete on public.expense_allocation_audit_logs from authenticated, anon, public;
 
 drop policy if exists "Authorized staff can view allocation audit logs" on public.expense_allocation_audit_logs;
 create policy "Authorized staff can view allocation audit logs"
   on public.expense_allocation_audit_logs
   for select
-  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'accounts_officer')));
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin', 'accounts_officer')));
+
+-- 6.8 Quotation Reconciliation Conflicts Policies (Management review ledger)
+drop policy if exists "Admins can view reconciliation conflicts" on public.quotation_reconciliation_conflicts;
+create policy "Admins can view reconciliation conflicts"
+  on public.quotation_reconciliation_conflicts
+  for select
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin', 'accounts_officer')));
+
+drop policy if exists "Admins can resolve reconciliation conflicts" on public.quotation_reconciliation_conflicts;
+create policy "Admins can resolve reconciliation conflicts"
+  on public.quotation_reconciliation_conflicts
+  for update
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin')))
+  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true and role::text in ('super_admin', 'admin')));
 
 commit;
