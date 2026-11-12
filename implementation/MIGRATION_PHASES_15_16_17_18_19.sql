@@ -470,7 +470,15 @@ end $$;
 -- 4. PHASE 18 — MARKETING CAMPAIGN & LEAD ATTRIBUTION ANALYTICS
 -- ==============================================================================
 
--- 4.1 Ensure campaigns table has spend tracking columns
+-- 4.1 Ensure campaigns table exists and has spend tracking columns
+create table if not exists public.campaigns (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  status text not null default 'active',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 alter table public.campaigns
   add column if not exists budget_ngn numeric(14,2) not null default 0.00,
   add column if not exists actual_spend_ngn numeric(14,2) not null default 0.00,
