@@ -221,12 +221,30 @@ alter table public.quotations
   add column if not exists internal_cost_total numeric(14,2) not null default 0.00,
   add column if not exists margin_amount numeric(14,2) not null default 0.00,
   add column if not exists margin_percentage numeric(5,2) not null default 0.00,
-  add column if not exists approval_request_id uuid references public.approval_requests(id) on delete set null,
+  add column if not exists approval_request_id uuid,
   add column if not exists requires_approval boolean not null default false,
   add column if not exists rejection_reason text,
   add column if not exists converted_invoice_id uuid references public.invoices(id) on delete set null,
   add column if not exists converted_at timestamptz,
   add column if not exists converted_by uuid references public.staff_profiles(id) on delete set null;
+
+-- Conditionally add foreign key constraint to approval_requests if table exists
+do $$
+begin
+  if exists (
+    select 1 from information_schema.tables 
+    where table_schema = 'public' and table_name = 'approval_requests'
+  ) then
+    if not exists (
+      select 1 from information_schema.table_constraints 
+      where constraint_name = 'fk_quotations_approval_request'
+    ) then
+      alter table public.quotations 
+        add constraint fk_quotations_approval_request 
+        foreign key (approval_request_id) references public.approval_requests(id) on delete set null;
+    end if;
+  end if;
+end $$;
 
 create index if not exists idx_quotations_approval on public.quotations(approval_request_id);
 create index if not exists idx_quotations_converted_inv on public.quotations(converted_invoice_id);
