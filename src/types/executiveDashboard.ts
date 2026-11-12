@@ -37,6 +37,11 @@ export interface FinancialHealthMetrics {
   projectedExpenses?: number;
   revenueByService: { serviceName: string; amount: number; percentage: number }[];
   monthlyCashTrend: { month: string; collected: number; expenses: number; profit: number }[];
+  // Phase 19: Receipt-Linked Profitability & Allocations
+  totalAllocatedExpenses?: number;
+  unallocatedExpenses?: number;
+  netReceiptContribution?: number;
+  receiptProfitabilityRatio?: number;
 }
 
 export interface ClientGrowthMetrics {

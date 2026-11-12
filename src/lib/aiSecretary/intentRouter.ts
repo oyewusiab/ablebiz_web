@@ -232,6 +232,21 @@ export function detectModuleFromText(
   if (/\b(payment|payments|reconcil|receipt|collection|collected|revenue|paid amount)\b/.test(q)) {
     return { moduleId: "payments", subIntent: "summary", explicitMatch: true };
   }
+  // Phase 19: Expense Allocations & Receipt Profitability
+  if (/\b(expense allocation|expense allocations|receipt profitability|receipt contribution|net contribution|direct cost allocation|allocated expense)\b/.test(q)) {
+    return { moduleId: "expenses", subIntent: "receipt_profitability", explicitMatch: true };
+  }
+
+  // Phase 18: Marketing Attribution & Campaign Analytics
+  if (/\b(campaign attribution|marketing attribution|cost per lead|cpl|cac|roas|lead attribution|cash roi)\b/.test(q)) {
+    return { moduleId: "reports", subIntent: "marketing_attribution", explicitMatch: true };
+  }
+
+  // Phase 16: Backup, Recovery & Business Continuity
+  if (/\b(backup|backups|restore test|restore drill|disaster recovery|rpo|rto|continuity|data recovery)\b/.test(q)) {
+    return { moduleId: "settings", subIntent: "backup_continuity", explicitMatch: true };
+  }
+
   if (/\b(expense|expenses|expenditure|outflow|cost|operating cost)\b/.test(q)) {
     return { moduleId: "expenses", subIntent: "summary", explicitMatch: true };
   }

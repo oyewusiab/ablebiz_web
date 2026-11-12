@@ -58,6 +58,10 @@ import { StaffPerformancePage } from "./pages/admin/StaffPerformance";
 import { KnowledgeBasePage } from "./pages/admin/KnowledgeBase";
 import { ApprovalsPage } from "./pages/admin/Approvals";
 import { ExecutiveDashboardPage } from "./pages/admin/ExecutiveDashboard";
+import { BackupRecoveryPage } from "./pages/admin/BackupRecovery";
+import { MarketingAttributionPage } from "./pages/admin/MarketingAttribution";
+import { ReceiptProfitabilityPage } from "./pages/admin/ReceiptProfitability";
+import { ExpenseAllocationReportPage } from "./pages/admin/ExpenseAllocationReport";
 import { BookConsultationPage } from "./pages/BookConsultation";
 import { ClientFeedbackPage } from "./pages/ClientFeedback";
 import { BusinessProfileProvider } from "./lib/businessProfileContext";
@@ -123,6 +127,11 @@ export default function App() {
             <Route path="vendors" element={<ProtectedRoute requiredModule="finance"><VendorsPage /></ProtectedRoute>} />
             <Route path="cash-flow-forecast" element={<ProtectedRoute requiredModule="finance"><CashFlowForecastPage /></ProtectedRoute>} />
             <Route path="finance/cash-flow-forecast" element={<ProtectedRoute requiredModule="finance"><CashFlowForecastPage /></ProtectedRoute>} />
+            {/* Phase 19 Receipt-Linked Profitability & Expense Allocations */}
+            <Route path="finance/receipt-profitability" element={<ProtectedRoute requiredModule="finance"><ReceiptProfitabilityPage /></ProtectedRoute>} />
+            <Route path="receipt-profitability" element={<Navigate to="/admin/finance/receipt-profitability" replace />} />
+            <Route path="finance/expense-allocations" element={<ProtectedRoute requiredModule="finance"><ExpenseAllocationReportPage /></ProtectedRoute>} />
+            <Route path="expense-allocations" element={<Navigate to="/admin/finance/expense-allocations" replace />} />
             {/* Compliance Calendar Route */}
             <Route path="compliance-calendar" element={<ProtectedRoute><ComplianceCalendarPage /></ProtectedRoute>} />
             <Route path="compliance" element={<Navigate to="/admin/compliance-calendar" replace />} />
@@ -134,6 +143,9 @@ export default function App() {
             <Route path="audit" element={<Navigate to="/admin/audit-logs" replace />} />
             <Route path="ai-secretary" element={<ProtectedRoute><AiSecretaryPage /></ProtectedRoute>} />
             <Route path="notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
+            {/* Phase 16 Backup, Recovery & Business Continuity */}
+            <Route path="backup-recovery" element={<ProtectedRoute requiredRole={["super_admin", "admin"]}><BackupRecoveryPage /></ProtectedRoute>} />
+            <Route path="business-continuity" element={<Navigate to="/admin/backup-recovery" replace />} />
             {/* Communications & Template Management */}
             <Route path="communications" element={<ProtectedRoute><ClientCommunicationsPage /></ProtectedRoute>} />
             <Route path="communication-templates" element={<ProtectedRoute><ClientCommunicationsPage /></ProtectedRoute>} />
@@ -148,6 +160,9 @@ export default function App() {
             {/* Phase 14 Business Intelligence & Executive Dashboard */}
             <Route path="executive-dashboard" element={<ProtectedRoute requiredRole={["super_admin", "admin", "operations_manager"]}><ExecutiveDashboardPage /></ProtectedRoute>} />
             <Route path="reports" element={<ProtectedRoute requiredModule="reports"><AdminReports /></ProtectedRoute>} />
+            {/* Phase 18 Marketing Campaign & Lead Attribution Analytics */}
+            <Route path="reports/marketing-attribution" element={<ProtectedRoute><MarketingAttributionPage /></ProtectedRoute>} />
+            <Route path="marketing-attribution" element={<Navigate to="/admin/reports/marketing-attribution" replace />} />
             <Route path="reports/service-profitability" element={<ProtectedRoute requiredModule="reports"><ServiceProfitabilityPage /></ProtectedRoute>} />
             <Route path="service-profitability" element={<ProtectedRoute requiredModule="reports"><ServiceProfitabilityPage /></ProtectedRoute>} />
             {/* Phase 11 Staff Performance & Workload Analytics */}

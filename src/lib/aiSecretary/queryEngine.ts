@@ -53,6 +53,9 @@ import { computeQualitySummaryMetrics } from "../quality/qualityService";
 import { computeTeamPerformanceSummary, computeStaffIndividualPerformance } from "../performance/performanceService";
 import { ILLUSTRATIVE_SOP_GUIDES, canRoleAccessArticle } from "../knowledgeBase/knowledgeService";
 import { DEFAULT_APPROVAL_RULES } from "../approvals/approvalService";
+import { fetchBackupRecords, fetchRestoreDrills, fetchBusinessContinuitySettings } from "../backup/backupService";
+import { fetchMarketingAttributionData } from "../marketing/attributionAnalytics";
+import { fetchReceiptProfitabilityReport } from "../profitability/expenseAllocationService";
 
 export interface TableQueryResult<T = Record<string, any>> {
   data: T[] | null;
@@ -712,6 +715,15 @@ async function runOperationalReportForModule(
   }
   if (intent.primaryModule === "executive_dashboard") {
     return handleExecutiveDashboardAssistantReport(intent, caller, adapter, now, prefix, context);
+  }
+  if (intent.subIntent === "backup_continuity") {
+    return handleBackupContinuityAssistantReport(intent, caller, adapter, now, prefix, context);
+  }
+  if (intent.subIntent === "marketing_attribution") {
+    return handleMarketingAttributionAssistantReport(intent, caller, adapter, now, prefix, context);
+  }
+  if (intent.subIntent === "receipt_profitability") {
+    return handleReceiptProfitabilityAssistantReport(intent, caller, adapter, now, prefix, context);
   }
 
   switch (intent.primaryModule) {
@@ -3547,6 +3559,375 @@ async function handleExecutiveDashboardAssistantReport(
       fetchedAtFormatted: formatDateTimeLagos(now),
       roleApplied: caller.role,
       scopeDescription: `Consolidated business intelligence for ${caller.roleLabel}`,
+    },
+  };
+}
+
+/**
+ * Phase 16: Backup, Recovery & Business Continuity Report
+ */
+async function handleBackupContinuityAssistantReport(
+  intent: ClassifiedIntent,
+  caller: AssistantCallerContext,
+  adapter: AssistantDataAdapter,
+  now: Date,
+  prefix: string,
+  context: ConversationContext
+): Promise<AssistantResponsePayload> {
+  const isAuthorized =
+    caller.role === "super_admin" ||
+    caller.role === "admin" ||
+    caller.role === "operations_manager";
+
+  if (!isAuthorized) {
+    return {
+      status: "permission_denied",
+      intentType: intent.intentType,
+      moduleId: "settings",
+      title: "Data Backup & Recovery Access Restricted",
+      summary: "Access to disaster recovery logs is restricted to System Administrators.",
+      markdown: `${prefix}Detailed disaster recovery configurations, cryptographic snapshot checksums, and physical restore drill records are restricted to Super Administrators, Administrators, and Operations Managers to preserve infrastructure security.`,
+      metrics: [
+        { label: "Your Role", value: caller.roleLabel, tone: "slate" },
+        { label: "Access Status", value: "Restricted", tone: "amber" },
+      ],
+      links: resolveAuthorizedLinks(caller, ["dashboard"]),
+      followUpSuggestions: ["What requires attention today?"],
+      sourceMeta: {
+        tablesQueried: [],
+        sourcesLabel: "Business Continuity Infrastructure",
+        reportingPeriodLabel: "Active Policy",
+        timezone: ABILITY_TIMEZONE,
+        fetchedAtIso: now.toISOString(),
+        fetchedAtFormatted: formatDateTimeLagos(now),
+        roleApplied: caller.role,
+        scopeDescription: "Disaster recovery policy check",
+      },
+    };
+  }
+
+  const [records, drills, settings] = await Promise.all([
+    fetchBackupRecords(),
+    fetchRestoreDrills(),
+    fetchBusinessContinuitySettings(),
+  ]);
+
+  const latestBackup = records.length > 0 ? records[0] : null;
+  const latestDrill = drills.length > 0 ? drills[0] : null;
+
+  const markdown = [
+    prefix + `### Enterprise Backup & Business Continuity Status`,
+    `ABLEBIZ operational and financial data is protected by automated multi-region snapshots and point-in-time recovery (PITR).`,
+    `#### Backup Health & Verification:`,
+    latestBackup
+      ? `- **Latest Snapshot Reference**: \`${latestBackup.backup_reference}\` (${latestBackup.backup_type})\n` +
+        `- **Status**: ${latestBackup.status === "verified" || latestBackup.status === "completed" ? "✅ Verified" : "⚠️ " + latestBackup.status}\n` +
+        `- **Recorded At**: ${new Date(latestBackup.created_at).toLocaleString("en-GB")}\n` +
+        `- **Storage Coverage**: ${settings.storage_coverage.join(", ")}`
+      : `- **Automated Primary Schedule**: ${settings.primary_backup_schedule}\n- **Latest Snapshot**: Initializing automated schedule verification.`,
+    `#### Restore Drills & Recovery Targets:`,
+    `- **Target Recovery Point Objective (RPO)**: ${settings.target_rpo_hours} hours\n` +
+    `- **Target Recovery Time Objective (RTO)**: ${settings.target_rto_hours} hours\n` +
+    (latestDrill
+      ? `- **Last Validated Drill**: \`${latestDrill.drill_code}\` conducted on ${latestDrill.drill_date} (${latestDrill.overall_outcome})\n` +
+        `- **Achieved RTO**: ${latestDrill.rto_minutes_achieved} mins | **Achieved RPO**: ${latestDrill.rpo_hours_achieved} hrs\n` +
+        `- **Target Environment**: ${latestDrill.isolated_environment_name} (never restored directly into production)`
+      : `- **Restore Drills**: Scheduled quarterly into isolated test environments.`),
+    `For disaster recovery playbooks and drill logs, visit the [Backup & Recovery Workspace](/admin/backup-recovery).`,
+  ].join("\n\n");
+
+  return {
+    status: "ok",
+    intentType: intent.intentType,
+    moduleId: "settings",
+    title: "Backup & Business Continuity Health",
+    summary: latestBackup ? `Latest backup ${latestBackup.backup_reference} (${latestBackup.status})` : "Automated daily snapshot active.",
+    markdown,
+    metrics: [
+      {
+        label: "Last Snapshot",
+        value: latestBackup ? latestBackup.status.toUpperCase() : "SCHEDULED",
+        tone: latestBackup?.status === "failed" ? "rose" : "emerald",
+      },
+      {
+        label: "Target RPO",
+        value: `${settings.target_rpo_hours}h`,
+        tone: "blue",
+      },
+      {
+        label: "Target RTO",
+        value: `${settings.target_rto_hours}h`,
+        tone: "blue",
+      },
+      {
+        label: "Restore Drills",
+        value: formatCount(drills.length),
+        tone: drills.length > 0 ? "emerald" : "amber",
+      },
+    ],
+    links: [
+      {
+        label: "Backup & Continuity Center",
+        path: "/admin/backup-recovery",
+        route: "/admin/backup-recovery",
+        moduleId: "settings",
+        description: "View verified snapshot logs and record restore drills.",
+      },
+    ],
+    followUpSuggestions: [
+      "When was the last restore test performed?",
+      "What is our approved RPO and RTO?",
+      "What notifications require my attention?",
+    ],
+    sourceMeta: {
+      tablesQueried: ["backup_records", "restore_drills", "business_continuity_settings"],
+      sourcesLabel: "Business Continuity & DR Ledger",
+      reportingPeriodLabel: "Active Infrastructure State",
+      timezone: ABILITY_TIMEZONE,
+      fetchedAtIso: now.toISOString(),
+      fetchedAtFormatted: formatDateTimeLagos(now),
+      roleApplied: caller.role,
+      scopeDescription: "Disaster recovery and backup health",
+    },
+  };
+}
+
+/**
+ * Phase 18: Marketing Campaign & Lead Attribution Analytics Report
+ */
+async function handleMarketingAttributionAssistantReport(
+  intent: ClassifiedIntent,
+  caller: AssistantCallerContext,
+  adapter: AssistantDataAdapter,
+  now: Date,
+  prefix: string,
+  context: ConversationContext
+): Promise<AssistantResponsePayload> {
+  const isAuthorized =
+    caller.role === "super_admin" ||
+    caller.role === "admin" ||
+    caller.role === "marketing_officer" ||
+    caller.role === "operations_manager";
+
+  if (!isAuthorized) {
+    return {
+      status: "permission_denied",
+      intentType: intent.intentType,
+      moduleId: "reports",
+      title: "Marketing Attribution Analytics Restricted",
+      summary: "Campaign spend and lead attribution metrics are restricted to Marketing and Executive roles.",
+      markdown: `${prefix}Marketing budget spend, ad spend attribution, and customer acquisition cost (CAC) metrics are restricted to authorized marketing and management personnel.`,
+      metrics: [
+        { label: "Your Role", value: caller.roleLabel, tone: "slate" },
+        { label: "Access Status", value: "Restricted", tone: "amber" },
+      ],
+      links: resolveAuthorizedLinks(caller, ["dashboard", "leads"]),
+      followUpSuggestions: ["What requires attention today?"],
+      sourceMeta: {
+        tablesQueried: [],
+        sourcesLabel: "Marketing Attribution Engine",
+        reportingPeriodLabel: "Active Session",
+        timezone: ABILITY_TIMEZONE,
+        fetchedAtIso: now.toISOString(),
+        fetchedAtFormatted: formatDateTimeLagos(now),
+        roleApplied: caller.role,
+        scopeDescription: "Marketing permissions check",
+      },
+    };
+  }
+
+  const { summary, campaigns, channels } = await fetchMarketingAttributionData();
+
+  const topChannel = channels.length > 0 ? channels[0] : null;
+  const topCampaign = campaigns.length > 0 ? campaigns[0] : null;
+
+  const markdown = [
+    prefix + `### Marketing Attribution & Lead Conversion Analytics`,
+    `Attribution overview for marketing campaigns, digital acquisition channels, and referral partner conversions:`,
+    `#### Performance Summary:`,
+    `- **Total Leads Tracked**: ${formatCount(summary.total_leads)} prospect(s)\n` +
+    `- **Verified Converted Clients**: ${formatCount(summary.converted_clients)} client(s) (${summary.lead_conversion_rate}% conversion rate)\n` +
+    `- **Verified Cash Collected**: ${formatNgn(summary.verified_cash_attributed)}\n` +
+    `- **Total Marketing Investment**: ${formatNgn(summary.total_campaign_spend)}\n` +
+    `- **Cost Per Lead (CPL)**: ${summary.cost_per_lead !== null ? formatNgn(summary.cost_per_lead) : "₦0 (Organic / Free)"}\n` +
+    `- **Customer Acquisition Cost (CAC)**: ${summary.cost_per_acquired_client !== null ? formatNgn(summary.cost_per_acquired_client) : "₦0 (Organic / Free)"}\n` +
+    `- **Cash ROI**: ${summary.campaign_roi_cash_percent !== null ? `${summary.campaign_roi_cash_percent}%` : "N/A (Zero Direct Spend)"}`,
+    topChannel
+      ? `#### Top Acquisition Channel:\n- **${topChannel.channel_name}**: ${formatCount(topChannel.leads_count)} leads, ${formatCount(topChannel.converted_clients_count)} clients (${topChannel.conversion_rate}% conversion)`
+      : "",
+    topCampaign
+      ? `#### Top Performing Campaign:\n- **${topCampaign.campaign_name}** (${topCampaign.campaign_type}): ${formatCount(topCampaign.leads_count)} leads, ${formatNgn(topCampaign.verified_cash_collected)} collected cash`
+      : "",
+    `For interactive attribution charts and partner attribution, visit the [Marketing Attribution Workspace](/admin/reports/marketing-attribution).`,
+  ].filter(Boolean).join("\n\n");
+
+  return {
+    status: "ok",
+    intentType: intent.intentType,
+    moduleId: "reports",
+    title: "Marketing Campaign & Lead Attribution",
+    summary: `${summary.total_leads} leads, ${summary.converted_clients} conversions, ${formatNgn(summary.verified_cash_attributed)} cash collected.`,
+    markdown,
+    metrics: [
+      { label: "Total Leads", value: formatCount(summary.total_leads), tone: "blue" },
+      { label: "Conversions", value: formatCount(summary.converted_clients), tone: "emerald" },
+      { label: "Attributed Cash", value: formatNgn(summary.verified_cash_attributed), tone: "emerald" },
+      {
+        label: "Blended CAC",
+        value: summary.cost_per_acquired_client !== null ? formatNgn(summary.cost_per_acquired_client) : "₦0 (Free)",
+        tone: (summary.cost_per_acquired_client || 0) > 15000 ? "amber" : "slate",
+      },
+    ],
+    links: [
+      {
+        label: "Marketing Attribution Analytics",
+        path: "/admin/reports/marketing-attribution",
+        route: "/admin/reports/marketing-attribution",
+        moduleId: "reports",
+        description: "Full attribution funnel, channel breakdown, and referral partner ROI.",
+      },
+      {
+        label: "Campaigns & Promotions",
+        path: "/admin/campaigns",
+        route: "/admin/campaigns",
+        moduleId: "leads",
+        description: "Manage campaigns, UTM tracking, and spend budgets.",
+      },
+    ],
+    followUpSuggestions: [
+      "Which campaigns generated the most verified cash collections?",
+      "What is our cost per lead?",
+      "What are our top lead acquisition channels?",
+    ],
+    sourceMeta: {
+      tablesQueried: ["campaigns", "leads", "clients", "invoices", "payments", "referrals"],
+      sourcesLabel: "Marketing Attribution Engine",
+      reportingPeriodLabel: "Trailing 90 Days",
+      timezone: ABILITY_TIMEZONE,
+      fetchedAtIso: now.toISOString(),
+      fetchedAtFormatted: formatDateTimeLagos(now),
+      roleApplied: caller.role,
+      scopeDescription: "Attribution and acquisition cost metrics",
+    },
+  };
+}
+
+/**
+ * Phase 19: Receipt-Linked Expense Allocation & Profitability Report
+ */
+async function handleReceiptProfitabilityAssistantReport(
+  intent: ClassifiedIntent,
+  caller: AssistantCallerContext,
+  adapter: AssistantDataAdapter,
+  now: Date,
+  prefix: string,
+  context: ConversationContext
+): Promise<AssistantResponsePayload> {
+  const isAuthorized =
+    caller.role === "super_admin" ||
+    caller.role === "admin" ||
+    caller.role === "accounts_officer";
+
+  if (!isAuthorized) {
+    return {
+      status: "permission_denied",
+      intentType: intent.intentType,
+      moduleId: "expenses",
+      title: "Receipt Profitability Access Restricted",
+      summary: "Receipt-linked direct cost allocations and net margin figures are restricted to Accounts Officers and Administrators.",
+      markdown: `${prefix}Direct service cost allocations, statutory disbursement offsets, and receipt-level net contribution figures are restricted to authorized finance personnel to protect sensitive margin data.`,
+      metrics: [
+        { label: "Your Role", value: caller.roleLabel, tone: "slate" },
+        { label: "Access Status", value: "Restricted", tone: "amber" },
+      ],
+      links: resolveAuthorizedLinks(caller, ["dashboard"]),
+      followUpSuggestions: ["What requires attention today?"],
+      sourceMeta: {
+        tablesQueried: [],
+        sourcesLabel: "Financial Profitability Ledger",
+        reportingPeriodLabel: "Active Session",
+        timezone: ABILITY_TIMEZONE,
+        fetchedAtIso: now.toISOString(),
+        fetchedAtFormatted: formatDateTimeLagos(now),
+        roleApplied: caller.role,
+        scopeDescription: "Finance permissions check",
+      },
+    };
+  }
+
+  const records = await fetchReceiptProfitabilityReport();
+
+  const totalReceipts = records.length;
+  const totalRevenue = records.reduce((s, r) => s + r.verified_receipt_amount, 0);
+  const totalAllocated = records.reduce((s, r) => s + r.total_allocated_expenses, 0);
+  const totalContribution = totalRevenue - totalAllocated;
+  const overallMargin = totalRevenue > 0 ? Math.round((totalContribution / totalRevenue) * 1000) / 10 : 0;
+
+  const profitableCount = records.filter((r) => r.profitability_status === "profitable").length;
+  const breakEvenCount = records.filter((r) => r.profitability_status === "break_even").length;
+  const lossMakingCount = records.filter((r) => r.profitability_status === "loss_making").length;
+
+  const markdown = [
+    prefix + `### Receipt-Linked Expense Allocations & Net Contribution`,
+    `Receipt-level profitability accounts for direct operational disbursements (e.g. CAC official fees, courier logistics, stamp duties) against verified client payments.`,
+    `#### Financial Summary:`,
+    `- **Verified Receipts Evaluated**: ${formatCount(totalReceipts)} payment receipt(s)\n` +
+    `- **Total Cash Revenue**: ${formatNgn(totalRevenue)}\n` +
+    `- **Allocated Direct Service Costs**: ${formatNgn(totalAllocated)}\n` +
+    `- **Net Direct Contribution**: ${formatNgn(totalContribution)} (${overallMargin}% gross contribution margin)`,
+    `#### Profitability Health Distribution:`,
+    `- **Profitable & Healthy**: ${formatCount(profitableCount)} receipt(s)\n` +
+    `- **Break-Even / Neutral**: ${formatCount(breakEvenCount)} receipt(s)\n` +
+    `- **Loss-Making (Costs exceed payment)**: ${formatCount(lossMakingCount)} receipt(s)`,
+    lossMakingCount > 0
+      ? `> ⚠️ **Attention Required**: ${lossMakingCount} client receipt(s) currently show negative net contribution where allocated disbursements exceeded client payment. Review associated service fees to ensure proper commercial pricing.`
+      : `All analyzed client receipts are operating at positive gross contribution margins.`,
+    `For full receipt drill-downs and audit logs, visit the [Receipt Profitability Ledger](/admin/finance/receipt-profitability).`,
+  ].join("\n\n");
+
+  return {
+    status: "ok",
+    intentType: intent.intentType,
+    moduleId: "expenses",
+    title: "Receipt Profitability & Cost Allocations",
+    summary: `${formatCount(totalReceipts)} receipts evaluated. Net contribution: ${formatNgn(totalContribution)} (${overallMargin}% margin).`,
+    markdown,
+    metrics: [
+      { label: "Cash Collected", value: formatNgn(totalRevenue), tone: "emerald" },
+      { label: "Direct Costs", value: formatNgn(totalAllocated), tone: "blue" },
+      { label: "Net Contribution", value: formatNgn(totalContribution), tone: totalContribution >= 0 ? "emerald" : "rose" },
+      { label: "Contribution Margin", value: `${overallMargin}%`, tone: overallMargin >= 50 ? "emerald" : "amber" },
+    ],
+    links: [
+      {
+        label: "Receipt Profitability",
+        path: "/admin/finance/receipt-profitability",
+        route: "/admin/finance/receipt-profitability",
+        moduleId: "expenses",
+        description: "View net contribution and direct costs per client receipt.",
+      },
+      {
+        label: "Expense Allocations Ledger",
+        path: "/admin/finance/expense-allocations",
+        route: "/admin/finance/expense-allocations",
+        moduleId: "expenses",
+        description: "Complete ledger of disbursements linked to receipts.",
+      },
+    ],
+    followUpSuggestions: [
+      "What is the profitability of this receipt?",
+      "How much of this expense has been allocated?",
+      "Which expenses remain unallocated?",
+    ],
+    sourceMeta: {
+      tablesQueried: ["payments", "expenses", "expense_receipt_allocations", "invoices"],
+      sourcesLabel: "Receipt Profitability Ledger",
+      reportingPeriodLabel: "All Verified Receipts",
+      timezone: ABILITY_TIMEZONE,
+      fetchedAtIso: now.toISOString(),
+      fetchedAtFormatted: formatDateTimeLagos(now),
+      roleApplied: caller.role,
+      scopeDescription: "Direct cost allocation and margin tracking",
     },
   };
 }

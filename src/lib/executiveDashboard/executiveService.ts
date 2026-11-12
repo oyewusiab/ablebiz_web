@@ -324,6 +324,10 @@ export async function fetchExecutiveDashboardData(
       ),
       revenueByService,
       monthlyCashTrend,
+      totalAllocatedExpenses: 0,
+      unallocatedExpenses: currExpTotal,
+      netReceiptContribution: currCash,
+      receiptProfitabilityRatio: currCash > 0 ? 100 : 0,
     };
   }
 

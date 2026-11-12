@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   FileSpreadsheet,
   Search,
@@ -18,12 +18,23 @@ import {
   Receipt,
   Download,
   Trash2,
+  Sparkles,
+  Layers,
+  TrendingUp,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
 import { DocumentHeader, DocumentFooter } from "../../components/admin/DocumentBranding";
 import { useBusinessProfile } from "../../lib/businessProfileContext";
 import { SearchableSelect } from "../../components/ui/SearchableSelect";
+import {
+  fetchServiceBundles,
+  getComplementaryRecommendations,
+  computeQuotationFinancials,
+  convertQuotationToInvoiceSafe,
+} from "../../lib/quotations/quotationIntelligence";
+import { createApprovalRequest } from "../../lib/approvals/approvalService";
+import type { ServiceBundle, ServiceRecommendation } from "../../types/suitePhases15To19";
 
 export interface QuotationRecord {
   id: string;
@@ -107,6 +118,10 @@ export function QuotationsPage() {
     { service_id: string; description: string; quantity: number; unit_price: number; min_fee: number; total_price: number }[]
   >([]);
 
+  // Phase 17 Intelligence & Bundles
+  const [bundles, setBundles] = useState<ServiceBundle[]>([]);
+  const [recommendations, setRecommendations] = useState<ServiceRecommendation[]>([]);
+
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [convertingId, setConvertingId] = useState<string | null>(null);
@@ -121,6 +136,15 @@ export function QuotationsPage() {
     fetchQuotations();
     fetchOptions();
   }, []);
+
+  useEffect(() => {
+    if (formItems.length > 0) {
+      const ids = formItems.map((i) => i.service_id).filter(Boolean);
+      getComplementaryRecommendations(ids).then(setRecommendations);
+    } else {
+      setRecommendations([]);
+    }
+  }, [formItems]);
 
   const fetchQuotations = async () => {
     try {
@@ -183,6 +207,9 @@ export function QuotationsPage() {
       setBusinesses(bRes.data || []);
       setServiceRequests(srRes.data || []);
       setServices(sRes.data || []);
+
+      const bList = await fetchServiceBundles();
+      setBundles(bList);
     } catch (err) {
       console.error("[Quotations] Options load error:", err);
     }
@@ -246,6 +273,43 @@ export function QuotationsPage() {
     ]);
   };
 
+  const handleAddBundleItem = (bundleId: string) => {
+    const b = bundles.find((x) => x.id === bundleId);
+    if (!b) return;
+
+    // Add each included service with its proportionate or bundle price
+    const included = services.filter((s) => b.included_service_ids.includes(s.id));
+    if (included.length === 0) {
+      setFormItems((prev) => [
+        ...prev,
+        {
+          service_id: b.id,
+          description: b.name,
+          quantity: 1,
+          unit_price: Number(b.bundle_price_ngn),
+          min_fee: 0,
+          total_price: Number(b.bundle_price_ngn),
+        },
+      ]);
+      return;
+    }
+
+    const discountFactor = b.standard_total_ngn > 0 ? b.bundle_price_ngn / b.standard_total_ngn : 1;
+    const newItems = included.map((s) => {
+      const price = Math.round(Number(s.default_fee_ngn || 0) * discountFactor);
+      return {
+        service_id: s.id,
+        description: `${s.name} (${b.name})`,
+        quantity: 1,
+        unit_price: price,
+        min_fee: Number(s.min_fee_ngn || 0),
+        total_price: price,
+      };
+    });
+
+    setFormItems((prev) => [...prev, ...newItems]);
+  };
+
   const handleRemoveItem = (index: number) => {
     setFormItems((prev) => prev.filter((_, i) => i !== index));
   };
@@ -282,6 +346,23 @@ export function QuotationsPage() {
   const calculatedTax = (calculatedSubtotal - Number(formData.discount_amount || 0)) * (Number(formData.tax_percent) / 100);
   const calculatedTotal = Math.max(0, calculatedSubtotal - Number(formData.discount_amount || 0) + calculatedTax);
 
+  const financialsPreview = useMemo(() => {
+    return computeQuotationFinancials(
+      formItems.map((item) => {
+        const s = services.find((sv) => sv.id === item.service_id);
+        return {
+          unit_price: item.unit_price,
+          quantity: item.quantity,
+          statutory_fee: s?.category.includes("registration") ? 10000 : 0,
+          internal_cost: Number(s?.internal_cost_estimate || 0),
+          min_fee_ngn: item.min_fee,
+        };
+      }),
+      Number(formData.discount_amount || 0),
+      Number(formData.tax_percent || 0)
+    );
+  }, [formItems, formData.discount_amount, formData.tax_percent, services]);
+
   const handleCreateQuotation = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.client_id) {
@@ -301,7 +382,22 @@ export function QuotationsPage() {
       const validUntilDate = new Date();
       validUntilDate.setDate(validUntilDate.getDate() + Number(formData.valid_until_days));
 
-      // 1. Insert quotation header
+      const financials = computeQuotationFinancials(
+        formItems.map((item) => {
+          const s = services.find((sv) => sv.id === item.service_id);
+          return {
+            unit_price: item.unit_price,
+            quantity: item.quantity,
+            statutory_fee: s?.category.includes("registration") ? 10000 : 0,
+            internal_cost: Number(s?.internal_cost_estimate || 0),
+            min_fee_ngn: item.min_fee,
+          };
+        }),
+        Number(formData.discount_amount || 0),
+        Number(formData.tax_percent || 0)
+      );
+
+      // 1. Insert quotation header with frozen snapshot and margin calculations
       const { data: quote, error: quoteErr } = await supabase
         .from("quotations")
         .insert({
@@ -311,13 +407,18 @@ export function QuotationsPage() {
           service_request_id: formData.service_request_id || null,
           quotation_date: new Date().toISOString().split("T")[0],
           valid_until: validUntilDate.toISOString().split("T")[0],
-          subtotal: calculatedSubtotal,
-          discount_amount: Number(formData.discount_amount) || 0,
-          tax_amount: calculatedTax,
-          total_amount: calculatedTotal,
+          subtotal: financials.subtotal,
+          discount_amount: financials.discount_amount,
+          tax_amount: financials.tax_amount,
+          total_amount: financials.total_amount,
+          statutory_fees_total: financials.statutory_fees_total,
+          internal_cost_total: financials.internal_cost_total,
+          margin_amount: financials.margin_amount,
+          margin_percentage: financials.margin_percentage,
+          requires_approval: financials.requires_approval,
           terms_and_conditions: formData.terms_and_conditions,
           internal_notes: formData.internal_notes || null,
-          status: "draft",
+          status: financials.requires_approval ? "draft" : "draft",
           created_by: profile?.id || null,
         })
         .select()
@@ -338,18 +439,36 @@ export function QuotationsPage() {
       const { error: itemsErr } = await supabase.from("quotation_items").insert(itemsPayload);
       if (itemsErr) throw itemsErr;
 
-      // 3. Log to activity timeline
+      // 3. If quotation requires commercial approval, create approval request in Phase 13
+      if (financials.requires_approval && profile?.id) {
+        await createApprovalRequest(
+          {
+            category: "commercial",
+            request_type: "discount",
+            title: `Commercial Quotation Approval: ${quoteNumber}`,
+            description: `Quotation ${quoteNumber} requires commercial approval before issuance. ${financials.approval_reasons.join(" ")}`,
+            justification: `Quotation contains commercial terms requiring executive sign-off. Total: ₦${financials.total_amount.toLocaleString()}`,
+            amount: financials.discount_amount > 0 ? financials.discount_amount : financials.total_amount,
+            related_module: "quotations",
+            related_record_id: quote.id,
+          },
+          profile.id
+        );
+      }
+
+      // 4. Log to activity timeline
       await supabase.from("activity_timeline").insert({
         entity_type: "quotation",
         entity_id: quote.id,
         actor_type: "staff",
         actor_id: profile?.id || null,
         event_type: "quotation_created",
-        event_title: `Quotation ${quoteNumber} drafted for ₦${calculatedTotal.toLocaleString()}`,
+        event_title: `Quotation ${quoteNumber} drafted for ₦${financials.total_amount.toLocaleString()}`,
         metadata: {
           quotation_number: quoteNumber,
           client_id: formData.client_id,
-          total_amount: calculatedTotal,
+          total_amount: financials.total_amount,
+          requires_approval: financials.requires_approval,
         },
       });
 
@@ -418,113 +537,23 @@ export function QuotationsPage() {
 
     setConvertingId(quote.id);
     try {
-      // 1. Fetch line items of this quote
-      const { data: items, error: itErr } = await supabase
-        .from("quotation_items")
-        .select("*")
-        .eq("quotation_id", quote.id);
+      const res = await convertQuotationToInvoiceSafe(
+        quote.id,
+        profile?.id || "",
+        bizProfile.default_payment_terms
+      );
 
-      if (itErr) throw itErr;
-
-      // 2. Generate Invoice Number: INV-YYYYMM-XXXX
-      const date = new Date();
-      const ym = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}`;
-      const prefix = `INV-${ym}-`;
-
-      const { data: lastInv } = await supabase
-        .from("invoices")
-        .select("invoice_number")
-        .ilike("invoice_number", `${prefix}%`)
-        .order("invoice_number", { ascending: false })
-        .limit(1);
-
-      let invNumber = `${prefix}0001`;
-      if (lastInv && lastInv.length > 0 && lastInv[0].invoice_number) {
-        const parts = lastInv[0].invoice_number.split("-");
-        const lastSeq = parseInt(parts[2], 10);
-        const nextSeq = isNaN(lastSeq) ? 1 : lastSeq + 1;
-        invNumber = `${prefix}${String(nextSeq).padStart(4, "0")}`;
+      if (!res.success) {
+        alert(res.error || "Failed to convert quotation to invoice.");
+        return;
       }
 
-      // 3. Due date: 7 days from today
-      const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + 7);
-
-      // 4. Insert Invoice header
-      const { data: newInv, error: invErr } = await supabase
-        .from("invoices")
-        .insert({
-          invoice_number: invNumber,
-          quotation_id: quote.id,
-          service_request_id: quote.service_request_id || null,
-          client_id: quote.client_id,
-          business_id: quote.business_id || null,
-          issue_date: new Date().toISOString().split("T")[0],
-          due_date: dueDate.toISOString().split("T")[0],
-          subtotal: quote.subtotal,
-          discount: quote.discount_amount,
-          tax: quote.tax_amount,
-          total_amount: quote.total_amount,
-          amount_paid: 0.0,
-          balance_due: quote.total_amount,
-          status: "draft",
-          payment_terms: bizProfile.default_payment_terms || "Payment due within 7 days of invoice issuance. Remit to designated official settlement account.",
-          notes: `Converted from Quotation ${quote.quotation_number}`,
-          created_by: profile?.id || null,
-        })
-        .select()
-        .single();
-
-      if (invErr) throw invErr;
-
-      // 5. Freeze invoice items
-      if (items && items.length > 0) {
-        const invItemsPayload = items.map((it) => ({
-          invoice_id: newInv.id,
-          service_id: it.service_id,
-          description: it.description,
-          quantity: it.quantity,
-          unit_price: it.unit_price,
-          total_price: it.total_price,
-        }));
-        const { error: insErr } = await supabase.from("invoice_items").insert(invItemsPayload);
-        if (insErr) throw insErr;
-      }
-
-      // 6. Update Quotation Status to 'converted'
-      await supabase
-        .from("quotations")
-        .update({ status: "converted", updated_at: new Date().toISOString() })
-        .eq("id", quote.id);
-
-      // 7. Activity Timeline entries
-      await supabase.from("activity_timeline").insert([
-        {
-          entity_type: "quotation",
-          entity_id: quote.id,
-          actor_type: "staff",
-          actor_id: profile?.id || null,
-          event_type: "quotation_converted",
-          event_title: `Quotation converted to Invoice ${invNumber}`,
-          metadata: { invoice_id: newInv.id, invoice_number: invNumber },
-        },
-        {
-          entity_type: "invoice",
-          entity_id: newInv.id,
-          actor_type: "staff",
-          actor_id: profile?.id || null,
-          event_type: "invoice_created",
-          event_title: `Invoice ${invNumber} generated from Quotation ${quote.quotation_number}`,
-          metadata: { quotation_id: quote.id, total_amount: quote.total_amount },
-        },
-      ]);
-
-      alert(`Successfully converted to Invoice ${invNumber}!`);
+      alert(`Quotation ${quote.quotation_number} converted into official Invoice ${res.invoiceNumber}!`);
       setIsPrintModalOpen(false);
       fetchQuotations();
     } catch (err: any) {
       console.error("[Convert to Invoice] Error:", err);
-      alert(err.message || "Failed to convert quotation to invoice.");
+      alert(err.message || "Failed to convert quotation.");
     } finally {
       setConvertingId(null);
     }
@@ -829,7 +858,24 @@ export function QuotationsPage() {
               <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="font-bold text-slate-900">Quotation Line Items</h3>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          handleAddBundleItem(e.target.value);
+                          e.target.value = "";
+                        }
+                      }}
+                      className="h-8 rounded-lg border border-purple-200 bg-purple-50/50 px-2.5 text-xs outline-none focus:border-purple-600 font-semibold text-purple-900"
+                    >
+                      <option value="">+ Add Service Bundle...</option>
+                      {bundles.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name} (₦{Number(b.bundle_price_ngn).toLocaleString()})
+                        </option>
+                      ))}
+                    </select>
+
                     <select
                       onChange={(e) => {
                         if (e.target.value) {
@@ -923,6 +969,36 @@ export function QuotationsPage() {
                   </div>
                 )}
 
+                {/* Phase 17 Intelligent Complementary Recommendations */}
+                {recommendations.length > 0 && (
+                  <div className="rounded-xl border border-purple-200 bg-purple-50/60 p-3 space-y-2 text-left">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-purple-900">
+                      <Sparkles className="h-3.5 w-3.5 text-purple-600" />
+                      <span>Intelligent Complementary Recommendations</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {recommendations.map((rec) => (
+                        <div key={rec.service_id} className="rounded-lg bg-white p-2.5 border border-purple-100 flex items-center justify-between gap-2 shadow-2xs">
+                          <div>
+                            <span className="font-bold text-slate-900 block text-xs">{rec.name}</span>
+                            <span className="text-[10px] text-slate-500 leading-tight block">{rec.reason}</span>
+                            <span className="text-[11px] font-semibold text-purple-700 block mt-0.5">
+                              ₦{rec.default_fee_ngn.toLocaleString()}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleAddServiceItem(rec.service_id)}
+                            className="rounded-lg bg-purple-100 px-2 py-1 text-[11px] font-bold text-purple-800 hover:bg-purple-200 shrink-0 transition"
+                          >
+                            + Add
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Subtotal & Discount Calculation Summary */}
                 <div className="border-t border-slate-200 pt-3 space-y-1.5 text-right">
                   <div className="text-slate-600">Subtotal: <span className="font-bold text-slate-900">₦{calculatedSubtotal.toLocaleString()}</span></div>
@@ -948,8 +1024,37 @@ export function QuotationsPage() {
                     />
                   </div>
                   <div className="text-sm font-bold text-emerald-800 pt-1">
-                    Total Quotation: ₦{calculatedTotal.toLocaleString()}
+                    Total Quotation: ₦{financialsPreview.total_amount.toLocaleString()}
                   </div>
+
+                  {/* Phase 17 Profit Margin Preview (Restricted to Finance Roles) */}
+                  {canManageFinance && (
+                    <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/50 p-2.5 text-left text-xs space-y-1">
+                      <div className="flex items-center justify-between text-blue-900 font-bold">
+                        <span>Expected Gross Operating Margin:</span>
+                        <span>₦{financialsPreview.margin_amount.toLocaleString()} ({financialsPreview.margin_percentage}%)</span>
+                      </div>
+                      <div className="text-[10px] text-blue-700/80 leading-relaxed">
+                        Statutory Regulatory Fees: ₦{financialsPreview.statutory_fees_total.toLocaleString()} (Excluded from margin).
+                        Internal Cost Estimate: ₦{financialsPreview.internal_cost_total.toLocaleString()}.
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Commercial Approval Alert */}
+                  {financialsPreview.requires_approval && (
+                    <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-2 text-left text-xs text-amber-900 flex items-start gap-2">
+                      <ShieldAlert className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold block">Executive Commercial Approval Required</span>
+                        <ul className="list-disc list-inside text-[11px] text-amber-800 mt-0.5">
+                          {financialsPreview.approval_reasons.map((r: string, i: number) => (
+                            <li key={i}>{r}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

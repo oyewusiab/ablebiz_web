@@ -394,6 +394,66 @@ export function ExecutiveDashboardPage() {
                 </div>
               </div>
 
+              {/* Phase 19: Direct Service Cost Allocations & Receipt Profitability */}
+              <div className="rounded-xl border border-blue-100 bg-blue-50/30 dark:bg-slate-800/40 dark:border-slate-700/60 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    <span className="text-xs font-bold text-slate-900 dark:text-white">
+                      Receipt-Linked Direct Costs & Net Contribution
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs">
+                    <Link
+                      to="/admin/finance/receipt-profitability"
+                      className="font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                    >
+                      Receipt Profitability <ArrowUpRight className="w-3 h-3" />
+                    </Link>
+                    <Link
+                      to="/admin/finance/expense-allocations"
+                      className="font-semibold text-slate-600 dark:text-slate-400 hover:underline flex items-center gap-1"
+                    >
+                      Expense Ledger <ArrowUpRight className="w-3 h-3" />
+                    </Link>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div className="bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                    <span className="text-[10px] text-slate-500 block mb-0.5">Allocated Direct Costs</span>
+                    <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                      ₦{(data.financial.totalAllocatedExpenses || 0).toLocaleString()}
+                    </span>
+                    <span className="text-[9px] text-slate-400 block mt-0.5">Linked to receipts</span>
+                  </div>
+
+                  <div className="bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                    <span className="text-[10px] text-slate-500 block mb-0.5">Unallocated Overhead</span>
+                    <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                      ₦{(data.financial.unallocatedExpenses || 0).toLocaleString()}
+                    </span>
+                    <span className="text-[9px] text-slate-400 block mt-0.5">Corporate overhead</span>
+                  </div>
+
+                  <div className="bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                    <span className="text-[10px] text-slate-500 block mb-0.5">Net Contribution</span>
+                    <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                      ₦{(data.financial.netReceiptContribution || 0).toLocaleString()}
+                    </span>
+                    <span className="text-[9px] text-slate-400 block mt-0.5">Cash collected - direct costs</span>
+                  </div>
+
+                  <div className="bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                    <span className="text-[10px] text-slate-500 block mb-0.5">Profitability Ratio</span>
+                    <span className="text-sm font-bold text-purple-600 dark:text-purple-400">
+                      {data.financial.receiptProfitabilityRatio || 0}%
+                    </span>
+                    <span className="text-[9px] text-slate-400 block mt-0.5">Direct margin ratio</span>
+                  </div>
+                </div>
+              </div>
+
               {/* Monthly Cash Trend & Revenue Distribution */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
                 <div className="space-y-3">

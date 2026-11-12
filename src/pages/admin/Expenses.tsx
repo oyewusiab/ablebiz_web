@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   DollarSign,
   Search,
@@ -12,10 +13,20 @@ import {
   Tag,
   AlertCircle,
   FileText,
+  Receipt,
+  Layers,
+  CheckCircle2,
+  Trash2,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
 import { SearchableSelect } from "../../components/ui/SearchableSelect";
+import {
+  saveExpenseAllocations,
+  fetchAllocationsForExpense,
+  validateExpenseAllocationsMath,
+} from "../../lib/profitability/expenseAllocationService";
+import type { ExpenseReceiptAllocation } from "../../types/suitePhases15To19";
 
 export interface ExpenseRecord {
   id: string;
@@ -33,6 +44,7 @@ export interface ExpenseRecord {
   vendor?: { name: string; category: string };
   service_request?: { tracking_code: string };
   payer?: { full_name: string };
+  allocations?: Array<{ id: string; allocated_amount: number }>;
 }
 
 export function ExpensesPage() {
@@ -46,6 +58,10 @@ export function ExpensesPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [vendors, setVendors] = useState<{ id: string; name: string }[]>([]);
   const [serviceRequests, setServiceRequests] = useState<{ id: string; tracking_code: string }[]>([]);
+  const [verifiedReceipts, setVerifiedReceipts] = useState<
+    Array<{ id: string; receipt_number: string; amount: number; client_name: string }>
+  >([]);
+
   const [formData, setFormData] = useState({
     vendor_id: "",
     service_request_id: "",
@@ -55,6 +71,12 @@ export function ExpensesPage() {
     payment_method: "bank_transfer",
     description: "",
   });
+
+  // Phase 19 Optional Receipt Allocations
+  const [allocations, setAllocations] = useState<
+    Array<{ payment_id: string; allocated_amount: number; notes?: string }>
+  >([]);
+
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
 
@@ -78,12 +100,27 @@ export function ExpensesPage() {
           *,
           vendor:vendors(name, category),
           service_request:service_requests(tracking_code),
-          payer:staff_profiles(full_name)
+          payer:staff_profiles(full_name),
+          allocations:expense_receipt_allocations(id, allocated_amount)
         `)
         .order("expense_date", { ascending: false });
 
-      if (error) throw error;
-      setExpenses(data || []);
+      if (error) {
+        // Fallback without allocations join if table not yet migrated
+        const fallback = await supabase
+          .from("expenses")
+          .select(`
+            *,
+            vendor:vendors(name, category),
+            service_request:service_requests(tracking_code),
+            payer:staff_profiles(full_name)
+          `)
+          .order("expense_date", { ascending: false });
+        if (fallback.error) throw fallback.error;
+        setExpenses(fallback.data || []);
+      } else {
+        setExpenses(data || []);
+      }
     } catch (err) {
       console.error("[Expenses] Load error:", err);
     } finally {
@@ -93,13 +130,29 @@ export function ExpensesPage() {
 
   const fetchOptions = async () => {
     try {
-      const [vRes, srRes] = await Promise.all([
+      const [vRes, srRes, pRes] = await Promise.all([
         supabase.from("vendors").select("id, name").eq("is_active", true).order("name"),
         supabase.from("service_requests").select("id, tracking_code").neq("status", "completed"),
+        supabase
+          .from("payments")
+          .select("id, receipt_number, amount, invoices(clients(full_name))")
+          .order("payment_date", { ascending: false })
+          .limit(100),
       ]);
 
       setVendors(vRes.data || []);
       setServiceRequests(srRes.data || []);
+
+      const formattedReceipts = (pRes.data || []).map((p: any) => {
+        const clientName = p.invoices?.clients?.full_name || "Direct Client";
+        return {
+          id: p.id,
+          receipt_number: p.receipt_number || p.id.slice(0, 8),
+          amount: Number(p.amount || 0),
+          client_name: clientName,
+        };
+      });
+      setVerifiedReceipts(formattedReceipts);
     } catch (err) {
       console.error("[Expenses] Options load error:", err);
     }
@@ -111,6 +164,16 @@ export function ExpensesPage() {
     if (amt <= 0) {
       setFormError("Expense amount must be greater than zero.");
       return;
+    }
+
+    // Validate allocations if any
+    const validAllocations = allocations.filter((a) => a.payment_id && Number(a.allocated_amount) > 0);
+    if (validAllocations.length > 0) {
+      const mathCheck = validateExpenseAllocationsMath(amt, validAllocations);
+      if (!mathCheck.valid) {
+        setFormError(mathCheck.error || "Invalid receipt allocation.");
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -134,6 +197,14 @@ export function ExpensesPage() {
 
       if (expErr) throw expErr;
 
+      // Save allocations if any
+      if (validAllocations.length > 0 && exp?.id) {
+        const allocRes = await saveExpenseAllocations(exp.id, amt, validAllocations, profile?.id);
+        if (!allocRes.success) {
+          console.warn("[Expense Create] Allocation warning:", allocRes.error);
+        }
+      }
+
       // Activity timeline
       await supabase.from("activity_timeline").insert({
         entity_type: "expense",
@@ -146,6 +217,7 @@ export function ExpensesPage() {
           category: formData.category,
           amount: amt,
           vendor_id: formData.vendor_id,
+          allocations_count: validAllocations.length,
         },
       });
 
@@ -159,6 +231,7 @@ export function ExpensesPage() {
         payment_method: "bank_transfer",
         description: "",
       });
+      setAllocations([]);
       fetchExpenses();
     } catch (err: any) {
       console.error("[Expense Create] Error:", err);
@@ -202,15 +275,31 @@ export function ExpensesPage() {
           </div>
         </div>
 
-        {canManageFinance && (
-          <button
-            onClick={() => setIsCreateOpen(true)}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#0A2558] px-4 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-[#061738] transition"
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            to="/admin/finance/receipt-profitability"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 transition"
           >
-            <Plus className="h-4 w-4" />
-            Record Disbursement
-          </button>
-        )}
+            <Receipt className="h-4 w-4 text-emerald-600" />
+            Receipt Profitability
+          </Link>
+          <Link
+            to="/admin/finance/expense-allocations"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 transition"
+          >
+            <Layers className="h-4 w-4 text-blue-600" />
+            Expense Allocations
+          </Link>
+          {canManageFinance && (
+            <button
+              onClick={() => setIsCreateOpen(true)}
+              className="inline-flex items-center gap-2 rounded-xl bg-[#0A2558] px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-[#061738] transition"
+            >
+              <Plus className="h-4 w-4" />
+              Record Disbursement
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Metrics */}
@@ -293,6 +382,7 @@ export function ExpensesPage() {
                   <th className="py-3 px-4">Description</th>
                   <th className="py-3 px-4">Vendor / Payee</th>
                   <th className="py-3 px-4">Service Request</th>
+                  <th className="py-3 px-4">Allocation</th>
                   <th className="py-3 px-4">Amount</th>
                   <th className="py-3 px-4">Method</th>
                   <th className="py-3 px-4">Recorded By</th>
@@ -313,6 +403,18 @@ export function ExpensesPage() {
                     <td className="py-3 px-4 text-slate-700">{e.vendor?.name || "Direct Expense"}</td>
                     <td className="py-3 px-4 font-mono text-[11px] text-slate-500">
                       {e.service_request?.tracking_code || "General Overhead"}
+                    </td>
+                    <td className="py-3 px-4">
+                      {e.allocations && e.allocations.length > 0 ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
+                          <CheckCircle2 className="h-3 w-3" />
+                          {e.allocations.length} receipt{e.allocations.length > 1 ? "s" : ""}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                          Overhead
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 px-4 font-bold text-red-700">₦{Number(e.amount).toLocaleString()}</td>
                     <td className="py-3 px-4 capitalize text-slate-600">
@@ -448,6 +550,91 @@ export function ExpensesPage() {
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="mt-1 w-full rounded-xl border border-slate-200 p-2 outline-none focus:border-emerald-600"
                 />
+              </div>
+
+              {/* Phase 19: Link to Client Receipts (Optional) */}
+              <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Receipt className="h-4 w-4 text-[#0A2558]" />
+                    <span className="text-xs font-bold text-slate-900">
+                      Link Disbursement to Client Receipts (Optional)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAllocations([
+                        ...allocations,
+                        { payment_id: "", allocated_amount: 0, notes: "" },
+                      ])
+                    }
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0A2558] hover:underline"
+                  >
+                    <Plus className="h-3 w-3" /> Add Receipt
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Directly associate this cost (e.g. CAC filing fee or stamp duty) to client revenue receipts for net contribution tracking.
+                </p>
+
+                {allocations.map((alloc, idx) => (
+                  <div key={idx} className="rounded-lg border border-slate-200 bg-white p-2.5 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1">
+                        <label className="text-[10px] font-semibold text-slate-500">Client Receipt *</label>
+                        <select
+                          value={alloc.payment_id}
+                          onChange={(e) => {
+                            const updated = [...allocations];
+                            updated[idx].payment_id = e.target.value;
+                            setAllocations(updated);
+                          }}
+                          className="mt-0.5 h-8 w-full rounded-lg border border-slate-200 px-2 text-xs outline-none focus:border-blue-500"
+                        >
+                          <option value="">Select verified receipt...</option>
+                          {verifiedReceipts.map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {r.receipt_number} — {r.client_name} (₦{r.amount.toLocaleString()})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="w-28">
+                        <label className="text-[10px] font-semibold text-slate-500">Allocated (₦) *</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={alloc.allocated_amount || ""}
+                          onChange={(e) => {
+                            const updated = [...allocations];
+                            updated[idx].allocated_amount = parseFloat(e.target.value) || 0;
+                            setAllocations(updated);
+                          }}
+                          className="mt-0.5 h-8 w-full rounded-lg border border-slate-200 px-2 text-xs font-semibold outline-none focus:border-blue-500"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setAllocations(allocations.filter((_, i) => i !== idx))}
+                        className="mt-4 p-1 text-slate-400 hover:text-red-600"
+                        title="Remove"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {allocations.length > 0 && (
+                  <div className="flex items-center justify-between text-[11px] font-medium pt-1 border-t border-blue-200/60">
+                    <span className="text-slate-600">Total Allocated:</span>
+                    <span className="font-bold text-[#0A2558]">
+                      ₦{allocations.reduce((s, a) => s + Number(a.allocated_amount || 0), 0).toLocaleString()} of ₦{Number(formData.amount || 0).toLocaleString()}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">

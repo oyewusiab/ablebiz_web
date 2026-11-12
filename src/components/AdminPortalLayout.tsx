@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -32,11 +32,20 @@ import {
   Workflow,
   CalendarDays,
   BookOpen,
+  ExternalLink,
+  CheckCircle2,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { useTheme } from "../auth/ThemeContext";
 import { getRoleTitle, getRoleConfig } from "../auth/roleConfig";
 import { BrandLogo } from "./BrandLogo";
+import {
+  fetchUnreadNotificationCount,
+  fetchStaffNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+} from "../lib/notifications/notificationService";
+import type { SuiteNotification } from "../types/suitePhases15To19";
 
 interface NavItem {
   name: string;
@@ -62,9 +71,58 @@ export function AdminPortalLayout() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [recentNotifications, setRecentNotifications] = useState<SuiteNotification[]>([]);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+
   const roleTitle = getRoleTitle(profile?.role);
   const roleConfig = getRoleConfig(profile?.role);
   const isSuper = profile?.role === "super_admin" || profile?.role === "admin";
+
+  useEffect(() => {
+    if (profile?.id) {
+      loadNotifs();
+    }
+  }, [profile?.id, location.pathname]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setIsNotifOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const loadNotifs = async () => {
+    if (!profile?.id) return;
+    try {
+      const [cnt, notifs] = await Promise.all([
+        fetchUnreadNotificationCount(profile.id),
+        fetchStaffNotifications(profile.id, "all", true),
+      ]);
+      setUnreadCount(cnt);
+      setRecentNotifications(notifs.slice(0, 5));
+    } catch (err) {
+      console.warn("[AdminPortalLayout] Notification count error:", err);
+    }
+  };
+
+  const handleQuickMarkRead = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    await markNotificationAsRead(id);
+    setRecentNotifications((prev) => prev.filter((n) => n.id !== id));
+    setUnreadCount((c) => Math.max(0, c - 1));
+  };
+
+  const handleQuickMarkAllRead = async () => {
+    if (!profile?.id) return;
+    await markAllNotificationsAsRead(profile.id);
+    setRecentNotifications([]);
+    setUnreadCount(0);
+  };
 
   const handleLogout = async () => {
     await logout("logout");
@@ -114,6 +172,8 @@ export function AdminPortalLayout() {
         { name: "Invoices", path: "/admin/invoices", icon: Receipt, module: "finance" },
         { name: "Payments", path: "/admin/payments", icon: CreditCard, module: "finance" },
         { name: "Expenses", path: "/admin/expenses", icon: DollarSign, module: "finance" },
+        { name: "Receipt Profitability", path: "/admin/finance/receipt-profitability", icon: Receipt, module: "finance" },
+        { name: "Expense Allocations", path: "/admin/finance/expense-allocations", icon: FileSpreadsheet, module: "finance" },
         { name: "Vendors", path: "/admin/vendors", icon: Building2, module: "finance" },
         { name: "Cash Flow Forecast", path: "/admin/finance/cash-flow-forecast", icon: TrendingUp, module: "finance" },
       ],
@@ -129,6 +189,7 @@ export function AdminPortalLayout() {
       title: "GROWTH",
       items: [
         { name: "Campaigns & Promos", path: "/admin/campaigns", icon: Sparkles, module: "campaigns" },
+        { name: "Marketing Attribution", path: "/admin/reports/marketing-attribution", icon: TrendingUp },
         { name: "Referrals & Partners", path: "/admin/referrals", icon: TrendingUp },
       ],
     },
@@ -137,6 +198,7 @@ export function AdminPortalLayout() {
       items: [
         { name: "Executive Dashboard", path: "/admin/executive-dashboard", icon: BarChart3 },
         { name: "Executive Reports", path: "/admin/reports", icon: BarChart3, module: "reports" },
+        { name: "Marketing Attribution", path: "/admin/reports/marketing-attribution", icon: TrendingUp },
         { name: "Service Profitability", path: "/admin/reports/service-profitability", icon: DollarSign, module: "reports" },
         { name: "Service Quality Reports", path: "/admin/service-quality", icon: Sparkles, module: "reports" },
         { name: "Staff Performance", path: "/admin/reports/staff-performance", icon: Users, module: "reports" },
@@ -161,6 +223,7 @@ export function AdminPortalLayout() {
     {
       title: "SETTINGS",
       items: [
+        { name: "Backup & Continuity", path: "/admin/backup-recovery", icon: ShieldCheck, superOnly: true },
         { name: "System Settings", path: "/admin/settings", icon: Settings, superOnly: true },
       ],
     },
@@ -416,14 +479,100 @@ export function AdminPortalLayout() {
               <span>AI Secretary</span>
             </Link>
 
-            <Link
-              to="/admin/notifications"
-              className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-[#0A2558] transition"
-              title="Notifications"
-              aria-label="View notifications"
-            >
-              <Bell className="h-4 w-4" />
-            </Link>
+            {/* Notifications Popover Menu */}
+            <div className="relative" ref={notifRef}>
+              <button
+                type="button"
+                onClick={() => setIsNotifOpen((v) => !v)}
+                className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-[#0A2558] transition"
+                title="Notifications"
+                aria-label="View notifications"
+              >
+                <Bell className="h-4 w-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4.5 min-w-[18px] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white shadow-xs">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {isNotifOpen && (
+                <div className="absolute right-0 top-11 z-50 w-80 sm:w-96 rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2 px-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-slate-900">Notifications</span>
+                      {unreadCount > 0 && (
+                        <span className="rounded-full bg-blue-50 px-2 py-0.2 text-[10px] font-bold text-blue-700">
+                          {unreadCount} unread
+                        </span>
+                      )}
+                    </div>
+                    {unreadCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleQuickMarkAllRead}
+                        className="text-[11px] font-semibold text-slate-500 hover:text-slate-800"
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+
+                  {recentNotifications.length === 0 ? (
+                    <div className="py-6 text-center text-xs text-slate-400">
+                      No unread alerts. You're all caught up!
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
+                      {recentNotifications.map((n) => (
+                        <div
+                          key={n.id}
+                          onClick={() => {
+                            if (n.link) {
+                              setIsNotifOpen(false);
+                              navigate(n.link);
+                            }
+                          }}
+                          className="p-2.5 hover:bg-slate-50/70 rounded-xl transition cursor-pointer text-xs space-y-1"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-slate-900 truncate">{n.title}</span>
+                            <span className={`text-[9px] font-bold uppercase rounded px-1.5 py-0.2 shrink-0 ${
+                              n.priority === 'urgent' ? 'bg-red-100 text-red-800' : n.priority === 'high' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              {n.priority}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed">{n.message}</p>
+                          <div className="flex items-center justify-between pt-1">
+                            <span className="text-[10px] text-slate-400">
+                              {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => handleQuickMarkRead(n.id, e)}
+                              className="text-[10px] font-semibold text-slate-400 hover:text-slate-700"
+                            >
+                              Dismiss
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="border-t border-slate-100 pt-2 flex items-center justify-between px-1 text-xs">
+                    <Link
+                      to="/admin/notifications"
+                      onClick={() => setIsNotifOpen(false)}
+                      className="font-semibold text-[#0A2558] hover:underline"
+                    >
+                      View all in Notification Center →
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Current Staff Identity Tag */}
             <div className="flex items-center gap-3 border-l border-slate-200 pl-3">

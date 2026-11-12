@@ -18,9 +18,13 @@ import {
   X,
   Loader2,
   Archive,
+  Layers,
+  Sparkles,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthContext";
+import { fetchServiceBundles, saveServiceBundle } from "../../lib/quotations/quotationIntelligence";
+import type { ServiceBundle } from "../../types/suitePhases15To19";
 
 export interface CatalogService {
   id: string;
@@ -50,6 +54,18 @@ export function ServicesCatalogPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedService, setSelectedService] = useState<CatalogService | null>(null);
+
+  // Phase 17 Bundles
+  const [activeCatalogTab, setActiveCatalogTab] = useState<"services" | "bundles">("services");
+  const [bundles, setBundles] = useState<ServiceBundle[]>([]);
+  const [isCreatingBundle, setIsCreatingBundle] = useState(false);
+  const [bundleForm, setBundleForm] = useState({
+    name: "",
+    description: "",
+    category: "business_registration",
+    bundle_price_ngn: 0,
+    included_service_ids: [] as string[],
+  });
 
   // Modals
   const [isCreating, setIsCreating] = useState(false);
@@ -103,10 +119,52 @@ export function ServicesCatalogPage() {
           if (updated) setSelectedService(updated as CatalogService);
         }
       }
+      const bList = await fetchServiceBundles();
+      setBundles(bList);
     } catch (err) {
       console.error("[ServicesCatalog] Unexpected error:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCreateBundle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bundleForm.name.trim() || bundleForm.included_service_ids.length === 0) {
+      alert("Bundle name and at least one included service are required.");
+      return;
+    }
+
+    const includedServices = services.filter((s) => bundleForm.included_service_ids.includes(s.id));
+    const standardTotal = includedServices.reduce((acc, s) => acc + Number(s.default_fee_ngn || 0), 0);
+    const bundlePrice = Number(bundleForm.bundle_price_ngn) || standardTotal;
+    const savings = standardTotal > 0 ? Math.round(((standardTotal - bundlePrice) / standardTotal) * 10000) / 100 : 0;
+    const slug = generateSlug(bundleForm.name);
+    const code = `BND-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+
+    const res = await saveServiceBundle({
+      bundle_code: code,
+      name: bundleForm.name.trim(),
+      slug,
+      description: bundleForm.description.trim() || null,
+      category: bundleForm.category,
+      included_service_ids: bundleForm.included_service_ids,
+      bundle_price_ngn: bundlePrice,
+      standard_total_ngn: standardTotal,
+      savings_percentage: savings,
+      is_active: true,
+    });
+
+    if (res) {
+      setIsCreatingBundle(false);
+      setBundleForm({
+        name: "",
+        description: "",
+        category: "business_registration",
+        bundle_price_ngn: 0,
+        included_service_ids: [],
+      });
+      fetchServices();
     }
   };
 
@@ -358,21 +416,202 @@ export function ServicesCatalogPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-[#0A2558]">
-            <span>{services.length} Registered Services</span>
-          </div>
-
           {canManageCatalog && (
-            <button
-              onClick={openCreateModal}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-[#0A2558] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#061738] transition shadow-xs"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Add Service</span>
-            </button>
+            activeCatalogTab === "services" ? (
+              <button
+                onClick={openCreateModal}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#0A2558] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#061738] transition shadow-xs"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add Service</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setIsCreatingBundle(true)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#0A2558] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#061738] transition shadow-xs"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Create Service Bundle</span>
+              </button>
+            )
           )}
         </div>
       </div>
+
+      {/* Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-200">
+        <button
+          type="button"
+          onClick={() => setActiveCatalogTab("services")}
+          className={`pb-2.5 text-xs font-bold transition border-b-2 ${
+            activeCatalogTab === "services"
+              ? "border-[#0A2558] text-[#0A2558]"
+              : "border-transparent text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          Individual Services ({services.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveCatalogTab("bundles")}
+          className={`pb-2.5 text-xs font-bold transition border-b-2 ${
+            activeCatalogTab === "bundles"
+              ? "border-[#0A2558] text-[#0A2558]"
+              : "border-transparent text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          Configured Service Bundles ({bundles.length})
+        </button>
+      </div>
+
+      {activeCatalogTab === "bundles" && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {bundles.map((b) => {
+              const included = services.filter((s) => b.included_service_ids.includes(s.id));
+              return (
+                <div key={b.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs space-y-3 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                        {b.bundle_code}
+                      </span>
+                      {b.savings_percentage > 0 && (
+                        <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                          Save {b.savings_percentage}%
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-900">{b.name}</h3>
+                    {b.description && <p className="text-xs text-slate-500 leading-relaxed">{b.description}</p>}
+
+                    <div className="pt-2 border-t border-slate-100">
+                      <span className="text-[11px] font-semibold text-slate-600 block mb-1.5">Included Services ({included.length}):</span>
+                      <ul className="text-xs text-slate-700 space-y-1">
+                        {included.map((s) => (
+                          <li key={s.id} className="flex items-center gap-1.5 text-[11px]">
+                            <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
+                            <span className="truncate">{s.name}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                    <div>
+                      {b.standard_total_ngn > b.bundle_price_ngn && (
+                        <span className="text-[11px] text-slate-400 line-through block">
+                          ₦{b.standard_total_ngn.toLocaleString()}
+                        </span>
+                      )}
+                      <span className="text-base font-bold text-[#0A2558]">
+                        ₦{b.bundle_price_ngn.toLocaleString()}
+                      </span>
+                    </div>
+                    <span className="text-[11px] font-semibold text-emerald-600">Active Bundle</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Create Service Bundle */}
+      {isCreatingBundle && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-sm font-bold text-slate-900">Create New Service Bundle</h3>
+            <p className="text-xs text-slate-500">Group complementary services together with discounted package pricing.</p>
+
+            <form onSubmit={handleCreateBundle} className="space-y-3 text-xs">
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1">Bundle Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. CAC Company & Tax Clearance Suite"
+                  value={bundleForm.name}
+                  onChange={(e) => setBundleForm({ ...bundleForm, name: e.target.value })}
+                  className="w-full rounded-lg border border-slate-200 p-2"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1">Description</label>
+                <textarea
+                  rows={2}
+                  placeholder="Explain what is included and client benefits..."
+                  value={bundleForm.description}
+                  onChange={(e) => setBundleForm({ ...bundleForm, description: e.target.value })}
+                  className="w-full rounded-lg border border-slate-200 p-2"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1">Bundle Special Price (₦) *</label>
+                <input
+                  type="number"
+                  required
+                  value={bundleForm.bundle_price_ngn}
+                  onChange={(e) => setBundleForm({ ...bundleForm, bundle_price_ngn: Number(e.target.value) })}
+                  className="w-full rounded-lg border border-slate-200 p-2"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1">Select Included Services *</label>
+                <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-lg p-2 space-y-1.5">
+                  {services.map((s) => {
+                    const isChecked = bundleForm.included_service_ids.includes(s.id);
+                    return (
+                      <label key={s.id} className="flex items-center justify-between p-1.5 hover:bg-slate-50 rounded cursor-pointer">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              const updated = isChecked
+                                ? bundleForm.included_service_ids.filter((id) => id !== s.id)
+                                : [...bundleForm.included_service_ids, s.id];
+                              setBundleForm({ ...bundleForm, included_service_ids: updated });
+                            }}
+                            className="rounded border-slate-300"
+                          />
+                          <span className="font-medium text-slate-800">{s.name}</span>
+                        </div>
+                        <span className="text-slate-400 font-mono text-[11px]">
+                          ₦{Number(s.default_fee_ngn || 0).toLocaleString()}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsCreatingBundle(false)}
+                  className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg bg-[#0A2558] text-white font-semibold hover:bg-[#061738]"
+                >
+                  Save Bundle
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {activeCatalogTab === "services" && (
+        <div className="space-y-6">
 
       {/* Filter and Search Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -618,6 +857,8 @@ export function ServicesCatalogPage() {
             </div>
           </div>
         </div>
+      )}
+      </div>
       )}
 
       {/* CREATE / EDIT MODAL */}
