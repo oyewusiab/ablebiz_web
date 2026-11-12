@@ -300,6 +300,7 @@ export interface ReceiptProfitabilityRecord {
   service_request_id?: string | null;
   service_tracking_code?: string | null;
   service_name?: string | null;
+  service_category?: string | null;
   verified_receipt_amount: number;
   total_allocated_expenses: number;
   net_contribution: number;

@@ -27,6 +27,7 @@ import type {
 export function ReceiptProfitabilityPage() {
   const { profile, hasPermission } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [activeView, setActiveView] = useState<'receipts' | 'client_rollup' | 'service_rollup'>('receipts');
@@ -41,6 +42,7 @@ export function ReceiptProfitabilityPage() {
 
   const loadData = async () => {
     setLoading(true);
+    setErrorMessage(null);
     try {
       const [recList, cRoll, sRoll] = await Promise.all([
         fetchReceiptProfitabilityReport({ status: statusFilter }),
@@ -51,8 +53,9 @@ export function ReceiptProfitabilityPage() {
       setReceipts(recList);
       setClientRollup(cRoll);
       setServiceRollup(sRoll);
-    } catch (err) {
+    } catch (err: any) {
       console.error('[ReceiptProfitability] Load error:', err);
+      setErrorMessage(err.message || 'Unable to retrieve live receipt profitability records.');
     } finally {
       setLoading(false);
     }
@@ -109,9 +112,31 @@ export function ReceiptProfitabilityPage() {
         </div>
         <div className="hidden sm:block text-right">
           <span className="text-[11px] text-emerald-700 block">Overall Margin:</span>
-          <span className="text-lg font-bold text-emerald-900">{overallMarginPercent}%</span>
+          <span className="text-lg font-bold text-emerald-900">
+            {errorMessage ? '—' : loading ? '...' : `${overallMarginPercent}%`}
+          </span>
         </div>
       </div>
+
+      {/* Error Alert Banner */}
+      {errorMessage && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-xs text-red-800 flex items-center justify-between shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="h-4 w-4 text-red-600 flex-shrink-0" />
+            <div>
+              <p className="font-semibold text-red-900">Unable to load live receipt profitability</p>
+              <p className="text-[11px] text-red-700 mt-0.5">{errorMessage}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={loadData}
+            className="rounded-lg bg-red-100 hover:bg-red-200 text-red-900 px-3 py-1.5 font-semibold transition"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -124,10 +149,10 @@ export function ReceiptProfitabilityPage() {
             </div>
           </div>
           <p className="mt-2 text-xl font-bold text-slate-900">
-            ₦{totalReceiptsAmount.toLocaleString()}
+            {errorMessage ? '—' : loading ? '...' : `₦${totalReceiptsAmount.toLocaleString()}`}
           </p>
           <p className="text-[11px] text-slate-500 mt-0.5">
-            {filteredReceipts.length} verified receipts
+            {errorMessage ? 'Query failed' : loading ? 'Fetching...' : `${filteredReceipts.length} verified receipts`}
           </p>
         </div>
 
@@ -140,10 +165,10 @@ export function ReceiptProfitabilityPage() {
             </div>
           </div>
           <p className="mt-2 text-xl font-bold text-slate-900">
-            ₦{totalAllocatedExpenses.toLocaleString()}
+            {errorMessage ? '—' : loading ? '...' : `₦${totalAllocatedExpenses.toLocaleString()}`}
           </p>
           <p className="text-[11px] text-slate-500 mt-0.5">
-            Disbursements tied to receipts
+            {errorMessage ? 'Unavailable' : 'Disbursements tied to receipts'}
           </p>
         </div>
 
@@ -156,10 +181,10 @@ export function ReceiptProfitabilityPage() {
             </div>
           </div>
           <p className="mt-2 text-xl font-bold text-slate-900">
-            ₦{totalNetContribution.toLocaleString()}
+            {errorMessage ? '—' : loading ? '...' : `₦${totalNetContribution.toLocaleString()}`}
           </p>
           <p className="text-[11px] text-slate-500 mt-0.5">
-            Gross contribution after direct cost
+            {errorMessage ? 'Unavailable' : 'Gross contribution after direct cost'}
           </p>
         </div>
 
@@ -172,10 +197,10 @@ export function ReceiptProfitabilityPage() {
             </div>
           </div>
           <p className="mt-2 text-xl font-bold text-slate-900">
-            {lossMakingCount}
+            {errorMessage ? '—' : loading ? '...' : lossMakingCount}
           </p>
           <p className="text-[11px] text-slate-500 mt-0.5">
-            {lossMakingCount > 0 ? 'Disbursements exceed receipt' : 'Zero loss engagements detected'}
+            {errorMessage ? 'Unavailable' : lossMakingCount > 0 ? 'Disbursements exceed receipt' : 'Zero loss engagements detected'}
           </p>
         </div>
       </div>
@@ -265,10 +290,27 @@ export function ReceiptProfitabilityPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
-                {filteredReceipts.length === 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={9} className="py-12 text-center text-slate-400">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <div className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
+                        <span>Loading live receipt profitability data...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : errorMessage ? (
+                  <tr>
+                    <td colSpan={9} className="py-8 text-center text-red-600">
+                      Failed to load receipt records: {errorMessage}
+                    </td>
+                  </tr>
+                ) : filteredReceipts.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="py-8 text-center text-slate-400">
-                      No matching receipts found.
+                      {receipts.length === 0
+                        ? 'No verified receipts found in the system.'
+                        : 'No receipts match your search and filter criteria.'}
                     </td>
                   </tr>
                 ) : (
@@ -351,16 +393,30 @@ export function ReceiptProfitabilityPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
-                {clientRollup.map((c) => (
-                  <tr key={c.entity_id} className="hover:bg-slate-50/60">
-                    <td className="py-2.5 px-3 font-semibold text-slate-900">{c.entity_name}</td>
-                    <td className="py-2.5 px-3">{c.receipts_count}</td>
-                    <td className="py-2.5 px-3 font-semibold">₦{c.total_receipts_verified.toLocaleString()}</td>
-                    <td className="py-2.5 px-3 text-red-600">₦{c.total_allocated_expenses.toLocaleString()}</td>
-                    <td className="py-2.5 px-3 font-bold text-emerald-700">₦{c.net_contribution.toLocaleString()}</td>
-                    <td className="py-2.5 px-3 font-semibold">{c.margin_percent}%</td>
+                {loading ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-slate-400">Loading client rollups...</td>
                   </tr>
-                ))}
+                ) : errorMessage ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-red-600">Unable to load client rollups: {errorMessage}</td>
+                  </tr>
+                ) : clientRollup.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-slate-400">No client rollup records available.</td>
+                  </tr>
+                ) : (
+                  clientRollup.map((c) => (
+                    <tr key={c.entity_id} className="hover:bg-slate-50/60">
+                      <td className="py-2.5 px-3 font-semibold text-slate-900">{c.entity_name}</td>
+                      <td className="py-2.5 px-3">{c.receipts_count}</td>
+                      <td className="py-2.5 px-3 font-semibold">₦{c.total_receipts_verified.toLocaleString()}</td>
+                      <td className="py-2.5 px-3 text-red-600">₦{c.total_allocated_expenses.toLocaleString()}</td>
+                      <td className="py-2.5 px-3 font-bold text-emerald-700">₦{c.net_contribution.toLocaleString()}</td>
+                      <td className="py-2.5 px-3 font-semibold">{c.margin_percent}%</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -383,16 +439,30 @@ export function ReceiptProfitabilityPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
-                {serviceRollup.map((s) => (
-                  <tr key={s.entity_id} className="hover:bg-slate-50/60">
-                    <td className="py-2.5 px-3 font-semibold text-slate-900">{s.entity_name}</td>
-                    <td className="py-2.5 px-3">{s.receipts_count}</td>
-                    <td className="py-2.5 px-3 font-semibold">₦{s.total_receipts_verified.toLocaleString()}</td>
-                    <td className="py-2.5 px-3 text-red-600">₦{s.total_allocated_expenses.toLocaleString()}</td>
-                    <td className="py-2.5 px-3 font-bold text-emerald-700">₦{s.net_contribution.toLocaleString()}</td>
-                    <td className="py-2.5 px-3 font-semibold">{s.margin_percent}%</td>
+                {loading ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-slate-400">Loading service rollups...</td>
                   </tr>
-                ))}
+                ) : errorMessage ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-red-600">Unable to load service rollups: {errorMessage}</td>
+                  </tr>
+                ) : serviceRollup.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-slate-400">No service rollup records available.</td>
+                  </tr>
+                ) : (
+                  serviceRollup.map((s) => (
+                    <tr key={s.entity_id} className="hover:bg-slate-50/60">
+                      <td className="py-2.5 px-3 font-semibold text-slate-900">{s.entity_name}</td>
+                      <td className="py-2.5 px-3">{s.receipts_count}</td>
+                      <td className="py-2.5 px-3 font-semibold">₦{s.total_receipts_verified.toLocaleString()}</td>
+                      <td className="py-2.5 px-3 text-red-600">₦{s.total_allocated_expenses.toLocaleString()}</td>
+                      <td className="py-2.5 px-3 font-bold text-emerald-700">₦{s.net_contribution.toLocaleString()}</td>
+                      <td className="py-2.5 px-3 font-semibold">{s.margin_percent}%</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

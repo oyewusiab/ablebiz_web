@@ -139,19 +139,8 @@ export async function saveExpenseAllocations(
       if (insErr) throw insErr;
     }
 
-    // 4. Record audit log
-    for (const alloc of allocations) {
-      const prev = (existing || []).find((e) => e.payment_id === alloc.payment_id);
-      await supabase.from('expense_allocation_audit_logs').insert({
-        expense_id: expenseId,
-        payment_id: alloc.payment_id,
-        action: prev ? 'amount_modified' : 'allocated',
-        previous_amount: prev ? prev.allocated_amount : 0,
-        new_amount: alloc.allocated_amount,
-        reason: 'Operator expense allocation update',
-        performed_by: operatorStaffId || null,
-      });
-    }
+    // 4. Audit logging is handled automatically by the PostgreSQL trigger `trg_log_expense_allocation_audit`
+    // (public.expense_allocation_audit_logs is an append-only security-definer protected ledger).
 
     return {
       success: true,
@@ -192,7 +181,10 @@ export async function fetchReceiptProfitabilityReport(filters?: {
           id,
           invoice_number,
           service_request_id,
-          service_request:service_requests(tracking_code, title)
+          service_request:service_requests(
+            tracking_code,
+            service:services_catalog(name, category)
+          )
         ),
         allocations:expense_receipt_allocations(
           id,
@@ -237,6 +229,8 @@ export async function fetchReceiptProfitabilityReport(filters?: {
         profitabilityStatus = 'break_even';
       }
 
+      const serviceObj = p.invoice?.service_request?.service;
+
       return {
         payment_id: p.id,
         receipt_number: p.receipt_number,
@@ -248,7 +242,8 @@ export async function fetchReceiptProfitabilityReport(filters?: {
         invoice_number: p.invoice?.invoice_number || 'INV-DIRECT',
         service_request_id: p.invoice?.service_request_id || null,
         service_tracking_code: p.invoice?.service_request?.tracking_code || null,
-        service_name: p.invoice?.service_request?.title || 'General Professional Service',
+        service_name: serviceObj?.name || 'General Professional Service',
+        service_category: serviceObj?.category || 'Professional Services',
         verified_receipt_amount: verifiedAmount,
         total_allocated_expenses: totalAllocated,
         net_contribution: netContribution,
@@ -267,7 +262,7 @@ export async function fetchReceiptProfitabilityReport(filters?: {
     return records;
   } catch (err) {
     console.error('[ReceiptProfitability] Fetch error:', err);
-    return [];
+    throw err;
   }
 }
 
@@ -353,8 +348,8 @@ export async function fetchRollupProfitability(
     }>();
 
     for (const r of records) {
-      const key = entityType === 'client' ? (r.client_id || 'unassigned') : (r.service_name || 'General');
-      const name = entityType === 'client' ? r.client_name : (r.service_name || 'General');
+      const key = entityType === 'client' ? (r.client_id || 'unassigned') : (r.service_category || r.service_name || 'General');
+      const name = entityType === 'client' ? r.client_name : (r.service_category || r.service_name || 'General');
 
       const entry = groupMap.get(key) || {
         name,
