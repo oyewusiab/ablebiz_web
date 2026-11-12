@@ -13,17 +13,11 @@ export const DEFAULT_BUSINESS_CONTINUITY_SETTINGS: BusinessContinuitySettings = 
   target_rto_hours: 4.0,
   rpo_rto_approved_by_management: false,
   retention_policy_days: 30,
-  primary_backup_schedule: 'Daily Automated Snapshot (02:00 UTC)',
-  point_in_time_recovery_available: true,
-  storage_coverage: [
-    'client_documents',
-    'invoices',
-    'receipts',
-    'cac_certificates',
-    'system_configs',
-  ],
-  disaster_recovery_lead: 'Lead Systems Administrator / Operations Manager',
-  emergency_contact_phone: '+234 803 000 0000',
+  primary_backup_schedule: 'Awaiting Infrastructure Confirmation',
+  point_in_time_recovery_available: false,
+  storage_coverage: [],
+  disaster_recovery_lead: 'Operations Manager / Lead Systems Administrator',
+  emergency_contact_phone: 'Not Configured',
   emergency_contact_email: 'hello@ablebiz.com.ng',
   disaster_recovery_runbook: `ABLEBIZ BUSINESS SERVICES LIMITED — DISASTER RECOVERY & BUSINESS CONTINUITY PLAN
 Version 2.4 | Approved for Critical Infrastructure Operations

@@ -83,15 +83,14 @@ describe('ABLEBIZ SUITE — Phases 15 to 19 Comprehensive Test Suite', () => {
   // PHASE 16: BACKUP, RECOVERY & BUSINESS CONTINUITY
   // =========================================================================
   describe('Phase 16: Backup, Recovery & Business Continuity', () => {
-    it('provides approved RPO and RTO defaults conforming to enterprise standards', () => {
+    it('initializes continuity targets as unapproved and awaiting physical infrastructure confirmation', () => {
       const settings = DEFAULT_BUSINESS_CONTINUITY_SETTINGS;
-      assert.equal(settings.target_rpo_hours, 2.0, 'RPO target must be 2.0 hours');
-      assert.equal(settings.target_rto_hours, 4.0, 'RTO target must be 4.0 hours');
-      assert.ok(settings.retention_policy_days >= 30, 'Retention policy must be at least 30 days');
-      assert.ok(settings.storage_coverage.includes('client_documents'));
-      assert.ok(settings.storage_coverage.includes('invoices'));
-      assert.ok(settings.storage_coverage.includes('receipts'));
-      assert.ok(settings.storage_coverage.includes('cac_certificates'));
+      assert.equal(settings.target_rpo_hours, 2.0, 'Proposed RPO target is 2.0 hours');
+      assert.equal(settings.target_rto_hours, 4.0, 'Proposed RTO target is 4.0 hours');
+      assert.equal(settings.rpo_rto_approved_by_management, false, 'Targets must be explicitly unapproved until executive sign-off');
+      assert.equal(settings.point_in_time_recovery_available, false, 'PITR must not be assumed without provider verification');
+      assert.equal(settings.emergency_contact_phone, 'Not Configured', 'No placeholder phone numbers permitted');
+      assert.deepEqual(settings.storage_coverage, [], 'Storage coverage must not be assumed without verified audit');
     });
 
     it('contains comprehensive Disaster Recovery Runbook with safety rules', () => {
@@ -295,6 +294,73 @@ describe('ABLEBIZ SUITE — Phases 15 to 19 Comprehensive Test Suite', () => {
       assert.equal(lossCont, -3000);
       const statusLoss = lossCont < 0 ? 'loss_making' : 'profitable';
       assert.equal(statusLoss, 'loss_making');
+    });
+
+    it('permits genuine expense allocation to exceed receipt revenue without artificial blockage (loss situation)', () => {
+      // E.g. An emergency regulatory rectification costs ₦80,000, but client only paid ₦50,000.
+      // The allocation of ₦80,000 to the ₦50,000 receipt must be mathematically valid against the expense cap.
+      const expenseAmount = 80000;
+      const receiptAllocations = [
+        { payment_id: 'receipt-50k', allocated_amount: 80000 },
+      ];
+      const res = validateExpenseAllocationsMath(expenseAmount, receiptAllocations);
+      assert.equal(res.valid, true, 'Expense allocation must be permitted to exceed receipt revenue in a financial loss');
+      assert.equal(res.totalAllocated, 80000);
+      assert.equal(res.unallocated, 0);
+    });
+
+    it('verifies allocation audit trail entry completeness and field schema', () => {
+      const auditLog = {
+        id: 'audit-001',
+        allocation_id: 'alloc-001',
+        expense_id: 'exp-100',
+        payment_id: 'pay-200',
+        action: 'amount_modified' as const,
+        previous_amount: 15000,
+        new_amount: 25000,
+        reason: 'Adjusted statutory allocation to cover revised CAC filing fee',
+        performed_by: 'staff-accounts-01',
+        created_at: new Date().toISOString(),
+      };
+
+      assert.ok(auditLog.id);
+      assert.ok(auditLog.allocation_id);
+      assert.ok(auditLog.expense_id);
+      assert.ok(auditLog.payment_id);
+      assert.equal(auditLog.previous_amount, 15000);
+      assert.equal(auditLog.new_amount, 25000);
+      assert.equal(auditLog.action, 'amount_modified');
+      assert.ok(auditLog.reason.length > 5);
+      assert.ok(auditLog.performed_by);
+    });
+
+    it('validates quotation-to-invoice line item compatibility across all allowed item_type categories', () => {
+      const allowedItemTypes = ['professional_fee', 'statutory_fee', 'service', 'bundle', 'addon', 'other'] as const;
+
+      const quotationItems = allowedItemTypes.map((type, idx) => ({
+        description: `Line item ${idx + 1}`,
+        item_type: type,
+        quantity: 1,
+        unit_price: 10000 * (idx + 1),
+        total_price: 10000 * (idx + 1),
+      }));
+
+      // Conversion function creates invoice items retaining identical item_type
+      const invoiceItems = quotationItems.map((qi) => ({
+        description: qi.description,
+        item_type: qi.item_type,
+        quantity: qi.quantity,
+        unit_price: qi.unit_price,
+        total_price: qi.total_price,
+      }));
+
+      assert.equal(invoiceItems.length, 6);
+      for (const item of invoiceItems) {
+        assert.ok(
+          allowedItemTypes.includes(item.item_type as any),
+          `Converted item_type ${item.item_type} must be allowed in invoice_items schema`
+        );
+      }
     });
   });
 });

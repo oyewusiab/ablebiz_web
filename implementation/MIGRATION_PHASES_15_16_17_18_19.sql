@@ -6,7 +6,7 @@
 -- PHASE 18: Marketing Campaign & Lead Attribution Analytics
 -- PHASE 19: Receipt-Linked Expense Allocation & Profitability
 -- File: implementation/MIGRATION_PHASES_15_16_17_18_19.sql
--- Idempotent, safe, and non-destructive.
+-- Idempotent, safe, non-destructive, and concurrency-hardened.
 -- ==============================================================================
 
 begin;
@@ -114,12 +114,13 @@ on conflict (event_type) do nothing;
 -- ==============================================================================
 
 -- 2.1 Backup Records Table (Tracking provider snapshots, file backups, and verifications)
+-- Note: Capabilities and locations are unverified until physically validated.
 create table if not exists public.backup_records (
   id uuid primary key default gen_random_uuid(),
   backup_reference text not null unique,
   backup_type text not null check (backup_type in ('database', 'documents', 'configuration', 'full_suite')),
-  provider text not null default 'Supabase Managed Infrastructure',
-  storage_location text not null default 'Offsite Encrypted Object Storage (EU/US Multi-Region)',
+  provider text not null default 'Awaiting Infrastructure Confirmation',
+  storage_location text not null default 'Awaiting Infrastructure Confirmation',
   file_size_mb numeric(10,2) not null default 0.00,
   checksum text,
   status text not null check (status in ('completed', 'verified', 'in_progress', 'failed', 'retrying')),
@@ -135,19 +136,20 @@ create index if not exists idx_backup_records_status on public.backup_records(st
 create index if not exists idx_backup_records_created on public.backup_records(created_at desc);
 
 -- 2.2 Physical Restore Drills Table (Tracking isolated test restores)
+-- Note: Drills must be physically performed. Default outcome is pending execution.
 create table if not exists public.restore_drills (
   id uuid primary key default gen_random_uuid(),
   drill_code text not null unique,
   drill_date date not null default current_date,
   backup_reference text not null,
   isolated_environment_name text not null,
-  duration_minutes integer not null default 45,
-  critical_tables_verified jsonb not null default '["staff_profiles", "clients", "invoices", "payments", "expenses", "cac_applications"]'::jsonb,
-  documents_verified boolean not null default true,
-  integrity_check_passed boolean not null default true,
-  rpo_hours_achieved numeric(6,2) not null default 1.5,
-  rto_minutes_achieved numeric(6,2) not null default 45.0,
-  overall_outcome text not null check (overall_outcome in ('passed_unconditionally', 'passed_with_minor_notes', 'failed_requires_action')),
+  duration_minutes integer,
+  critical_tables_verified jsonb not null default '[]'::jsonb,
+  documents_verified boolean not null default false,
+  integrity_check_passed boolean not null default false,
+  rpo_hours_achieved numeric(6,2),
+  rto_minutes_achieved numeric(6,2),
+  overall_outcome text not null check (overall_outcome in ('passed_unconditionally', 'passed_with_minor_notes', 'failed_requires_action', 'pending_drill_execution')) default 'pending_drill_execution',
   validation_notes text not null,
   corrective_action_plan text,
   conducted_by uuid not null references public.staff_profiles(id) on delete restrict,
@@ -157,6 +159,7 @@ create table if not exists public.restore_drills (
 create index if not exists idx_restore_drills_date on public.restore_drills(drill_date desc);
 
 -- 2.3 Business Continuity Settings Table
+-- Targets and schedules are marked unapproved and pending infrastructure confirmation.
 create table if not exists public.business_continuity_settings (
   id uuid primary key default gen_random_uuid(),
   target_rpo_hours numeric(6,2) not null default 2.0,
@@ -164,21 +167,21 @@ create table if not exists public.business_continuity_settings (
   rpo_rto_approved_by_management boolean not null default false,
   management_approval_date date,
   retention_policy_days integer not null default 30,
-  primary_backup_schedule text not null default 'Daily Automated Snapshot (02:00 UTC)',
-  point_in_time_recovery_available boolean not null default true,
-  storage_coverage text[] not null default array['client_documents', 'invoices', 'receipts', 'cac_certificates', 'system_configs'],
-  disaster_recovery_lead text not null default 'Lead Systems Administrator / Operations Manager',
-  emergency_contact_phone text not null default '+234 803 000 0000',
-  emergency_contact_email text not null default 'hello@ablebiz.com.ng',
+  primary_backup_schedule text not null default 'Awaiting Infrastructure Confirmation',
+  point_in_time_recovery_available boolean not null default false,
+  storage_coverage text[] not null default '{}',
+  disaster_recovery_lead text not null default 'Operations Manager / Lead Systems Administrator',
+  emergency_contact_phone text default null,
+  emergency_contact_email text default 'hello@ablebiz.com.ng',
   disaster_recovery_runbook text not null default 'Standard Operating Procedure for Disaster Recovery and Data Continuity',
   updated_at timestamptz not null default now()
 );
 
--- Seed initial Business Continuity Record if not exists
+-- Seed initial Business Continuity Record if not exists (unapproved draft state)
 insert into public.business_continuity_settings (
-  target_rpo_hours, target_rto_hours, rpo_rto_approved_by_management, retention_policy_days, primary_backup_schedule, point_in_time_recovery_available
+  target_rpo_hours, target_rto_hours, rpo_rto_approved_by_management, retention_policy_days, primary_backup_schedule, point_in_time_recovery_available, storage_coverage, emergency_contact_phone
 )
-select 2.0, 4.0, false, 30, 'Daily Automated Snapshot (02:00 UTC)', true
+select 2.0, 4.0, false, 30, 'Awaiting Infrastructure Confirmation', false, '{}'::text[], null
 where not exists (select 1 from public.business_continuity_settings);
 
 
@@ -199,26 +202,81 @@ create table if not exists public.service_bundles (
   standard_total_ngn numeric(14,2) not null default 0.00,
   savings_percentage numeric(5,2) not null default 0.00,
   eligibility_conditions text,
-  is_active boolean not null default true,
+  is_active boolean not null default false, -- Explicitly inactive awaiting management pricing approval
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 create index if not exists idx_service_bundles_active on public.service_bundles(is_active);
 
--- Seed standard bundles if none exist
-insert into public.service_bundles (
-  bundle_code, name, slug, description, category, bundle_price_ngn, standard_total_ngn, savings_percentage, is_active
-) values
-  ('BND-LTD-COMPLETE', 'Private Limited Company All-Inclusive Suite', 'private-limited-company-all-inclusive-suite', 'End-to-end company registration including CAC incorporation, official e-certificate, certified status report, FIRS corporate tax clearance profile, and company seal documentation.', 'business_registration', 75000.00, 90000.00, 16.67, true),
-  ('BND-BN-POST', 'Business Name & Post-Incorporation Starter Pack', 'business-name-post-incorporation-starter-pack', 'Complete sole proprietorship or partnership registration coupled with First-Year Annual Return compliance guidance and business bank account opening kit.', 'business_registration', 35000.00, 42000.00, 16.67, true),
-  ('BND-NGO-SCUML', 'Incorporated Trustees & SCUML Compliance Bundle', 'incorporated-trustees-scuml-compliance-bundle', 'Comprehensive NGO, Church, or Foundation registration paired with Special Control Unit Against Money Laundering (SCUML) compliance filing.', 'business_registration', 140000.00, 165000.00, 15.15, true)
-on conflict (bundle_code) do nothing;
+-- Seed draft service bundles linked to verified catalog services where available
+-- Explicitly marked as is_active = false awaiting executive approval
+do $$
+declare
+  v_ltd_id uuid;
+  v_bn_id uuid;
+begin
+  select id into v_ltd_id from public.services_catalog where slug = 'cac-company-registration-llc' limit 1;
+  select id into v_bn_id from public.services_catalog where slug = 'cac-business-name-registration' limit 1;
+
+  insert into public.service_bundles (
+    bundle_code, name, slug, description, category, included_service_ids, bundle_price_ngn, standard_total_ngn, savings_percentage, is_active
+  ) values
+    (
+      'BND-LTD-PROPOSAL',
+      'Private Limited Company Comprehensive Package (Draft Proposal)',
+      'private-limited-company-comprehensive-package-draft',
+      '[DRAFT PROPOSAL — Awaiting Executive Pricing Review and Policy Approval] Standard incorporation of private limited liability company with statutory compliance documentation.',
+      'business_registration',
+      case when v_ltd_id is not null then array[v_ltd_id] else '{}'::uuid[] end,
+      75000.00,
+      90000.00,
+      16.67,
+      false
+    ),
+    (
+      'BND-BN-PROPOSAL',
+      'Business Name Starter Pack (Draft Proposal)',
+      'business-name-starter-pack-draft',
+      '[DRAFT PROPOSAL — Awaiting Executive Pricing Review and Policy Approval] Registration of business name enterprise with post-registration compliance guidance.',
+      'business_registration',
+      case when v_bn_id is not null then array[v_bn_id] else '{}'::uuid[] end,
+      35000.00,
+      42000.00,
+      16.67,
+      false
+    )
+  on conflict (bundle_code) do nothing;
+end $$;
 
 -- 3.2 Extend quotations table with margins, statutory fees, approval references, conversion tracking
--- Note: statutory_fee_total (singular) matches existing canonical schema from earlier phases
-alter table public.quotations drop column if exists statutory_fees_total;
+-- First: reconcile and preserve any existing data from plural statutory_fees_total before safely dropping it
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns 
+    where table_schema = 'public' and table_name = 'quotations' and column_name = 'statutory_fees_total'
+  ) then
+    -- If singular statutory_fee_total column doesn't exist yet, add it first
+    if not exists (
+      select 1 from information_schema.columns 
+      where table_schema = 'public' and table_name = 'quotations' and column_name = 'statutory_fee_total'
+    ) then
+      alter table public.quotations add column statutory_fee_total numeric(14,2) not null default 0.00;
+    end if;
 
+    -- Migrate non-zero historical data from plural to singular column
+    update public.quotations
+    set statutory_fee_total = coalesce(statutory_fees_total, 0.00)
+    where coalesce(statutory_fee_total, 0.00) = 0.00 
+      and coalesce(statutory_fees_total, 0.00) > 0.00;
+
+    -- Drop the duplicate plural column safely
+    alter table public.quotations drop column statutory_fees_total;
+  end if;
+end $$;
+
+-- Add canonical singular column and financial intelligence fields
 alter table public.quotations 
   add column if not exists statutory_fee_total numeric(14,2) not null default 0.00,
   add column if not exists internal_cost_total numeric(14,2) not null default 0.00,
@@ -351,7 +409,7 @@ create table if not exists public.expense_receipt_allocations (
 create index if not exists idx_expense_alloc_expense on public.expense_receipt_allocations(expense_id);
 create index if not exists idx_expense_alloc_payment on public.expense_receipt_allocations(payment_id);
 
--- 5.2 Allocation Audit Logs Table (Tracks allocation modifications)
+-- 5.2 Allocation Audit Logs Table (Immutable Audit Ledger)
 create table if not exists public.expense_allocation_audit_logs (
   id uuid primary key default gen_random_uuid(),
   allocation_id uuid,
@@ -367,26 +425,42 @@ create table if not exists public.expense_allocation_audit_logs (
 
 create index if not exists idx_allocation_audit_exp on public.expense_allocation_audit_logs(expense_id, created_at desc);
 
--- 5.3 Database Function to Prevent Expense Over-Allocation
+-- 5.3 Concurrency-Safe Database Function to Prevent Expense Over-Allocation
+-- Uses row-level lock (FOR UPDATE) to serialize concurrent allocations against the same expense
 create or replace function public.validate_expense_allocation_cap()
 returns trigger as $$
 declare
   v_expense_amount numeric(14,2);
   v_current_total numeric(14,2);
+  v_payment_rec record;
 begin
+  -- 1. Verify existence of referenced payment (receipt)
+  select id, amount, is_verified into v_payment_rec
+  from public.payments
+  where id = NEW.payment_id;
+
+  if not found then
+    raise exception 'Associated client payment (receipt) not found.';
+  end if;
+
+  -- 2. Concurrency Lock: Lock the parent expense row FOR UPDATE to prevent race conditions
   select amount into v_expense_amount
   from public.expenses
-  where id = NEW.expense_id;
+  where id = NEW.expense_id
+  for update;
 
   if v_expense_amount is null then
     raise exception 'Associated expense record not found.';
   end if;
 
+  -- 3. Calculate current allocations excluding the record being modified
   select coalesce(sum(allocated_amount), 0) into v_current_total
   from public.expense_receipt_allocations
   where expense_id = NEW.expense_id
     and id <> coalesce(NEW.id, '00000000-0000-0000-0000-000000000000'::uuid);
 
+  -- 4. Enforce cap: Total allocations across receipts cannot exceed the expense's own amount
+  -- (Note: An allocated amount CAN exceed the receipt amount if the job operated at a financial loss)
   if (v_current_total + NEW.allocated_amount) > v_expense_amount then
     raise exception 'Total allocations (₦%) exceed the total expense amount (₦%).',
       (v_current_total + NEW.allocated_amount), v_expense_amount;
@@ -394,16 +468,92 @@ begin
 
   return NEW;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = public, pg_temp;
 
 drop trigger if exists trg_validate_expense_allocation on public.expense_receipt_allocations;
 create trigger trg_validate_expense_allocation
   before insert or update on public.expense_receipt_allocations
   for each row execute function public.validate_expense_allocation_cap();
 
+-- 5.4 Automated Allocation Audit Log Trigger Function
+create or replace function public.log_expense_allocation_audit()
+returns trigger as $$
+declare
+  v_staff_id uuid;
+  v_action text;
+  v_prev_amount numeric(14,2) := 0.00;
+  v_new_amount numeric(14,2) := 0.00;
+  v_reason text := null;
+  v_alloc_id uuid;
+  v_exp_id uuid;
+  v_pay_id uuid;
+begin
+  -- Resolve acting staff from authenticated session
+  select id into v_staff_id 
+  from public.staff_profiles 
+  where auth_uid = auth.uid() 
+  limit 1;
+
+  if (TG_OP = 'INSERT') then
+    v_action := 'allocated';
+    v_prev_amount := 0.00;
+    v_new_amount := NEW.allocated_amount;
+    v_reason := coalesce(NEW.notes, 'Initial expense allocation to receipt');
+    v_alloc_id := NEW.id;
+    v_exp_id := NEW.expense_id;
+    v_pay_id := NEW.payment_id;
+  elsif (TG_OP = 'UPDATE') then
+    v_action := 'amount_modified';
+    v_prev_amount := OLD.allocated_amount;
+    v_new_amount := NEW.allocated_amount;
+    v_reason := coalesce(NEW.notes, 'Allocation amount updated');
+    v_alloc_id := NEW.id;
+    v_exp_id := NEW.expense_id;
+    v_pay_id := NEW.payment_id;
+  elsif (TG_OP = 'DELETE') then
+    v_action := 'deallocated';
+    v_prev_amount := OLD.allocated_amount;
+    v_new_amount := 0.00;
+    v_reason := coalesce(OLD.notes, 'Allocation removed');
+    v_alloc_id := OLD.id;
+    v_exp_id := OLD.expense_id;
+    v_pay_id := OLD.payment_id;
+  end if;
+
+  insert into public.expense_allocation_audit_logs (
+    allocation_id,
+    expense_id,
+    payment_id,
+    action,
+    previous_amount,
+    new_amount,
+    reason,
+    performed_by,
+    created_at
+  ) values (
+    v_alloc_id,
+    v_exp_id,
+    v_pay_id,
+    v_action,
+    v_prev_amount,
+    v_new_amount,
+    v_reason,
+    coalesce(v_staff_id, NEW.created_by, OLD.created_by),
+    now()
+  );
+
+  return coalesce(NEW, OLD);
+end;
+$$ language plpgsql security definer set search_path = public, pg_temp;
+
+drop trigger if exists trg_log_expense_allocation_audit on public.expense_receipt_allocations;
+create trigger trg_log_expense_allocation_audit
+  after insert or update or delete on public.expense_receipt_allocations
+  for each row execute function public.log_expense_allocation_audit();
+
 
 -- ==============================================================================
--- 6. ROW LEVEL SECURITY (RLS) POLICIES
+-- 6. ROW LEVEL SECURITY (RLS) POLICIES — EXPLICIT & HARDENED
 -- ==============================================================================
 
 alter table public.staff_notification_preferences enable row level security;
@@ -416,12 +566,34 @@ alter table public.service_bundles enable row level security;
 alter table public.expense_receipt_allocations enable row level security;
 alter table public.expense_allocation_audit_logs enable row level security;
 
--- 6.1 Staff Notification Preferences Policies
-drop policy if exists "Staff can view and update their own notification preferences" on public.staff_notification_preferences;
-create policy "Staff can view and update their own notification preferences"
+-- 6.1 Staff Notification Preferences (Strict Self-Access & Admin View)
+drop policy if exists "Staff can view own notification preferences" on public.staff_notification_preferences;
+create policy "Staff can view own notification preferences"
   on public.staff_notification_preferences
-  for all
+  for select
   using (
+    staff_id in (select id from public.staff_profiles where auth_uid = auth.uid())
+    or exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin'))
+  );
+
+drop policy if exists "Staff can insert own notification preferences" on public.staff_notification_preferences;
+create policy "Staff can insert own notification preferences"
+  on public.staff_notification_preferences
+  for insert
+  with check (
+    staff_id in (select id from public.staff_profiles where auth_uid = auth.uid())
+    or exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin'))
+  );
+
+drop policy if exists "Staff can update own notification preferences" on public.staff_notification_preferences;
+create policy "Staff can update own notification preferences"
+  on public.staff_notification_preferences
+  for update
+  using (
+    staff_id in (select id from public.staff_profiles where auth_uid = auth.uid())
+    or exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin'))
+  )
+  with check (
     staff_id in (select id from public.staff_profiles where auth_uid = auth.uid())
     or exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin'))
   );
@@ -433,39 +605,79 @@ create policy "Active staff can view escalation rules"
   for select
   using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true));
 
-drop policy if exists "Management can configure escalation rules" on public.escalation_rules;
-create policy "Management can configure escalation rules"
+drop policy if exists "Management can insert escalation rules" on public.escalation_rules;
+create policy "Management can insert escalation rules"
   on public.escalation_rules
-  for all
+  for insert
+  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'operations_manager')));
+
+drop policy if exists "Management can update escalation rules" on public.escalation_rules;
+create policy "Management can update escalation rules"
+  on public.escalation_rules
+  for update
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'operations_manager')))
+  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'operations_manager')));
+
+drop policy if exists "Management can delete escalation rules" on public.escalation_rules;
+create policy "Management can delete escalation rules"
+  on public.escalation_rules
+  for delete
   using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'operations_manager')));
 
--- 6.3 Escalation Logs Policies
+-- 6.3 Escalation Logs Policies (Immutable audit trail: SELECT & INSERT only, no UPDATE or DELETE)
 drop policy if exists "Active staff can view escalation logs" on public.escalation_logs;
 create policy "Active staff can view escalation logs"
   on public.escalation_logs
   for select
   using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true));
 
--- 6.4 Backup & Recovery Policies (Restricted to super_admin and admin)
+drop policy if exists "Active staff can insert escalation logs" on public.escalation_logs;
+create policy "Active staff can insert escalation logs"
+  on public.escalation_logs
+  for insert
+  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true));
+
+-- 6.4 Backup & Recovery Policies (Strictly restricted to super_admin and admin)
+drop policy if exists "Admins can view backup records" on public.backup_records;
+create policy "Admins can view backup records"
+  on public.backup_records
+  for select
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin')));
+
 drop policy if exists "Admins can manage backup records" on public.backup_records;
 create policy "Admins can manage backup records"
   on public.backup_records
   for all
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin')))
+  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin')));
+
+drop policy if exists "Admins can view restore drills" on public.restore_drills;
+create policy "Admins can view restore drills"
+  on public.restore_drills
+  for select
   using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin')));
 
 drop policy if exists "Admins can manage restore drills" on public.restore_drills;
 create policy "Admins can manage restore drills"
   on public.restore_drills
   for all
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin')))
+  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin')));
+
+drop policy if exists "Admins can view business continuity settings" on public.business_continuity_settings;
+create policy "Admins can view business continuity settings"
+  on public.business_continuity_settings
+  for select
   using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin')));
 
 drop policy if exists "Admins can manage business continuity settings" on public.business_continuity_settings;
 create policy "Admins can manage business continuity settings"
   on public.business_continuity_settings
   for all
-  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin')));
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin')))
+  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin')));
 
--- 6.5 Service Bundles Policies (All active staff can read; operations/admin can manage)
+-- 6.5 Service Bundles Policies (Active staff can read; management can manage)
 drop policy if exists "Active staff can view service bundles" on public.service_bundles;
 create policy "Active staff can view service bundles"
   on public.service_bundles
@@ -476,7 +688,8 @@ drop policy if exists "Operations and admin can manage service bundles" on publi
 create policy "Operations and admin can manage service bundles"
   on public.service_bundles
   for all
-  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'operations_manager')));
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'operations_manager')))
+  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'operations_manager')));
 
 -- 6.6 Expense Receipt Allocations Policies (Finance & management)
 drop policy if exists "Authorized staff can view expense allocations" on public.expense_receipt_allocations;
@@ -485,16 +698,37 @@ create policy "Authorized staff can view expense allocations"
   for select
   using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'accounts_officer', 'operations_manager')));
 
-drop policy if exists "Accounts and Admin can manage expense allocations" on public.expense_receipt_allocations;
-create policy "Accounts and Admin can manage expense allocations"
+drop policy if exists "Accounts and Admin can insert expense allocations" on public.expense_receipt_allocations;
+create policy "Accounts and Admin can insert expense allocations"
   on public.expense_receipt_allocations
-  for all
+  for insert
+  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'accounts_officer')));
+
+drop policy if exists "Accounts and Admin can update expense allocations" on public.expense_receipt_allocations;
+create policy "Accounts and Admin can update expense allocations"
+  on public.expense_receipt_allocations
+  for update
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'accounts_officer')))
+  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'accounts_officer')));
+
+drop policy if exists "Accounts and Admin can delete expense allocations" on public.expense_receipt_allocations;
+create policy "Accounts and Admin can delete expense allocations"
+  on public.expense_receipt_allocations
+  for delete
   using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'accounts_officer')));
 
+-- 6.7 Allocation Audit Logs Policies (Append-only immutable audit trail)
+-- Ordinary users CANNOT update or delete audit records. Inserts handled by security definer trigger.
 drop policy if exists "Authorized staff can view allocation audit logs" on public.expense_allocation_audit_logs;
 create policy "Authorized staff can view allocation audit logs"
   on public.expense_allocation_audit_logs
   for select
   using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'accounts_officer')));
+
+drop policy if exists "System and finance officers can insert allocation audit logs" on public.expense_allocation_audit_logs;
+create policy "System and finance officers can insert allocation audit logs"
+  on public.expense_allocation_audit_logs
+  for insert
+  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'accounts_officer')));
 
 commit;

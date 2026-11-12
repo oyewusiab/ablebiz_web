@@ -8,6 +8,9 @@ begin;
 drop trigger if exists trg_validate_expense_allocation on public.expense_receipt_allocations;
 drop function if exists public.validate_expense_allocation_cap();
 
+drop trigger if exists trg_log_expense_allocation_audit on public.expense_receipt_allocations;
+drop function if exists public.log_expense_allocation_audit();
+
 drop table if exists public.expense_allocation_audit_logs cascade;
 drop table if exists public.expense_receipt_allocations cascade;
 

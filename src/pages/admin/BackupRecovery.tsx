@@ -59,16 +59,16 @@ export function BackupRecoveryPage() {
   const [isVerifyModalOpen, setIsVerifyModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
-  // New Drill Form
+  // New Drill Form (Defaults requiring actual physical verification before pass)
   const [drillForm, setDrillForm] = useState({
     backup_reference: '',
     isolated_environment_name: 'ablebiz-staging-isolated-recovery-01',
-    duration_minutes: 45,
+    duration_minutes: 0,
     critical_tables_verified: 'staff_profiles, clients, invoices, payments, expenses, cac_applications',
-    documents_verified: true,
-    integrity_check_passed: true,
-    rpo_hours_achieved: 1.5,
-    rto_minutes_achieved: 45,
+    documents_verified: false,
+    integrity_check_passed: false,
+    rpo_hours_achieved: 0,
+    rto_minutes_achieved: 0,
     overall_outcome: 'passed_unconditionally' as RestoreOutcome,
     validation_notes: '',
     corrective_action_plan: '',
