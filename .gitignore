@@ -6,6 +6,10 @@ dist-ssr
 .env
 .env.*
 .env.production
+.env.staging
+.env.staging.*
+!.env.staging.example
+.env.staging.local
 .env.local
 
 # Editor directories and files
