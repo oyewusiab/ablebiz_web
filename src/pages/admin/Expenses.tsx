@@ -135,7 +135,8 @@ export function ExpensesPage() {
         supabase.from("service_requests").select("id, tracking_code").neq("status", "completed"),
         supabase
           .from("payments")
-          .select("id, receipt_number, amount, invoices(clients(full_name))")
+          .select("id, receipt_number, amount, is_verified, invoices(clients(full_name))")
+          .eq("is_verified", true)
           .order("payment_date", { ascending: false })
           .limit(100),
       ]);

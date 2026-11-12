@@ -250,14 +250,16 @@ begin
 end $$;
 
 -- 3.2 Extend quotations table with margins, statutory fees, approval references, conversion tracking
--- First: reconcile and preserve any existing data from plural statutory_fees_total before safely dropping it
+-- Safe conflict-preserving reconciliation between statutory_fees_total (plural) and statutory_fee_total (singular)
 do $$
+declare
+  v_conflict_count integer := 0;
 begin
   if exists (
     select 1 from information_schema.columns 
     where table_schema = 'public' and table_name = 'quotations' and column_name = 'statutory_fees_total'
   ) then
-    -- If singular statutory_fee_total column doesn't exist yet, add it first
+    -- Ensure canonical singular column exists
     if not exists (
       select 1 from information_schema.columns 
       where table_schema = 'public' and table_name = 'quotations' and column_name = 'statutory_fee_total'
@@ -265,13 +267,44 @@ begin
       alter table public.quotations add column statutory_fee_total numeric(14,2) not null default 0.00;
     end if;
 
-    -- Migrate non-zero historical data from plural to singular column
+    -- Check for conflicting rows where BOTH columns have non-zero differing values
+    select count(*) into v_conflict_count
+    from public.quotations
+    where coalesce(statutory_fee_total, 0.00) > 0.00
+      and coalesce(statutory_fees_total, 0.00) > 0.00
+      and statutory_fee_total <> statutory_fees_total;
+
+    if v_conflict_count > 0 then
+      create table if not exists public.quotation_reconciliation_conflicts (
+        id uuid primary key default gen_random_uuid(),
+        quotation_id uuid not null references public.quotations(id) on delete cascade,
+        quotation_number text,
+        statutory_fee_total numeric(14,2) not null,
+        statutory_fees_total numeric(14,2) not null,
+        detected_at timestamptz not null default now(),
+        status text not null default 'pending_manual_reconciliation' check (status in ('pending_manual_reconciliation', 'resolved')),
+        resolution_notes text
+      );
+
+      insert into public.quotation_reconciliation_conflicts (
+        quotation_id, quotation_number, statutory_fee_total, statutory_fees_total
+      )
+      select id, quotation_number, statutory_fee_total, statutory_fees_total
+      from public.quotations
+      where coalesce(statutory_fee_total, 0.00) > 0.00
+        and coalesce(statutory_fees_total, 0.00) > 0.00
+        and statutory_fee_total <> statutory_fees_total;
+
+      raise notice 'Preserved % conflicting quotation statutory fee records in public.quotation_reconciliation_conflicts.', v_conflict_count;
+    end if;
+
+    -- Migrate values where singular is 0 and plural has data
     update public.quotations
-    set statutory_fee_total = coalesce(statutory_fees_total, 0.00)
+    set statutory_fee_total = statutory_fees_total
     where coalesce(statutory_fee_total, 0.00) = 0.00 
       and coalesce(statutory_fees_total, 0.00) > 0.00;
 
-    -- Drop the duplicate plural column safely
+    -- Safely drop duplicate plural column
     alter table public.quotations drop column statutory_fees_total;
   end if;
 end $$;
@@ -410,11 +443,14 @@ create index if not exists idx_expense_alloc_expense on public.expense_receipt_a
 create index if not exists idx_expense_alloc_payment on public.expense_receipt_allocations(payment_id);
 
 -- 5.2 Allocation Audit Logs Table (Immutable Audit Ledger)
+-- Preserves audit history even if parent expenses or payments are deleted.
 create table if not exists public.expense_allocation_audit_logs (
   id uuid primary key default gen_random_uuid(),
   allocation_id uuid,
-  expense_id uuid not null references public.expenses(id) on delete cascade,
-  payment_id uuid not null references public.payments(id) on delete cascade,
+  expense_id uuid references public.expenses(id) on delete set null,
+  payment_id uuid references public.payments(id) on delete set null,
+  historical_expense_id uuid not null,
+  historical_payment_id uuid not null,
   action text not null check (action in ('allocated', 'amount_modified', 'deallocated')),
   previous_amount numeric(14,2) not null default 0.00,
   new_amount numeric(14,2) not null default 0.00,
@@ -423,7 +459,8 @@ create table if not exists public.expense_allocation_audit_logs (
   created_at timestamptz not null default now()
 );
 
-create index if not exists idx_allocation_audit_exp on public.expense_allocation_audit_logs(expense_id, created_at desc);
+create index if not exists idx_allocation_audit_exp on public.expense_allocation_audit_logs(historical_expense_id, created_at desc);
+create index if not exists idx_allocation_audit_pay on public.expense_allocation_audit_logs(historical_payment_id, created_at desc);
 
 -- 5.3 Concurrency-Safe Database Function to Prevent Expense Over-Allocation
 -- Uses row-level lock (FOR UPDATE) to serialize concurrent allocations against the same expense
@@ -434,13 +471,18 @@ declare
   v_current_total numeric(14,2);
   v_payment_rec record;
 begin
-  -- 1. Verify existence of referenced payment (receipt)
-  select id, amount, is_verified into v_payment_rec
+  -- 1. Verify existence and verification status of referenced payment (receipt)
+  select id, amount, is_verified, receipt_number into v_payment_rec
   from public.payments
   where id = NEW.payment_id;
 
   if not found then
     raise exception 'Associated client payment (receipt) not found.';
+  end if;
+
+  if not coalesce(v_payment_rec.is_verified, false) then
+    raise exception 'Cannot allocate expenses to unverified receipt (%). Receipts must be verified by Accounts Officer before expense allocation.',
+      coalesce(v_payment_rec.receipt_number, NEW.payment_id::text);
   end if;
 
   -- 2. Concurrency Lock: Lock the parent expense row FOR UPDATE to prevent race conditions
@@ -476,6 +518,7 @@ create trigger trg_validate_expense_allocation
   for each row execute function public.validate_expense_allocation_cap();
 
 -- 5.4 Automated Allocation Audit Log Trigger Function
+-- Purely separates TG_OP handling to avoid touching NEW during DELETE
 create or replace function public.log_expense_allocation_audit()
 returns trigger as $$
 declare
@@ -487,6 +530,7 @@ declare
   v_alloc_id uuid;
   v_exp_id uuid;
   v_pay_id uuid;
+  v_performed_by uuid;
 begin
   -- Resolve acting staff from authenticated session
   select id into v_staff_id 
@@ -502,6 +546,7 @@ begin
     v_alloc_id := NEW.id;
     v_exp_id := NEW.expense_id;
     v_pay_id := NEW.payment_id;
+    v_performed_by := coalesce(v_staff_id, NEW.created_by);
   elsif (TG_OP = 'UPDATE') then
     v_action := 'amount_modified';
     v_prev_amount := OLD.allocated_amount;
@@ -510,6 +555,7 @@ begin
     v_alloc_id := NEW.id;
     v_exp_id := NEW.expense_id;
     v_pay_id := NEW.payment_id;
+    v_performed_by := coalesce(v_staff_id, NEW.created_by, OLD.created_by);
   elsif (TG_OP = 'DELETE') then
     v_action := 'deallocated';
     v_prev_amount := OLD.allocated_amount;
@@ -518,12 +564,15 @@ begin
     v_alloc_id := OLD.id;
     v_exp_id := OLD.expense_id;
     v_pay_id := OLD.payment_id;
+    v_performed_by := coalesce(v_staff_id, OLD.created_by);
   end if;
 
   insert into public.expense_allocation_audit_logs (
     allocation_id,
     expense_id,
     payment_id,
+    historical_expense_id,
+    historical_payment_id,
     action,
     previous_amount,
     new_amount,
@@ -534,11 +583,13 @@ begin
     v_alloc_id,
     v_exp_id,
     v_pay_id,
+    v_exp_id,
+    v_pay_id,
     v_action,
     v_prev_amount,
     v_new_amount,
     v_reason,
-    coalesce(v_staff_id, NEW.created_by, OLD.created_by),
+    v_performed_by,
     now()
   );
 
@@ -550,6 +601,33 @@ drop trigger if exists trg_log_expense_allocation_audit on public.expense_receip
 create trigger trg_log_expense_allocation_audit
   after insert or update or delete on public.expense_receipt_allocations
   for each row execute function public.log_expense_allocation_audit();
+
+-- 5.5 Validate Expense Amount Changes (Prevent reducing expense amount below already allocated totals)
+create or replace function public.validate_expense_amount_reduction()
+returns trigger as $$
+declare
+  v_allocated_total numeric(14,2);
+begin
+  if NEW.amount is distinct from OLD.amount then
+    -- Lock allocation rows for this expense to serialize concurrent allocations
+    select coalesce(sum(allocated_amount), 0) into v_allocated_total
+    from public.expense_receipt_allocations
+    where expense_id = NEW.id;
+
+    if NEW.amount < v_allocated_total then
+      raise exception 'Cannot reduce expense amount to ₦% because ₦% has already been allocated to verified receipts. Reduce receipt allocations first.',
+        NEW.amount, v_allocated_total;
+    end if;
+  end if;
+
+  return NEW;
+end;
+$$ language plpgsql security definer set search_path = public, pg_temp;
+
+drop trigger if exists trg_validate_expense_amount_reduction on public.expenses;
+create trigger trg_validate_expense_amount_reduction
+  before update of amount on public.expenses
+  for each row execute function public.validate_expense_amount_reduction();
 
 
 -- ==============================================================================
@@ -718,17 +796,14 @@ create policy "Accounts and Admin can delete expense allocations"
   using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'accounts_officer')));
 
 -- 6.7 Allocation Audit Logs Policies (Append-only immutable audit trail)
--- Ordinary users CANNOT update or delete audit records. Inserts handled by security definer trigger.
+-- Ordinary users CANNOT update, delete, or insert audit records directly via client API.
+-- All inserts are performed exclusively by the SECURITY DEFINER trigger.
+revoke insert, update, delete on public.expense_allocation_audit_logs from authenticated, anon, public;
+
 drop policy if exists "Authorized staff can view allocation audit logs" on public.expense_allocation_audit_logs;
 create policy "Authorized staff can view allocation audit logs"
   on public.expense_allocation_audit_logs
   for select
   using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'accounts_officer')));
-
-drop policy if exists "System and finance officers can insert allocation audit logs" on public.expense_allocation_audit_logs;
-create policy "System and finance officers can insert allocation audit logs"
-  on public.expense_allocation_audit_logs
-  for insert
-  with check (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'accounts_officer')));
 
 commit;

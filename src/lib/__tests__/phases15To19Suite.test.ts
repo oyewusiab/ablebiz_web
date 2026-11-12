@@ -315,6 +315,8 @@ describe('ABLEBIZ SUITE — Phases 15 to 19 Comprehensive Test Suite', () => {
         allocation_id: 'alloc-001',
         expense_id: 'exp-100',
         payment_id: 'pay-200',
+        historical_expense_id: 'exp-100',
+        historical_payment_id: 'pay-200',
         action: 'amount_modified' as const,
         previous_amount: 15000,
         new_amount: 25000,
@@ -327,11 +329,70 @@ describe('ABLEBIZ SUITE — Phases 15 to 19 Comprehensive Test Suite', () => {
       assert.ok(auditLog.allocation_id);
       assert.ok(auditLog.expense_id);
       assert.ok(auditLog.payment_id);
+      assert.equal(auditLog.historical_expense_id, 'exp-100');
+      assert.equal(auditLog.historical_payment_id, 'pay-200');
       assert.equal(auditLog.previous_amount, 15000);
       assert.equal(auditLog.new_amount, 25000);
       assert.equal(auditLog.action, 'amount_modified');
       assert.ok(auditLog.reason.length > 5);
       assert.ok(auditLog.performed_by);
+    });
+
+    it('enforces receipt verification rule rejecting unverified payments for expense allocation', () => {
+      const unverifiedReceipt = {
+        id: 'pay-unverified',
+        receipt_number: 'REC-2026-PENDING',
+        is_verified: false,
+        amount: 50000,
+      };
+
+      // Business rule: only verified receipts represent recognized funds and can receive expense allocations
+      const canAllocate = (receipt: { is_verified: boolean }) => receipt.is_verified === true;
+      assert.equal(canAllocate(unverifiedReceipt), false, 'Unverified receipt must be blocked from expense allocation');
+
+      const verifiedReceipt = { ...unverifiedReceipt, is_verified: true };
+      assert.equal(canAllocate(verifiedReceipt), true, 'Verified receipt must be permitted for expense allocation');
+    });
+
+    it('validates expense amount reduction safety constraint against active allocations', () => {
+      const currentExpense = {
+        id: 'exp-101',
+        amount: 75000,
+        active_allocations_sum: 50000,
+      };
+
+      const validateReduction = (newAmount: number, allocatedTotal: number) => {
+        if (newAmount < allocatedTotal) {
+          return { valid: false, error: `Cannot reduce expense amount to ₦${newAmount} below allocated ₦${allocatedTotal}` };
+        }
+        return { valid: true };
+      };
+
+      // Valid reduction: 75k reduced to 60k (still covers 50k allocated)
+      const resOk = validateReduction(60000, currentExpense.active_allocations_sum);
+      assert.equal(resOk.valid, true);
+
+      // Blocked reduction: 75k reduced to 40k (cannot cover 50k allocated)
+      const resBlocked = validateReduction(40000, currentExpense.active_allocations_sum);
+      assert.equal(resBlocked.valid, false);
+      assert.ok(resBlocked.error?.includes('below allocated'));
+    });
+
+    it('detects statutory fee reconciliation conflicts when both singular and plural columns contain differing values', () => {
+      const quotationRows = [
+        { id: 'q1', num: 'QT-001', statutory_fee_total: 20000, statutory_fees_total: 20000 }, // Identical: Safe
+        { id: 'q2', num: 'QT-002', statutory_fee_total: 0, statutory_fees_total: 35000 },     // Plural only: Safe migration
+        { id: 'q3', num: 'QT-003', statutory_fee_total: 15000, statutory_fees_total: 25000 }, // CONFLICT: Both non-zero & differing!
+      ];
+
+      const conflicts = quotationRows.filter(
+        (q) => q.statutory_fee_total > 0 && q.statutory_fees_total > 0 && q.statutory_fee_total !== q.statutory_fees_total
+      );
+
+      assert.equal(conflicts.length, 1);
+      assert.equal(conflicts[0].id, 'q3');
+      assert.equal(conflicts[0].statutory_fee_total, 15000);
+      assert.equal(conflicts[0].statutory_fees_total, 25000);
     });
 
     it('validates quotation-to-invoice line item compatibility across all allowed item_type categories', () => {

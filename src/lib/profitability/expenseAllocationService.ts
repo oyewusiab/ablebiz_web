@@ -200,6 +200,7 @@ export async function fetchReceiptProfitabilityReport(filters?: {
           expense:expenses(id, category, description)
         )
       `)
+      .eq('is_verified', true)
       .order('payment_date', { ascending: false });
 
     if (filters?.startDate) {
