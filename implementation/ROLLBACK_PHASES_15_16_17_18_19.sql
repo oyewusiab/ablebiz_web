@@ -22,13 +22,11 @@ alter table public.campaigns
   drop column if exists ad_spend_ngn;
 
 alter table public.quotation_items
-  drop column if exists item_type,
   drop column if exists statutory_fee,
   drop column if exists internal_cost;
 
 alter table public.quotations
   drop constraint if exists fk_quotations_approval_request,
-  drop column if exists statutory_fees_total,
   drop column if exists internal_cost_total,
   drop column if exists margin_amount,
   drop column if exists margin_percentage,

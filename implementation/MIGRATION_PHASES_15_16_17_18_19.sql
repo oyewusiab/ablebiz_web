@@ -216,8 +216,11 @@ insert into public.service_bundles (
 on conflict (bundle_code) do nothing;
 
 -- 3.2 Extend quotations table with margins, statutory fees, approval references, conversion tracking
+-- Note: statutory_fee_total (singular) matches existing canonical schema from earlier phases
+alter table public.quotations drop column if exists statutory_fees_total;
+
 alter table public.quotations 
-  add column if not exists statutory_fees_total numeric(14,2) not null default 0.00,
+  add column if not exists statutory_fee_total numeric(14,2) not null default 0.00,
   add column if not exists internal_cost_total numeric(14,2) not null default 0.00,
   add column if not exists margin_amount numeric(14,2) not null default 0.00,
   add column if not exists margin_percentage numeric(5,2) not null default 0.00,
@@ -251,9 +254,59 @@ create index if not exists idx_quotations_converted_inv on public.quotations(con
 
 -- 3.3 Extend quotation_items table with item_type, statutory fee & internal cost breakdown
 alter table public.quotation_items
-  add column if not exists item_type text not null default 'service' check (item_type in ('service', 'bundle', 'statutory_fee', 'addon')),
+  add column if not exists item_type text not null default 'professional_fee',
   add column if not exists statutory_fee numeric(14,2) not null default 0.00,
   add column if not exists internal_cost numeric(14,2) not null default 0.00;
+
+-- Update check constraint on quotation_items.item_type to permit service, bundle, addon, and legacy values
+do $$
+declare
+  r record;
+begin
+  if exists (
+    select 1 from information_schema.tables 
+    where table_schema = 'public' and table_name = 'quotation_items'
+  ) then
+    for r in (
+      select c.conname 
+      from pg_constraint c
+      where c.conrelid = 'public.quotation_items'::regclass 
+        and c.contype = 'c' 
+        and pg_get_constraintdef(c.oid) like '%item_type%'
+    ) loop
+      execute 'alter table public.quotation_items drop constraint if exists ' || quote_ident(r.conname);
+    end loop;
+
+    alter table public.quotation_items 
+      add constraint chk_quotation_items_item_type 
+      check (item_type in ('professional_fee', 'statutory_fee', 'service', 'bundle', 'addon', 'other'));
+  end if;
+end $$;
+
+-- Also update invoice_items.item_type check constraint to match for seamless quotation conversion
+do $$
+declare
+  r record;
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'invoice_items' and column_name = 'item_type'
+  ) then
+    for r in (
+      select c.conname 
+      from pg_constraint c
+      where c.conrelid = 'public.invoice_items'::regclass 
+        and c.contype = 'c' 
+        and pg_get_constraintdef(c.oid) like '%item_type%'
+    ) loop
+      execute 'alter table public.invoice_items drop constraint if exists ' || quote_ident(r.conname);
+    end loop;
+
+    alter table public.invoice_items 
+      add constraint chk_invoice_items_item_type 
+      check (item_type in ('professional_fee', 'statutory_fee', 'service', 'bundle', 'addon', 'other'));
+  end if;
+end $$;
 
 
 -- ==============================================================================
@@ -369,8 +422,8 @@ create policy "Staff can view and update their own notification preferences"
   on public.staff_notification_preferences
   for all
   using (
-    staff_id in (select id from public.staff_profiles where auth_user_id = auth.uid())
-    or exists (select 1 from public.staff_profiles where auth_user_id = auth.uid() and role in ('super_admin', 'admin'))
+    staff_id in (select id from public.staff_profiles where auth_uid = auth.uid())
+    or exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin'))
   );
 
 -- 6.2 Escalation Rules Policies (All active staff can view; admin/ops can manage)
@@ -378,70 +431,70 @@ drop policy if exists "Active staff can view escalation rules" on public.escalat
 create policy "Active staff can view escalation rules"
   on public.escalation_rules
   for select
-  using (exists (select 1 from public.staff_profiles where auth_user_id = auth.uid() and is_active = true));
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true));
 
 drop policy if exists "Management can configure escalation rules" on public.escalation_rules;
 create policy "Management can configure escalation rules"
   on public.escalation_rules
   for all
-  using (exists (select 1 from public.staff_profiles where auth_user_id = auth.uid() and role in ('super_admin', 'admin', 'operations_manager')));
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'operations_manager')));
 
 -- 6.3 Escalation Logs Policies
 drop policy if exists "Active staff can view escalation logs" on public.escalation_logs;
 create policy "Active staff can view escalation logs"
   on public.escalation_logs
   for select
-  using (exists (select 1 from public.staff_profiles where auth_user_id = auth.uid() and is_active = true));
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true));
 
 -- 6.4 Backup & Recovery Policies (Restricted to super_admin and admin)
 drop policy if exists "Admins can manage backup records" on public.backup_records;
 create policy "Admins can manage backup records"
   on public.backup_records
   for all
-  using (exists (select 1 from public.staff_profiles where auth_user_id = auth.uid() and role in ('super_admin', 'admin')));
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin')));
 
 drop policy if exists "Admins can manage restore drills" on public.restore_drills;
 create policy "Admins can manage restore drills"
   on public.restore_drills
   for all
-  using (exists (select 1 from public.staff_profiles where auth_user_id = auth.uid() and role in ('super_admin', 'admin')));
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin')));
 
 drop policy if exists "Admins can manage business continuity settings" on public.business_continuity_settings;
 create policy "Admins can manage business continuity settings"
   on public.business_continuity_settings
   for all
-  using (exists (select 1 from public.staff_profiles where auth_user_id = auth.uid() and role in ('super_admin', 'admin')));
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin')));
 
 -- 6.5 Service Bundles Policies (All active staff can read; operations/admin can manage)
 drop policy if exists "Active staff can view service bundles" on public.service_bundles;
 create policy "Active staff can view service bundles"
   on public.service_bundles
   for select
-  using (exists (select 1 from public.staff_profiles where auth_user_id = auth.uid() and is_active = true));
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and is_active = true));
 
 drop policy if exists "Operations and admin can manage service bundles" on public.service_bundles;
 create policy "Operations and admin can manage service bundles"
   on public.service_bundles
   for all
-  using (exists (select 1 from public.staff_profiles where auth_user_id = auth.uid() and role in ('super_admin', 'admin', 'operations_manager')));
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'operations_manager')));
 
 -- 6.6 Expense Receipt Allocations Policies (Finance & management)
 drop policy if exists "Authorized staff can view expense allocations" on public.expense_receipt_allocations;
 create policy "Authorized staff can view expense allocations"
   on public.expense_receipt_allocations
   for select
-  using (exists (select 1 from public.staff_profiles where auth_user_id = auth.uid() and role in ('super_admin', 'admin', 'accounts_officer', 'operations_manager')));
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'accounts_officer', 'operations_manager')));
 
 drop policy if exists "Accounts and Admin can manage expense allocations" on public.expense_receipt_allocations;
 create policy "Accounts and Admin can manage expense allocations"
   on public.expense_receipt_allocations
   for all
-  using (exists (select 1 from public.staff_profiles where auth_user_id = auth.uid() and role in ('super_admin', 'admin', 'accounts_officer')));
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'accounts_officer')));
 
 drop policy if exists "Authorized staff can view allocation audit logs" on public.expense_allocation_audit_logs;
 create policy "Authorized staff can view allocation audit logs"
   on public.expense_allocation_audit_logs
   for select
-  using (exists (select 1 from public.staff_profiles where auth_user_id = auth.uid() and role in ('super_admin', 'admin', 'accounts_officer')));
+  using (exists (select 1 from public.staff_profiles where auth_uid = auth.uid() and role::text in ('super_admin', 'admin', 'accounts_officer')));
 
 commit;

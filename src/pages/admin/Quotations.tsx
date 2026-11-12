@@ -411,7 +411,7 @@ export function QuotationsPage() {
           discount_amount: financials.discount_amount,
           tax_amount: financials.tax_amount,
           total_amount: financials.total_amount,
-          statutory_fees_total: financials.statutory_fees_total,
+          statutory_fee_total: financials.statutory_fees_total,
           internal_cost_total: financials.internal_cost_total,
           margin_amount: financials.margin_amount,
           margin_percentage: financials.margin_percentage,
